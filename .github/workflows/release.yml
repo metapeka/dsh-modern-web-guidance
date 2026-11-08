@@ -62,7 +62,6 @@ jobs:
           cp "$(ls dsh-modern-web-guidance-*.tgz)" dsh-modern-web-guidance.tgz
 
       - name: Attach the tarball to the release
-        if: inputs.dry_run == false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
