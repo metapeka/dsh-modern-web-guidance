@@ -1,0 +1,71 @@
+name: release
+
+# Manual only. Everything it needs is an OIDC identity: no npm token, no repository secret.
+# Configure the trusted publisher once on npmjs.com (package Settings -> Trusted publishing):
+#   repository metapeka/dsh-modern-web-guidance, workflow release.yml, environment empty.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and attach the tarball, but do not publish to npm
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # create the GitHub release and upload the tarball
+  id-token: write # OIDC token for `npm publish --provenance`
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm 11.5 or newer; the runner ships npm 10 with node 22.
+      - name: Use an npm that supports trusted publishing
+        run: npm install --global npm@11
+
+      # The same gate the tests workflow runs: never publish something unverified.
+      - run: npm test
+
+      - name: Read the version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version is already on the registry
+        id: registry
+        run: |
+          if npm view "dsh-modern-web-guidance@${{ steps.version.outputs.value }}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        if: steps.registry.outputs.published == 'false' && inputs.dry_run == false
+        run: npm publish --provenance --access public
+
+      - name: Build the tarball
+        run: |
+          npm pack
+          cp "$(ls dsh-modern-web-guidance-*.tgz)" dsh-modern-web-guidance.tgz
+
+      - name: Attach the tarball to the release
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${{ steps.version.outputs.value }}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --generate-notes
+          gh release upload "$tag" dsh-modern-web-guidance.tgz --clobber
