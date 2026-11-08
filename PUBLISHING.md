@@ -98,9 +98,21 @@ Rules that apply to this submission, from the catalog's `contributing.md`:
   This package is not document rendering (`docs`) and not browser control (`browser`); it ships
   two skills and three tools. A near miss is re-filed by a maintainer rather than bounced.
 - **`icon:` must be a GitHub-hosted raster image** (`png`/`jpg`/`jpeg`/`webp`) — SVG is refused,
-  and the field is optional. This repo ships `icon.svg` for the CLI/plugin surface; the prepared
-  entry omits `icon:`, so marketplaces fall back to the owner avatar. To get the custom icon on
-  the tile, export a square PNG (~180–512 px) to `assets/icon-180.png` and uncomment the line.
+  and the field is optional. This repo ships both: `icon.svg` for the plugin surface (`package.json`
+  `icon`) and `icon.png`, its 512×512 rasterisation, for the marketplace. `market/…yml` points
+  `icon:` at the raw GitHub URL of the PNG; keep the file path stable, since the URL breaks if the
+  file moves or the branch is renamed, and it stays a 404 until the repo is public. Regenerate
+  from the repo root with headless Chrome (a fresh `--user-data-dir` each time: a stale profile
+  lock makes Chrome exit silently without writing the file):
+
+  ```shell
+  chrome --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+    --default-background-color=00000000 --window-size=512,512 \
+    --user-data-dir="$(mktemp -d)" --screenshot="$PWD/icon.png" "$PWD/market/icon-512.html"
+  ```
+
+  where `market/icon-512.html` renders `icon.svg` at exactly 512×512 on a transparent background,
+  so the SVG's rounded corners stay transparent in the PNG.
 - **Screenshots are optional and declared in *this* repo**, not in the PR: a `screenshots.json`
   next to `package.json` listing 1–8 repo-relative image paths. Absolute URLs are accepted only
   on GitHub hosting.
