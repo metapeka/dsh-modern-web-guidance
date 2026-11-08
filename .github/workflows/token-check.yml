@@ -1,0 +1,40 @@
+name: token check
+
+# Temporary diagnostic: does the NPM_TOKEN secret authenticate, as whom, and does it carry
+# bypass-2FA? Prints no secret material — only the account name and token metadata.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Who am I
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "token length: ${#NODE_AUTH_TOKEN}"
+          echo "token prefix: ${NODE_AUTH_TOKEN:0:8}"
+          npm whoami || echo "whoami failed with $?"
+
+      - name: Token metadata
+        env:
+          TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "--- /-/whoami"
+          curl -s -o /tmp/whoami.json -w 'status=%{http_code}\n' \
+            -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/whoami
+          cat /tmp/whoami.json; echo
+          echo "--- /-/npm/v1/tokens (classic)"
+          curl -s -o /tmp/tokens.json -w 'status=%{http_code}\n' \
+            -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/tokens
+          head -c 2000 /tmp/tokens.json; echo
