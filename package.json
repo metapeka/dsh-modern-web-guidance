@@ -1,16 +1,18 @@
 {
   "name": "dsh-modern-web-guidance",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Modern web platform guidance for DeepSeek Harness agents: Google Chrome's 193-guide catalog with offline search and retrieve tools, plus a Chrome extensions (MV3) skill.",
   "type": "module",
   "license": "Apache-2.0",
   "exports": {
     ".": "./index.js",
+    "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "files": [
     "index.js",
+    "client.js",
     "lib",
     "data",
     "locale",
@@ -26,6 +28,15 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "slots",
+        "locale",
+        "remote"
+      ]
     }
   },
   "engines": {

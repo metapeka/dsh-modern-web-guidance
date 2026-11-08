@@ -57,3 +57,11 @@ _Avoid_: unused guide, orphan, zero-hit guide
 **Report**:
 The human-facing summary of counters over one period, produced by the plugin's command.
 _Avoid_: dashboard, metrics page
+
+## Panel
+
+**Panel**:
+A read-only view the plugin contributes to the Harness Web UI — today exactly one, Guidance Insights,
+opened from the left rail. It draws the same counters the report prints, as a screen: it never
+changes a counter, calls no tool and reaches no network. The report stays the text form.
+_Avoid_: dashboard, widget, tab
