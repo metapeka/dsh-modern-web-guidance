@@ -94,6 +94,11 @@ gh pr create --title "Add metapeka/dsh-modern-web-guidance" \
 
 Rules that apply to this submission, from the catalog's `contributing.md`:
 
+- **The repository must be at least one day old.** This one was created `2026-11-08 01:55 UTC`,
+  so a submission before `2026-11-09 01:55 UTC` breaks a documented rule and gets sent back. The
+  branch is prepared and pushed to the fork as `metapeka:add-dsh-modern-web-guidance`; open the PR
+  after that moment — the CI itself (`pr-check.yml`) does not check repo age, a maintainer does.
+
 - **One file, at most 3 entries per PR.** Generated `README.md` / `README.zh.md` must not be
   edited by hand — they are regenerated on `main` after merge.
 - **`description.en` is the only required field.** `zh` is optional; a maintainer fills it in.
