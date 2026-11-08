@@ -8,14 +8,23 @@ licensed under the Apache License, Version 2.0.
 
 Bundled without modification:
   - data/guides.json and data/guides/**/*.md — the Modern Web Guidance use-case corpus
-    (version 0.0.197, skill version 2026_10_30-58d055df)
+    (version 0.0.197, skill version 2026_10_30-58d055df). One upstream file,
+    data/guides/built-in-ai/prompt-api.md, is not shipped: it was a byte-identical duplicate of
+    language-model.md and is absent from the upstream index, so the corpus is 193 files for 193
+    index entries.
   - data/skills/chrome-extensions/** — the Chrome extensions skill
     (skill version 2026_08_06-8570fe7c)
 
 Adapted:
   - data/skills/modern-web-guidance/SKILL.md — rewritten for this plugin: it instructs
     the agent to call the plugin's local tools instead of the upstream `npx` CLI, and it
-    drops the upstream CLI/telemetry sections. The guidance content itself is unchanged.
+    drops the upstream CLI workflow and network-approval sections. The guidance content itself
+    is unchanged. The file carries an in-header modification notice.
+  - Cross-references inside the guide bodies are rewritten at load time, not on disk: the 121
+    occurrences of `npx -y modern-web-guidance@latest retrieve "id"` across 45 guides become
+    `web_guidance_retrieve({"ids":["id"]})`, so a retrieved guide never tells an agent to fetch and
+    execute an unpinned remote package. The markdown files keep matching the pinned upstream
+    snapshot byte for byte.
 
 Removed: the upstream `modern-web-guidance` CLI (search.mjs, modern-web.mjs), the bundled
 TensorFlow.js MiniLM embedder, the usage-vectors file, and the Google Clearcut telemetry

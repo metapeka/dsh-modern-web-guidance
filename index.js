@@ -67,8 +67,20 @@ function renderRetrieve(_args, value) {
     parts.push(`--- Guide for ${guide.id} ---\n\n${guide.content.trim()}`)
   }
   const unknown = value?.unknown ?? []
+  const unknownCount = Number(value?.unknownCount ?? unknown.length)
   if (unknown.length > 0) {
-    parts.push(`Unknown guide id(s): ${unknown.join(', ')}. Use web_guidance_search or web_guidance_list to find valid ids.`)
+    const more = unknownCount > unknown.length ? ` (and ${unknownCount - unknown.length} more)` : ''
+    parts.push(`Unknown guide id(s): ${unknown.join(', ')}${more}. Use web_guidance_search or web_guidance_list to find valid ids.`)
+  }
+  const skipped = value?.skipped ?? []
+  if (skipped.length > 0) {
+    const limits = value?.limits ?? {}
+    const maxGuides = limits.maxGuides ?? 10
+    parts.push([
+      `Not returned in this call (limit: ${maxGuides} guides / ${Math.round((limits.maxChars ?? 120000) / 1000)}k characters):`,
+      `${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? `, and ${skipped.length - 10} more` : ''}.`,
+      'Request them in a separate call if you still need them.',
+    ].join(' '))
   }
   if (parts.length === 0) parts.push('No guide content was returned.')
   return textBlock(parts.join('\n\n'))
@@ -77,9 +89,13 @@ function renderRetrieve(_args, value) {
 function renderList(args, value) {
   const categories = value?.categories ?? []
   if (Array.isArray(value?.guides)) {
+    if (value.guides.length === 0) {
+      const known = categories.length > 0 ? `Known categories: ${categories.join(', ')}.` : ''
+      return textBlock(`No guide has category "${String(args?.category ?? '')}". ${known}`.trim())
+    }
     const lines = value.guides.map((guide) => `- ${guide.id}: ${guide.title} — ${guide.description}`)
     return textBlock([
-      `${value.guides.length} guide(s) in category "${String(args?.category ?? '')}":`,
+      `${value.guides.length} guide(s) in category "${String(value.category ?? args?.category ?? '')}":`,
       ...lines,
     ].join('\n'))
   }
@@ -98,9 +114,13 @@ function buildSearchTool(guidance) {
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '2-5 action-oriented words describing one web capability, e.g. "light dismiss dialog".' },
-        limit: { type: 'number', description: 'Maximum results, 1-25. Default 8.' },
-        category: { type: 'string', description: 'Optional category filter, e.g. "css" or "ui-behaviors".' },
+        query: {
+          type: 'string',
+          maxLength: 512,
+          description: '2-5 action-oriented words describing one web capability, e.g. "light dismiss dialog".',
+        },
+        limit: { type: 'number', minimum: 1, maximum: 25, description: 'Maximum results, 1-25. Default 8.' },
+        category: { type: 'string', maxLength: 40, description: 'Optional category filter, e.g. "css" or "ui-behaviors".' },
       },
       required: ['query'],
       additionalProperties: false,
@@ -126,10 +146,10 @@ function buildRetrieveTool(guidance) {
       properties: {
         ids: {
           oneOf: [
-            { type: 'string', description: 'One id, or several ids joined by commas.' },
-            { type: 'array', items: { type: 'string' }, description: 'Guide ids to load.' },
+            { type: 'string', maxLength: 900, description: 'One id, or several ids joined by commas.' },
+            { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 80 }, description: 'Guide ids to load.' },
           ],
-          description: 'Guide id(s) returned by web_guidance_search.',
+          description: 'Guide id(s) returned by web_guidance_search. One call returns at most 10 guides; request more in another call.',
         },
       },
       required: ['ids'],
@@ -150,21 +170,27 @@ function buildListTool(guidance) {
     parameters: {
       type: 'object',
       properties: {
-        category: { type: 'string', description: 'Category to list. Omit for per-category counts.' },
+        category: { type: 'string', maxLength: 40, description: 'Category to list. Omit for per-category counts.' },
       },
       additionalProperties: false,
     },
     output: { schema: { type: 'object' }, render: renderList },
     async execute(args, exec) {
       exec?.signal?.throwIfAborted?.()
-      const all = await guidance.list({ category: args?.category })
-      if (args?.category === undefined || args?.category === '') {
+      const requested = typeof args?.category === 'string' ? args.category.trim() : ''
+      const all = await guidance.list({ category: requested })
+      if (requested === '') {
         const counts = new Map()
         for (const guide of all) counts.set(guide.category, (counts.get(guide.category) ?? 0) + 1)
         const categories = [...counts.entries()]
           .map(([category, count]) => ({ category, count }))
           .sort((left, right) => left.category.localeCompare(right.category))
         return { total: all.length, categories }
+      }
+      if (all.length === 0) {
+        // A wrong or misspelled category should not look like an empty catalog.
+        const known = [...new Set((await guidance.list({})).map((guide) => guide.category))].sort()
+        return { category: requested, guides: [], categories: known }
       }
       return {
         category: String(args.category),
