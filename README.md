@@ -220,7 +220,7 @@ The corpus is a pinned snapshot of upstream `modern-web-guidance@0.0.197`
 ## Development
 
 ```shell
-node --test test/
+npm test
 ```
 
 66 tests across seven files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
