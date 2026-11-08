@@ -1,0 +1,4 @@
+# Normalize line endings so the 200+ markdown guides don't churn between platforms.
+* text=auto eol=lf
+*.png binary
+*.tgz binary
