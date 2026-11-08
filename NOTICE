@@ -1,0 +1,22 @@
+dsh-modern-web-guidance
+Copyright 2026 the plugin authors
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This package bundles and adapts material from GoogleChrome/modern-web-guidance
+(https://github.com/GoogleChrome/modern-web-guidance), Copyright Google LLC,
+licensed under the Apache License, Version 2.0.
+
+Bundled without modification:
+  - data/guides.json and data/guides/**/*.md — the Modern Web Guidance use-case corpus
+    (version 0.0.197, skill version 2026_10_30-58d055df)
+  - data/skills/chrome-extensions/** — the Chrome extensions skill
+    (skill version 2026_08_06-8570fe7c)
+
+Adapted:
+  - data/skills/modern-web-guidance/SKILL.md — rewritten for this plugin: it instructs
+    the agent to call the plugin's local tools instead of the upstream `npx` CLI, and it
+    drops the upstream CLI/telemetry sections. The guidance content itself is unchanged.
+
+Removed: the upstream `modern-web-guidance` CLI (search.mjs, modern-web.mjs), the bundled
+TensorFlow.js MiniLM embedder, the usage-vectors file, and the Google Clearcut telemetry
+watchdog. This package performs local lexical search instead and sends no telemetry.

@@ -1,0 +1,4 @@
+- insert:
+    - id: modern-web-guidance
+      name: dsh-modern-web-guidance
+      config: {}

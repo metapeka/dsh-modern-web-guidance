@@ -1,0 +1,58 @@
+{
+  "name": "dsh-modern-web-guidance",
+  "version": "0.1.0",
+  "description": "Modern web platform guidance for DeepSeek Harness agents: Google Chrome's 193-guide catalog with offline search and retrieve tools, plus a Chrome extensions (MV3) skill.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "data",
+    "locale",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.0-rc.1 <0.3.0-0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "web",
+    "guidance",
+    "chrome",
+    "css",
+    "html",
+    "accessibility",
+    "best-practices",
+    "skills"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metapeka/dsh-modern-web-guidance.git"
+  },
+  "bugs": {
+    "url": "https://github.com/metapeka/dsh-modern-web-guidance/issues"
+  },
+  "homepage": "https://github.com/metapeka/dsh-modern-web-guidance#readme",
+  "icon": "icon.svg",
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
