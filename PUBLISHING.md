@@ -47,6 +47,9 @@ checks. What is missing is the repo itself.
       the host command registry (it shows up in the slash menu with its description) and its handler
       runs on a live instance: `--reset --yes` wrote the version-1 counters document to
       `<profile>/storage/modern-web-guidance/stats.json`.
+- [x] 0.3.0's panel verified live in a throwaway Web instance: the rail entry appears with its localized
+      label, the central panel opens, and Refresh rendered counters recorded by a real agent turn
+      (2 calls, 100% hit rate, full 17-category coverage table, 192 of 193 guides never retrieved).
 
 ## 1. Create the GitHub repo (done — created private, later flipped to public)
 
@@ -145,12 +148,13 @@ Constraints worth knowing:
 - The published `repository` field must point back at the repo listed in the entry. Ours does.
 - Do not add an `npm:` key to the entry — the mapping is picked up from the registry, and a
   hand-written one is rejected by the validator.
-- `package.json` `files` ships the runtime (`index.js`, `lib/`, `data/`, `locale/`) plus the three READMEs,
+- `package.json` `files` ships the runtime (`index.js`, `client.js`, `lib/`, `data/`, `locale/`) plus the three READMEs,
   `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI, the
   TFJS model and upstream's Clearcut telemetry are deliberately not included; neither are `docs/`,
-  `audit/`, `test/`, `market/`, `AGENTS.md` or this file. 0.2.0 adds no dev files: its usage counters are
-  runtime state in the profile, not package content. `npm pack --dry-run` lists exactly what ships:
-  237 files, 690 KB packed / 1.9 MB unpacked at 0.2.0.
+  `audit/`, `test/`, `market/`, `AGENTS.md` or this file. 0.2.0 adds no dev files (its usage counters are
+  runtime state in the profile, not package content), and 0.3.0 adds one hand-written `client.js` with no
+  build step. `npm pack --dry-run` lists exactly what ships:
+  238 files, 699 KB packed / 1.9 MB unpacked at 0.3.0.
 - **This machine cannot reach `registry.npmjs.org`** (ECONNRESET; the upstream tarball had to come
   from `registry.npmmirror.com`). Publish from a network that can, or let a CI workflow do it.
 

@@ -198,6 +198,23 @@ defaults to 90 days, and `--reset --yes` erases it.
 
 Turn it off: set `enabled: false` in the plugin config — no listener is registered and no file is written.
 
+## Sidebar panel
+
+0.3.0 adds a client half: a guidance icon in the left rail opens **Guidance Insights** in the central area. It shows
+the same counters `/guidance-stats` prints, as a view:
+
+- total calls and hit rate for the last 7 days
+- the most frequent queries, with hit and miss counts
+- category coverage — retrieved guides against the 193 in the corpus
+- the queries that found nothing
+- how many guides were never retrieved
+
+A single refresh control re-reads the counters; there is nothing else to press.
+
+The panel is read-only. It never changes a counter, never leaves the machine, and adds no network calls and no new
+tools — the same three tools stay exactly three. `/guidance-stats` remains the text and `--json` version for the
+terminal and for the agent; the panel is that report as a view.
+
 ## Configuration
 
 The plugin needs no configuration to work. It registers its tools and skills on the host context and is inert when the
