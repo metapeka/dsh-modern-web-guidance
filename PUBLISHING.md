@@ -33,6 +33,8 @@ checks. What is missing is the repo itself.
       `dsh-modern-web-guidance`.
 - [x] Real working code: 3 tools, 2 skills, 193 guides, 66 tests (`node --test test/`, or each
       `test/*.test.mjs` file directly where child processes are blocked).
+- [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
+      `npm pack --dry-run` on every push and PR, so it guards both the suite and the package contents.
 - [x] 0.2.0 adds local usage counters and the human `/guidance-stats` command: counts are written to the
       profile's durable storage, nothing leaves the machine, and the plugin still makes no network calls.
       The published tarball gains no dev files — the counters are runtime state, not package content.
