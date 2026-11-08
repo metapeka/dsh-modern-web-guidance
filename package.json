@@ -56,6 +56,7 @@
   "homepage": "https://github.com/metapeka/dsh-modern-web-guidance#readme",
   "icon": "icon.svg",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "prepublishOnly": "npm test"
   }
 }

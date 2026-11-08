@@ -130,6 +130,10 @@ npm publish            # or: npm publish --registry=https://registry.npmjs.org
 
 Constraints worth knowing:
 
+- **The publication gate is `package.json` `files`, not the git branch.** `AGENTS.md`, `docs/`,
+  `audit/`, `test/`, `market/` and this file are dev-only: they live on `main` so agents and the
+  skills can read them, and they never enter the tarball. Do not move them to a branch to keep
+  the package clean — verify with `npm pack --dry-run`, which lists exactly what ships.
 - The published `repository` field must point back at the repo listed in the entry. Ours does.
 - Do not add an `npm:` key to the entry — the mapping is picked up from the registry, and a
   hand-written one is rejected by the validator.

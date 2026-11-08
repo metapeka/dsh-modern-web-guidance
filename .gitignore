@@ -4,6 +4,7 @@ node_modules/
 .DS_Store
 Thumbs.db
 .tmp/
+.dsh-mattskillsdeck-cache/
 # Runtime fixtures written by the audit repros; they clean up after themselves on a normal run.
 audit/repro/**/tmpdata/
 audit/repro/security/outside-fixture.md
