@@ -12,4 +12,4 @@ The five canonical triage roles, using their default label strings (`needs-triag
 
 ### Domain docs
 
-Multi-context: one `GLOSSARY.md` per subproject, with `GLOSSARY-MAP.md` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. See `docs/agents/domain.md`.

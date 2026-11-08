@@ -11,6 +11,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createGuidance } from './lib/guidance.js'
+import { renderJson, renderReport } from './lib/report.js'
+import { createFileStore, defaultStatePath } from './lib/store.js'
+import { classifyCall, createTelemetry } from './lib/telemetry.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(here, 'data')
@@ -239,13 +242,200 @@ const SKILL_DEFINITIONS = [
   },
 ]
 
+/** The three tools the counters track, and the short names the report prints. */
+const TRACKED_TOOLS = new Map([
+  ['web_guidance_search', 'search'],
+  ['web_guidance_retrieve', 'retrieve'],
+  ['web_guidance_list', 'list'],
+])
+
+/** Defaults for the counters; the plugin row can override both. */
+const DEFAULT_RETENTION_DAYS = 90
+const DEFAULT_PERIOD_DAYS = 7
+
+/** How long a burst of calls is coalesced into one write of the counters document. */
+const SAVE_DEBOUNCE_MS = 2000
+
+/**
+ * The corpus identity recorded in `data/corpus.json`; the refresh procedure updates it together
+ * with the guides, so the report can say which snapshot the numbers describe.
+ * @returns {{ version: string, snapshotDate: string }}
+ */
+function readCorpusMeta() {
+  try {
+    const meta = JSON.parse(readFileSync(join(DATA_DIR, 'corpus.json'), 'utf8'))
+    return {
+      version: typeof meta.version === 'string' ? meta.version : 'unknown',
+      snapshotDate: typeof meta.snapshotDate === 'string' ? meta.snapshotDate : 'unknown',
+    }
+  } catch {
+    return { version: 'unknown', snapshotDate: 'unknown' }
+  }
+}
+
+/**
+ * Catalog metadata the report needs: per-category totals, the id list, and which category each
+ * guide belongs to, so coverage counts guides rather than search hits.
+ * @returns {object}
+ */
+function readCatalog() {
+  const guides = JSON.parse(readFileSync(join(DATA_DIR, 'guides.json'), 'utf8'))
+  const byCategory = Object.create(null)
+  const categoryOf = Object.create(null)
+  const ids = []
+  for (const guide of guides) {
+    const id = String(guide.id ?? '')
+    if (id === '') continue
+    const category = String(guide.category ?? 'uncategorised')
+    ids.push(id)
+    categoryOf[id] = category
+    byCategory[category] = (byCategory[category] ?? 0) + 1
+  }
+  const meta = readCorpusMeta()
+  return { total: ids.length, byCategory, categoryOf, ids, ...meta }
+}
+
+/**
+ * Parse a `/guidance-stats` line. Anything unparsable falls back to the default period, because a
+ * malformed argument should still show the report rather than an error.
+ * @param {string} line raw arguments after the command name.
+ * @returns {{ days: number, json: boolean, reset: boolean, yes: boolean }}
+ */
+function parseStatsArguments(line) {
+  const text = String(line ?? '')
+  const matched = text.match(/--days(?:\s+|=)(\d+)/)
+  const days = matched === null ? DEFAULT_PERIOD_DAYS : Number(matched[1])
+  return {
+    days: Number.isFinite(days) && days > 0 ? Math.min(Math.floor(days), 3650) : DEFAULT_PERIOD_DAYS,
+    json: /--json\b/.test(text),
+    reset: /--reset\b/.test(text),
+    yes: /--yes\b/.test(text),
+  }
+}
+
+/**
+ * The human command that reads the counters. It never becomes a tool: the numbers serve the
+ * maintainer, not the model.
+ * @param {object} telemetry counters instance from `lib/telemetry.js`.
+ * @returns {object} a CommandDefinition.
+ */
+function buildStatsCommand(telemetry) {
+  return {
+    name: 'guidance-stats',
+    description: 'Local usage counters for the guidance tools: calls, outcomes, missed queries, category coverage and dead guides.',
+    input: { hint: '[--days N] [--json] [--reset --yes]' },
+    recordInput: false,
+    async handler(invocation) {
+      try {
+        const options = parseStatsArguments(invocation?.rawInput)
+        if (options.reset) {
+          const before = await telemetry.snapshot({ days: options.days })
+          const calls = before?.totals?.calls ?? 0
+          if (!options.yes) {
+            return { kind: 'success', text: `This would erase counters covering ${calls} call(s). Re-run /guidance-stats --reset --yes to erase them.` }
+          }
+          await telemetry.reset()
+          return { kind: 'success', text: `Erased local usage counters (${calls} call(s) in the last ${options.days} day(s)). Tool behaviour is unchanged.` }
+        }
+
+        const snapshot = await telemetry.snapshot({ days: options.days })
+        const text = options.json
+          ? JSON.stringify(renderJson(snapshot), null, 2)
+          : renderReport(snapshot)
+        return { kind: 'success', text }
+      } catch (error) {
+        return { kind: 'error', text: `Usage stats are unavailable: ${error instanceof Error ? error.message : String(error)}` }
+      }
+    },
+  }
+}
+
+/**
+ * Start the local counters: subscribe to finished tool calls, persist them on a short debounce, and
+ * register the human command. Counting is best-effort by design — a broken counter must never
+ * change what a tool returns.
+ * @param {import('@deepseek-ai/cordis').Context} ctx host plugin context.
+ * @param {{ enabled?: boolean, retentionDays?: number }} config plugin row configuration.
+ * @returns {void}
+ */
+function startUsageCounters(ctx, config) {
+  if (config?.enabled === false) return
+  // A bare test context has no event bus; without it there is nothing to count.
+  if (typeof ctx.on !== 'function') return
+
+  let telemetry
+  try {
+    telemetry = createTelemetry({
+      store: createFileStore({ file: defaultStatePath() }),
+      clock: () => Date.now(),
+      retentionDays: Number.isFinite(config?.retentionDays) ? config.retentionDays : DEFAULT_RETENTION_DAYS,
+      ringLimit: 1000,
+      catalog: readCatalog(),
+    })
+  } catch {
+    return
+  }
+
+  const save = () => Promise.resolve(telemetry.flush()).catch(() => {})
+  let pending
+
+  ctx.effect(() => {
+    const onResult = (exec, result) => {
+      const tool = TRACKED_TOOLS.get(exec?.name)
+      if (tool === undefined) return
+
+      let entry
+      try {
+        const isError = result?.isError === true
+        entry = classifyCall({
+          tool: exec.name,
+          args: exec.arguments,
+          value: isError ? undefined : result?.value,
+          isError,
+        })
+      } catch {
+        return
+      }
+
+      void Promise.resolve()
+        .then(() => telemetry.record({ at: Date.now(), tool, ...entry }))
+        .catch(() => {})
+
+      if (pending === undefined) {
+        pending = setTimeout(() => {
+          pending = undefined
+          void save()
+        }, SAVE_DEBOUNCE_MS)
+        pending.unref?.()
+      }
+    }
+
+    ctx.on('tools/result', onResult)
+    return () => {
+      ctx.off?.('tools/result', onResult)
+      if (pending !== undefined) {
+        clearTimeout(pending)
+        pending = undefined
+      }
+      void save()
+    }
+  }, 'modern-web-guidance usage counters')
+
+  const commands = typeof ctx.get === 'function' ? ctx.get('commands') : undefined
+  if (commands !== undefined && commands !== null && typeof commands.register === 'function') {
+    const definition = buildStatsCommand(telemetry)
+    ctx.effect(() => commands.register(definition), 'modern-web-guidance /guidance-stats')
+  }
+}
+
 export const inject = ['skills', 'tools']
 
 /**
- * Register the guidance tools and skills.
+ * Register the guidance tools and skills, then start the local usage counters.
  * @param {import('@deepseek-ai/cordis').Context} ctx host plugin context.
+ * @param {{ enabled?: boolean, retentionDays?: number }} [config] plugin row configuration.
  */
-export function apply(ctx) {
+export function apply(ctx, config = {}) {
   const guidance = createGuidance({ dataDir: DATA_DIR })
   // Warm the index in the background; a failed warm-up is retried by the first tool call.
   void guidance.ready().catch(() => {})
@@ -274,6 +464,8 @@ export function apply(ctx) {
       `modern-web-guidance skill ${definition.name}`,
     )
   }
+
+  startUsageCounters(ctx, config)
 }
 
 export const name = 'modern-web-guidance'

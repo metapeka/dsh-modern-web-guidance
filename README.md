@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  193 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · no telemetry
+  193 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · local counters only
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="package.json"><img alt="Dependencies" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
-  <a href="#security-and-limits"><img alt="Telemetry" src="https://img.shields.io/badge/telemetry-none-brightgreen"></a>
+  <a href="#security-and-limits"><img alt="Telemetry" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
   <img alt="Guides" src="https://img.shields.io/badge/guides-193-2563eb">
   <img alt="DSH plugin" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>
@@ -34,8 +34,8 @@ curated, token-efficient guides in front of the agent, plus an offline search to
 platform API (native `<dialog>`/popover, anchor positioning, container queries, view transitions, scroll-driven
 effects, `:has()`, passkeys, `fetchpriority`, …) instead of a JavaScript workaround or a library.
 
-Everything runs locally: the guides ship inside the package, search is computed in-process, no network calls and no
-telemetry.
+Everything runs locally: the guides ship inside the package, search is computed in-process, and there are no network
+calls. Usage counters do exist in 0.2.0, but they never leave the machine — see [Usage stats](#usage-stats).
 
 ## What you get
 
@@ -153,8 +153,9 @@ sections, and states the trust boundary — retrieved guides are reference mater
 The corpus is third-party text that ends up in a model's context, and tool arguments come from that model, so both
 sides are bounded:
 
-- **No network, no execution, no writes.** The plugin imports only `node:fs` read APIs, `node:path` and `node:url`; it
-  has no dependencies and no lifecycle scripts, so nothing is fetched or run at install time.
+- **No network, no execution, one local write.** The plugin imports only local `node:fs`, `node:path` and `node:url`; it
+  has no dependencies and no lifecycle scripts, so nothing is fetched or run at install time. The only file it writes is
+  its own counters file (see [Usage stats](#usage-stats)).
 - **Guides cannot smuggle commands.** Upstream's guide bodies cross-reference each other with
   `npx -y modern-web-guidance@latest retrieve "…"` (121 occurrences in 45 guides). Those references are rewritten to
   `web_guidance_retrieve({"ids":["…"]})` when the index loads, so nothing a model reads from the catalog asks it to
@@ -173,10 +174,34 @@ Both properties are covered by `test/hardening.test.mjs`, which fails on the pre
 reports plus runnable repros — lives in [`audit/`](audit/), and the repro scripts under `audit/repro/` exit non-zero
 while a defect is live.
 
+## Usage stats
+
+0.2.0 records what the three tools are actually asked for. The counters are local: no endpoint, no analytics service, no
+third-party SDK, and nothing leaves the machine.
+
+The report is a human slash command, not a tool the agent can call:
+
+```text
+/guidance-stats                 per-tool totals for the last 7 days
+/guidance-stats --days 30       a wider window
+/guidance-stats --json          the same report as JSON
+/guidance-stats --reset --yes   erase everything
+```
+
+`--days N` defaults to 7. What is counted: calls per tool, outcomes (hit, miss, unknown id, list, error), per-day
+counts, per-category hit counts, per-guide retrieve counts, and the last 1000 calls with their query text and returned
+ids. Misses are the point — a count of misses that cannot be reproduced cannot be fixed.
+
+Where it lives: the profile's durable storage, the same trust boundary that already holds session logs. Retention
+defaults to 90 days, and `--reset --yes` erases it.
+
+Turn it off: set `enabled: false` in the plugin config — no listener is registered and no file is written.
+
 ## Configuration
 
-The plugin takes no configuration. It registers its tools and skills on the host context and is inert when the profile
-has no `tools` or `skills` service.
+The plugin needs no configuration to work. It registers its tools and skills on the host context and is inert when the
+profile has no `tools` or `skills` service. The one setting is `enabled` on the plugin row: `false` turns the local
+counters off (see [Usage stats](#usage-stats)).
 
 ## Updating the guide corpus
 
@@ -197,10 +222,11 @@ The corpus is a pinned snapshot of upstream `modern-web-guidance@0.0.197`
 node --test test/
 ```
 
-26 tests across three files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+66 tests across seven files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` covers tool and skill registration against a mocked Cordis context; `hardening.test.mjs` covers the
-audit findings and fails on the pre-hardening code. In a sandbox that forbids child processes, run the files directly
-(`node test/hardening.test.mjs`).
+audit findings and fails on the pre-hardening code; `telemetry.test.mjs`, `report.test.mjs`, `store.test.mjs` and
+`stats.test.mjs` cover the usage counters, their report, the durable store and the `/guidance-stats` wiring. In a
+sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
 
 ## Publishing
 

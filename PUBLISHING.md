@@ -31,8 +31,11 @@ checks. What is missing is the repo itself.
       other half-manifest.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
-- [x] Real working code: 3 tools, 2 skills, 193 guides, 26 tests (`node test/guidance.test.mjs`,
-      `node test/plugin.test.mjs`, `node test/hardening.test.mjs`).
+- [x] Real working code: 3 tools, 2 skills, 193 guides, 66 tests (`node --test test/`, or each
+      `test/*.test.mjs` file directly where child processes are blocked).
+- [x] 0.2.0 adds local usage counters and the human `/guidance-stats` command: counts are written to the
+      profile's durable storage, nothing leaves the machine, and the plugin still makes no network calls.
+      The published tarball gains no dev files — the counters are runtime state, not package content.
 - [x] `license: Apache-2.0`, `LICENSE` + `NOTICE` with upstream attribution.
 - [x] No `@deepseek-ai/*` dependencies at all — nothing to move into `peerDependencies`, and no
       prerelease peer range that could silently exclude harness `-rc` builds.
@@ -137,8 +140,12 @@ Constraints worth knowing:
 - The published `repository` field must point back at the repo listed in the entry. Ours does.
 - Do not add an `npm:` key to the entry — the mapping is picked up from the registry, and a
   hand-written one is rejected by the validator.
-- `package.json` `files` ships 230 files / 571 KB packed / 1.73 MB unpacked — the guides are the
-  payload, and the upstream CLI, TFJS model and telemetry are deliberately not included.
+- `package.json` `files` ships the runtime (`index.js`, `lib/`, `data/`, `locale/`) plus the three READMEs,
+  `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI, the
+  TFJS model and upstream's Clearcut telemetry are deliberately not included; neither are `docs/`,
+  `audit/`, `test/`, `market/`, `AGENTS.md` or this file. 0.2.0 adds no dev files: its usage counters are
+  runtime state in the profile, not package content. `npm pack --dry-run` lists exactly what ships and
+  how big it is.
 - **This machine cannot reach `registry.npmjs.org`** (ECONNRESET; the upstream tarball had to come
   from `registry.npmmirror.com`). Publish from a network that can, or let a CI workflow do it.
 

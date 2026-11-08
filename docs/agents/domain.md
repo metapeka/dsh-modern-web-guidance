@@ -2,31 +2,27 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-## Layout: multi-context
+## Layout: single-context
 
-This repo uses the **multi-context** layout: one `GLOSSARY.md` per context (subproject), plus a `GLOSSARY-MAP.md` at the repo root that points at them.
+This repo uses the **single-context** layout: one `GLOSSARY.md` and one `docs/adr/` at the repo root. It ships a single package, so there is no per-context split.
 
 ```
 /
-├── GLOSSARY-MAP.md
+├── GLOSSARY.md
 ├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── GLOSSARY.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── GLOSSARY.md
-        └── docs/adr/
+├── index.js
+├── lib/
+└── data/
 ```
 
-No glossary or ADR file exists yet. They are created lazily by `/domain-modeling` when the first term or decision is actually resolved; this repo's setup deliberately left them uncreated. When the first per-context glossary entry is written, that context's `GLOSSARY.md` gets created, and the root `GLOSSARY-MAP.md` gets created at the same time to point at every context glossary that exists.
+`GLOSSARY.md` exists and is maintained by `/domain-modeling`. `docs/adr/` is created lazily, when the first decision deserves a record.
 
 ## Before exploring, read these
 
-- **`GLOSSARY-MAP.md`** at the repo root if it exists: it points at one `GLOSSARY.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In this multi-context repo, also check the context's own `docs/adr/` for context-scoped decisions.
+- **`GLOSSARY.md`** at the repo root: the project's domain vocabulary. Use these terms, and don't drift to the words it lists under `_Avoid_`.
+- **`docs/adr/`**: read ADRs that touch the area you're about to work in.
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+If a file in this list doesn't exist, **proceed silently**. Don't flag its absence; don't suggest creating it upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates ADRs lazily when a decision actually gets resolved.
 
 ## Use the glossary's vocabulary
 
@@ -38,4 +34,4 @@ If the concept you need isn't in the glossary yet, that's a signal: either you'r
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+> _Contradicts ADR-0001 (local telemetry), but worth reopening because…_

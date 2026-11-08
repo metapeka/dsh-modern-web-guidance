@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  193 篇带 Baseline 降级方案的指南 · 3 个工具 · 2 个技能 · 零依赖 · 无遥测
+  193 篇带 Baseline 降级方案的指南 · 3 个工具 · 2 个技能 · 零依赖 · 仅本地统计
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="package.json"><img alt="依赖" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
-  <a href="#安全与边界"><img alt="遥测" src="https://img.shields.io/badge/telemetry-none-brightgreen"></a>
+  <a href="#安全与边界"><img alt="遥测" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
   <img alt="指南" src="https://img.shields.io/badge/guides-193-2563eb">
   <img alt="DSH 插件" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>
@@ -33,7 +33,8 @@
 指南放到智能体面前，并提供离线检索，让它优先使用当前平台 API（原生 `<dialog>`/popover、锚点定位、容器查询、视图
 过渡、滚动驱动效果、`:has()`、passkey、`fetchpriority` 等），而不是自己写 JavaScript 变通方案或引入库。
 
-一切都本地运行：指南随包分发，检索在进程内计算，没有网络请求，也没有遥测。
+一切都本地运行：指南随包分发，检索在进程内计算，没有网络请求。0.2.0 里有使用统计，但它不离开这台机器 ——
+见[使用统计](#使用统计)。
 
 ## 你得到什么
 
@@ -144,8 +145,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 语料是要进入模型上下文的第三方文本，而工具参数又来自该模型，所以两边都设了边界：
 
-- **无网络、无执行、无写入。** 插件只导入 `node:fs` 的读取 API、`node:path` 和 `node:url`；没有依赖，也没有
-  lifecycle 脚本，因此安装时不会下载或运行任何东西。
+- **无网络、无执行，只有一次本地写入。** 插件只导入本地的 `node:fs`、`node:path` 和 `node:url`；没有依赖，也没有
+  lifecycle 脚本，因此安装时不会下载或运行任何东西。它唯一写入的文件是自己的计数文件（见[使用统计](#使用统计)）。
 - **指南里夹带不了命令。** 上游指南正文之间用
   `npx -y modern-web-guidance@latest retrieve "…"` 互相引用（121 处，分布在 45 篇指南里）。建立索引时这些引用会被
   改写成 `web_guidance_retrieve({"ids":["…"]})`，所以模型从目录里读到的内容不会要求它安装并执行一个未锁定版本的
@@ -162,9 +163,32 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 这两类性质由 `test/hardening.test.mjs` 覆盖，该文件在加固前的代码上会失败。完整审计 —— 三份报告与可运行的复现
 脚本 —— 位于 [`audit/`](audit/)；只要缺陷仍然存在，`audit/repro/` 下的脚本就会以非零码退出。
 
+## 使用统计
+
+0.2.0 记录三个工具到底被问了什么。计数只在本地：没有上报端点、没有分析服务、没有第三方 SDK，任何东西都不离开这台
+机器。
+
+查看用的是给人用的斜杠命令，不是智能体能调用的工具：
+
+```text
+/guidance-stats                 最近 7 天按工具的汇总
+/guidance-stats --days 30       更大的时间窗口
+/guidance-stats --json          同样的报告，JSON 格式
+/guidance-stats --reset --yes   全部清除
+```
+
+`--days N` 默认为 7。统计内容：各工具调用次数、结果分布（hit、miss、unknown id、list、error）、按天计数、各分类
+命中次数、各指南被取回次数，以及最近 1000 次调用携带的查询文本和返回的 id。未命中的查询才是重点 —— 无法复现的
+未命中就无法修复。
+
+存放位置：profile 的持久存储，也就是本来就存会话日志的那层信任边界。默认保留 90 天，`--reset --yes` 会立即清空。
+
+关闭方式：在插件配置里设 `enabled: false` —— 此时不注册监听，也不写文件。
+
 ## 配置
 
-插件不需要配置。它把工具与技能注册到宿主上下文；如果 profile 没有 `tools` 或 `skills` 服务，它就保持静默。
+插件不需要配置就能工作。它把工具与技能注册到宿主上下文；如果 profile 没有 `tools` 或 `skills` 服务，它就保持
+静默。唯一的设置是插件配置里的 `enabled`：设为 `false` 就关闭本地统计（见[使用统计](#使用统计)）。
 
 ## 更新指南语料
 
@@ -183,9 +207,10 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 node --test test/
 ```
 
-三个文件共 26 个测试：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；`plugin.test.mjs` 用模拟的 Cordis
-上下文覆盖工具与技能注册；`hardening.test.mjs` 覆盖审计发现，并在加固前的代码上失败。在禁止子进程的沙箱里，请
-直接运行文件（`node test/hardening.test.mjs`）。
+七个文件共 66 个测试：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；`plugin.test.mjs` 用模拟的 Cordis
+上下文覆盖工具与技能注册；`hardening.test.mjs` 覆盖审计发现，并在加固前的代码上失败；`telemetry.test.mjs`、
+`report.test.mjs`、`store.test.mjs` 和 `stats.test.mjs` 覆盖使用统计、报告渲染、持久存储与
+`/guidance-stats` 接线。在禁止子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 
 ## 发布
 
