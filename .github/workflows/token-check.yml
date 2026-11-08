@@ -1,7 +1,6 @@
 name: token check
 
-# Temporary diagnostic: does the NPM_TOKEN secret authenticate, as whom, and does it carry
-# bypass-2FA? Prints no secret material — only the account name and token metadata.
+# Temporary diagnostic. Prints no secret material: account name, token metadata, 2FA state.
 on:
   workflow_dispatch:
 
@@ -12,6 +11,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -19,28 +20,33 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Who am I
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "token length: ${#NODE_AUTH_TOKEN}"
           echo "token prefix: ${NODE_AUTH_TOKEN:0:8}"
           npm whoami || echo "whoami failed with $?"
 
       - name: Token metadata
-        env:
-          TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "--- /-/whoami"
-          curl -s -o /tmp/whoami.json -w 'status=%{http_code}\n' \
-            -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/whoami
-          cat /tmp/whoami.json; echo
-          echo "--- /-/npm/v1/tokens (classic)"
-          curl -s -o /tmp/tokens.json -w 'status=%{http_code}\n' \
-            -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/tokens
-          head -c 2000 /tmp/tokens.json; echo
-      - name: Account 2FA state
-        env:
-          TOKEN: ${{ secrets.NPM_TOKEN }}
+          curl -s -H "Authorization: Bearer $NODE_AUTH_TOKEN" https://registry.npmjs.org/-/npm/v1/tokens \
+            > /tmp/tokens.json
+          node -e '
+            const doc = JSON.parse(require("fs").readFileSync("/tmp/tokens.json", "utf8"));
+            for (const t of doc.objects ?? []) {
+              console.log(JSON.stringify({
+                name: t.name,
+                bypass_2fa: t.bypass_2fa,
+                expiry: t.expiry,
+                permissions: t.permissions,
+              }));
+            }
+          '
+
+      - name: Account profile and 2FA
         run: |
-          curl -s -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/user \
-            | jq '{tfa, tfa_configured: (.tfa != null and .tfa != false)}'
+          npm profile get --json > /tmp/profile.json || echo "profile get failed: $?"
+          node -e '
+            const raw = require("fs").readFileSync("/tmp/profile.json", "utf8").trim();
+            if (raw === "") { console.log("empty profile response"); process.exit(0); }
+            const p = JSON.parse(raw);
+            console.log(JSON.stringify({ tfa: p.tfa ?? null, tfa_mode: p.tfa_mode ?? null, name: p.name ?? null }));
+          '
