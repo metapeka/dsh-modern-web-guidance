@@ -66,3 +66,12 @@ jobs:
           npm view dsh-modern-web-guidance dist-tags --prefer-online --json 2>&1 | head -c 300; echo
           echo "--- staged queue"
           npm stage list 2>&1 | head -c 600; echo
+
+      - name: Staged queue (npm 11)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install --global npm@11 >/dev/null 2>&1
+          npm --version
+          npm stage list 2>&1 | head -c 800; echo
+          npm view dsh-modern-web-guidance versions --prefer-online --json 2>&1 | head -c 300; echo
