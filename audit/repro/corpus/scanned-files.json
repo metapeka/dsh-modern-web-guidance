@@ -1,0 +1,1182 @@
+[
+  {
+    "rel": "LICENSE",
+    "bytes": 11560,
+    "lines": 203
+  },
+  {
+    "rel": "NOTICE",
+    "bytes": 1153,
+    "lines": 23
+  },
+  {
+    "rel": "PUBLISHING.md",
+    "bytes": 8946,
+    "lines": 160
+  },
+  {
+    "rel": "README.md",
+    "bytes": 5389,
+    "lines": 118
+  },
+  {
+    "rel": "cordis.patch.yml",
+    "bytes": 93,
+    "lines": 5
+  },
+  {
+    "rel": "data/guides.json",
+    "bytes": 72103,
+    "lines": 2052
+  },
+  {
+    "rel": "data/guides/accessibility/accessibility.md",
+    "bytes": 51700,
+    "lines": 586
+  },
+  {
+    "rel": "data/guides/accessibility/accessible-error-announcement.md",
+    "bytes": 7200,
+    "lines": 209
+  },
+  {
+    "rel": "data/guides/accessibility/accessible-generated-content.md",
+    "bytes": 2215,
+    "lines": 42
+  },
+  {
+    "rel": "data/guides/accessibility/respect-os-text-scale.md",
+    "bytes": 7224,
+    "lines": 128
+  },
+  {
+    "rel": "data/guides/built-in-ai/language-detection.md",
+    "bytes": 3658,
+    "lines": 92
+  },
+  {
+    "rel": "data/guides/built-in-ai/language-model.md",
+    "bytes": 16697,
+    "lines": 369
+  },
+  {
+    "rel": "data/guides/built-in-ai/summarizer.md",
+    "bytes": 6099,
+    "lines": 157
+  },
+  {
+    "rel": "data/guides/built-in-ai/translator.md",
+    "bytes": 7402,
+    "lines": 190
+  },
+  {
+    "rel": "data/guides/css/animate-to-intrinsic-sizes.md",
+    "bytes": 5463,
+    "lines": 129
+  },
+  {
+    "rel": "data/guides/css/atrule-support-conditionals.md",
+    "bytes": 5799,
+    "lines": 149
+  },
+  {
+    "rel": "data/guides/css/calculate-with-intrinsic-sizes.md",
+    "bytes": 9944,
+    "lines": 200
+  },
+  {
+    "rel": "data/guides/css/child-state-based-styling.md",
+    "bytes": 4971,
+    "lines": 104
+  },
+  {
+    "rel": "data/guides/css/content-based-styling.md",
+    "bytes": 5341,
+    "lines": 121
+  },
+  {
+    "rel": "data/guides/css/css-layout.md",
+    "bytes": 21396,
+    "lines": 318
+  },
+  {
+    "rel": "data/guides/css/css.md",
+    "bytes": 12546,
+    "lines": 251
+  },
+  {
+    "rel": "data/guides/css/design-token-reactivity.md",
+    "bytes": 5922,
+    "lines": 177
+  },
+  {
+    "rel": "data/guides/css/dynamic-sibling-styling.md",
+    "bytes": 3689,
+    "lines": 98
+  },
+  {
+    "rel": "data/guides/css/fluid-scaling.md",
+    "bytes": 3095,
+    "lines": 81
+  },
+  {
+    "rel": "data/guides/css/individual-transform-properties.md",
+    "bytes": 3693,
+    "lines": 95
+  },
+  {
+    "rel": "data/guides/css/overflow-clipping-control.md",
+    "bytes": 8248,
+    "lines": 181
+  },
+  {
+    "rel": "data/guides/css/reduce-style-repetition.md",
+    "bytes": 4011,
+    "lines": 88
+  },
+  {
+    "rel": "data/guides/css/responsive-design.md",
+    "bytes": 1439,
+    "lines": 17
+  },
+  {
+    "rel": "data/guides/css/selector-atrule-combinations.md",
+    "bytes": 3650,
+    "lines": 151
+  },
+  {
+    "rel": "data/guides/css/size-aware-styling.md",
+    "bytes": 2993,
+    "lines": 107
+  },
+  {
+    "rel": "data/guides/css/style-parent-with-has.md",
+    "bytes": 6190,
+    "lines": 201
+  },
+  {
+    "rel": "data/guides/css/usage-aware-component-variations.md",
+    "bytes": 5270,
+    "lines": 109
+  },
+  {
+    "rel": "data/guides/forms/animated-select-picker.md",
+    "bytes": 8116,
+    "lines": 180
+  },
+  {
+    "rel": "data/guides/forms/autofill-address-form.md",
+    "bytes": 4866,
+    "lines": 83
+  },
+  {
+    "rel": "data/guides/forms/autofill-highlight-inputs.md",
+    "bytes": 2320,
+    "lines": 46
+  },
+  {
+    "rel": "data/guides/forms/autofill-payment-form.md",
+    "bytes": 9827,
+    "lines": 139
+  },
+  {
+    "rel": "data/guides/forms/autofill-sign-in-form.md",
+    "bytes": 10540,
+    "lines": 142
+  },
+  {
+    "rel": "data/guides/forms/autofill-sign-up-form.md",
+    "bytes": 11772,
+    "lines": 152
+  },
+  {
+    "rel": "data/guides/forms/brand-consistent-forms.md",
+    "bytes": 8513,
+    "lines": 256
+  },
+  {
+    "rel": "data/guides/forms/branded-select-styling.md",
+    "bytes": 5742,
+    "lines": 116
+  },
+  {
+    "rel": "data/guides/forms/custom-select-picker-layouts.md",
+    "bytes": 7573,
+    "lines": 167
+  },
+  {
+    "rel": "data/guides/forms/form-fields-automatically-fit-contents.md",
+    "bytes": 6042,
+    "lines": 122
+  },
+  {
+    "rel": "data/guides/forms/forms.md",
+    "bytes": 15093,
+    "lines": 381
+  },
+  {
+    "rel": "data/guides/forms/ime-safe-enter-submit.md",
+    "bytes": 6440,
+    "lines": 116
+  },
+  {
+    "rel": "data/guides/forms/required-field-feedback.md",
+    "bytes": 6961,
+    "lines": 215
+  },
+  {
+    "rel": "data/guides/forms/rich-media-picker.md",
+    "bytes": 6822,
+    "lines": 134
+  },
+  {
+    "rel": "data/guides/forms/select-menu-interaction.md",
+    "bytes": 5573,
+    "lines": 179
+  },
+  {
+    "rel": "data/guides/forms/slider.md",
+    "bytes": 6692,
+    "lines": 183
+  },
+  {
+    "rel": "data/guides/forms/sms-otp-form.md",
+    "bytes": 12806,
+    "lines": 209
+  },
+  {
+    "rel": "data/guides/forms/switch.md",
+    "bytes": 2595,
+    "lines": 61
+  },
+  {
+    "rel": "data/guides/forms/validate-input-after-interaction.md",
+    "bytes": 8823,
+    "lines": 259
+  },
+  {
+    "rel": "data/guides/html/accessible-web-components.md",
+    "bytes": 5239,
+    "lines": 62
+  },
+  {
+    "rel": "data/guides/html/custom-elements.md",
+    "bytes": 9472,
+    "lines": 123
+  },
+  {
+    "rel": "data/guides/html/form-associated-custom-elements.md",
+    "bytes": 4245,
+    "lines": 74
+  },
+  {
+    "rel": "data/guides/html/html.md",
+    "bytes": 17935,
+    "lines": 410
+  },
+  {
+    "rel": "data/guides/html/prerendering-custom-elements.md",
+    "bytes": 3679,
+    "lines": 65
+  },
+  {
+    "rel": "data/guides/html/shadow-dom.md",
+    "bytes": 3922,
+    "lines": 80
+  },
+  {
+    "rel": "data/guides/html/styling-web-components.md",
+    "bytes": 8891,
+    "lines": 131
+  },
+  {
+    "rel": "data/guides/html/web-components.md",
+    "bytes": 6732,
+    "lines": 51
+  },
+  {
+    "rel": "data/guides/js/calculate-event-differentials.md",
+    "bytes": 8465,
+    "lines": 118
+  },
+  {
+    "rel": "data/guides/js/capture-location-agnostic-data.md",
+    "bytes": 9882,
+    "lines": 150
+  },
+  {
+    "rel": "data/guides/js/coordinate-global-events.md",
+    "bytes": 4045,
+    "lines": 80
+  },
+  {
+    "rel": "data/guides/js/sort-high-precision-timestamps.md",
+    "bytes": 6708,
+    "lines": 93
+  },
+  {
+    "rel": "data/guides/js/support-global-calendar-systems.md",
+    "bytes": 5961,
+    "lines": 104
+  },
+  {
+    "rel": "data/guides/performance/batch-analytics-events.md",
+    "bytes": 6594,
+    "lines": 155
+  },
+  {
+    "rel": "data/guides/performance/break-up-long-tasks.md",
+    "bytes": 2239,
+    "lines": 63
+  },
+  {
+    "rel": "data/guides/performance/calculate-total-foreground-time.md",
+    "bytes": 2978,
+    "lines": 70
+  },
+  {
+    "rel": "data/guides/performance/conditional-async-dependencies.md",
+    "bytes": 5418,
+    "lines": 75
+  },
+  {
+    "rel": "data/guides/performance/defer-rendering-heavy-content.md",
+    "bytes": 6418,
+    "lines": 107
+  },
+  {
+    "rel": "data/guides/performance/defer-work-until-scroll-ends.md",
+    "bytes": 3382,
+    "lines": 79
+  },
+  {
+    "rel": "data/guides/performance/deliver-optimized-decorative-images.md",
+    "bytes": 2918,
+    "lines": 52
+  },
+  {
+    "rel": "data/guides/performance/deprioritize-background-fetches.md",
+    "bytes": 1870,
+    "lines": 38
+  },
+  {
+    "rel": "data/guides/performance/detect-initial-visibility-state.md",
+    "bytes": 4675,
+    "lines": 102
+  },
+  {
+    "rel": "data/guides/performance/efficient-background-processing.md",
+    "bytes": 5141,
+    "lines": 120
+  },
+  {
+    "rel": "data/guides/performance/faster-spa-view-transitions.md",
+    "bytes": 3733,
+    "lines": 83
+  },
+  {
+    "rel": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+    "bytes": 8671,
+    "lines": 169
+  },
+  {
+    "rel": "data/guides/performance/full-session-analytics.md",
+    "bytes": 5842,
+    "lines": 136
+  },
+  {
+    "rel": "data/guides/performance/identify-heavy-scripts.md",
+    "bytes": 4333,
+    "lines": 70
+  },
+  {
+    "rel": "data/guides/performance/identify-inp-causes.md",
+    "bytes": 8912,
+    "lines": 106
+  },
+  {
+    "rel": "data/guides/performance/improve-next-page-load-performance.md",
+    "bytes": 7337,
+    "lines": 122
+  },
+  {
+    "rel": "data/guides/performance/interaction-paint-timing.md",
+    "bytes": 11508,
+    "lines": 201
+  },
+  {
+    "rel": "data/guides/performance/interactions-in-complex-layouts.md",
+    "bytes": 3432,
+    "lines": 79
+  },
+  {
+    "rel": "data/guides/performance/lazy-load-video-and-audio.md",
+    "bytes": 9561,
+    "lines": 193
+  },
+  {
+    "rel": "data/guides/performance/optimize-image-priority.md",
+    "bytes": 4592,
+    "lines": 74
+  },
+  {
+    "rel": "data/guides/performance/optimize-preload-priority.md",
+    "bytes": 3357,
+    "lines": 42
+  },
+  {
+    "rel": "data/guides/performance/optimize-script-priority.md",
+    "bytes": 2650,
+    "lines": 39
+  },
+  {
+    "rel": "data/guides/performance/out-of-order-html-streaming.md",
+    "bytes": 8084,
+    "lines": 145
+  },
+  {
+    "rel": "data/guides/performance/performance.md",
+    "bytes": 21123,
+    "lines": 385
+  },
+  {
+    "rel": "data/guides/performance/resolution-optimized-pseudo-elements.md",
+    "bytes": 2378,
+    "lines": 49
+  },
+  {
+    "rel": "data/guides/performance/schedule-tasks-by-priority.md",
+    "bytes": 2315,
+    "lines": 62
+  },
+  {
+    "rel": "data/guides/privacy/privacy.md",
+    "bytes": 11213,
+    "lines": 248
+  },
+  {
+    "rel": "data/guides/pwa/migrate-web-app-origin.md",
+    "bytes": 3636,
+    "lines": 99
+  },
+  {
+    "rel": "data/guides/security/client-side-encryption.md",
+    "bytes": 15165,
+    "lines": 303
+  },
+  {
+    "rel": "data/guides/security/digital-signatures.md",
+    "bytes": 10172,
+    "lines": 236
+  },
+  {
+    "rel": "data/guides/security/local-network-access.md",
+    "bytes": 12618,
+    "lines": 193
+  },
+  {
+    "rel": "data/guides/security/passkey-authentication.md",
+    "bytes": 9904,
+    "lines": 206
+  },
+  {
+    "rel": "data/guides/security/passkey-conditional-create.md",
+    "bytes": 6715,
+    "lines": 135
+  },
+  {
+    "rel": "data/guides/security/passkey-management.md",
+    "bytes": 11796,
+    "lines": 237
+  },
+  {
+    "rel": "data/guides/security/passkey-reauthentication.md",
+    "bytes": 5055,
+    "lines": 129
+  },
+  {
+    "rel": "data/guides/security/passkey-registration.md",
+    "bytes": 9532,
+    "lines": 182
+  },
+  {
+    "rel": "data/guides/security/passkeys.md",
+    "bytes": 4511,
+    "lines": 40
+  },
+  {
+    "rel": "data/guides/security/quick-sign-ins.md",
+    "bytes": 16498,
+    "lines": 243
+  },
+  {
+    "rel": "data/guides/security/restrict-outbound-connections.md",
+    "bytes": 13361,
+    "lines": 170
+  },
+  {
+    "rel": "data/guides/security/sanitize-untrusted-html.md",
+    "bytes": 5745,
+    "lines": 106
+  },
+  {
+    "rel": "data/guides/security/secure-external-subresources.md",
+    "bytes": 14841,
+    "lines": 203
+  },
+  {
+    "rel": "data/guides/security/security.md",
+    "bytes": 29832,
+    "lines": 391
+  },
+  {
+    "rel": "data/guides/security/trusted-types.md",
+    "bytes": 7437,
+    "lines": 142
+  },
+  {
+    "rel": "data/guides/security/validate-origins.md",
+    "bytes": 13018,
+    "lines": 198
+  },
+  {
+    "rel": "data/guides/security/verify-email-ownership.md",
+    "bytes": 14874,
+    "lines": 236
+  },
+  {
+    "rel": "data/guides/ui-atoms/carousel-slide-effects.md",
+    "bytes": 8329,
+    "lines": 188
+  },
+  {
+    "rel": "data/guides/ui-atoms/component-specific-light-dark-theme.md",
+    "bytes": 9526,
+    "lines": 180
+  },
+  {
+    "rel": "data/guides/ui-atoms/icons.md",
+    "bytes": 18080,
+    "lines": 291
+  },
+  {
+    "rel": "data/guides/ui-atoms/position-aware-tooltips.md",
+    "bytes": 6948,
+    "lines": 158
+  },
+  {
+    "rel": "data/guides/ui-atoms/pull-to-reveal.md",
+    "bytes": 4811,
+    "lines": 84
+  },
+  {
+    "rel": "data/guides/ui-atoms/responsive-table.md",
+    "bytes": 4256,
+    "lines": 122
+  },
+  {
+    "rel": "data/guides/ui-atoms/scroll-position-aware-elements.md",
+    "bytes": 3718,
+    "lines": 132
+  },
+  {
+    "rel": "data/guides/ui-atoms/scroll-progress-indicator.md",
+    "bytes": 6918,
+    "lines": 134
+  },
+  {
+    "rel": "data/guides/ui-atoms/scrollability-affordance-hints.md",
+    "bytes": 3779,
+    "lines": 127
+  },
+  {
+    "rel": "data/guides/ui-atoms/shrinking-header-on-scroll.md",
+    "bytes": 6516,
+    "lines": 127
+  },
+  {
+    "rel": "data/guides/ui-atoms/state-aware-sticky-headers.md",
+    "bytes": 6429,
+    "lines": 140
+  },
+  {
+    "rel": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+    "bytes": 7209,
+    "lines": 135
+  },
+  {
+    "rel": "data/guides/ui-behaviors/2d-panning.md",
+    "bytes": 9118,
+    "lines": 152
+  },
+  {
+    "rel": "data/guides/ui-behaviors/anchor-positioning-tab-underline.md",
+    "bytes": 3026,
+    "lines": 99
+  },
+  {
+    "rel": "data/guides/ui-behaviors/animate-element-entry-exit.md",
+    "bytes": 7814,
+    "lines": 193
+  },
+  {
+    "rel": "data/guides/ui-behaviors/animate-to-from-top-layer.md",
+    "bytes": 10285,
+    "lines": 241
+  },
+  {
+    "rel": "data/guides/ui-behaviors/carousel-snap-highlights.md",
+    "bytes": 5855,
+    "lines": 139
+  },
+  {
+    "rel": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+    "bytes": 14282,
+    "lines": 260
+  },
+  {
+    "rel": "data/guides/ui-behaviors/cross-document-transitions.md",
+    "bytes": 4555,
+    "lines": 129
+  },
+  {
+    "rel": "data/guides/ui-behaviors/custom-button-actions.md",
+    "bytes": 8239,
+    "lines": 181
+  },
+  {
+    "rel": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+    "bytes": 10523,
+    "lines": 233
+  },
+  {
+    "rel": "data/guides/ui-behaviors/directional-navigation-transitions.md",
+    "bytes": 5026,
+    "lines": 129
+  },
+  {
+    "rel": "data/guides/ui-behaviors/drag.md",
+    "bytes": 4864,
+    "lines": 85
+  },
+  {
+    "rel": "data/guides/ui-behaviors/dynamic-sibling-animations.md",
+    "bytes": 2682,
+    "lines": 54
+  },
+  {
+    "rel": "data/guides/ui-behaviors/group-element-transitions.md",
+    "bytes": 5158,
+    "lines": 127
+  },
+  {
+    "rel": "data/guides/ui-behaviors/highlight-text-ranges.md",
+    "bytes": 5574,
+    "lines": 131
+  },
+  {
+    "rel": "data/guides/ui-behaviors/interactive-content-reveal.md",
+    "bytes": 5218,
+    "lines": 121
+  },
+  {
+    "rel": "data/guides/ui-behaviors/interest-triggered-action-previews.md",
+    "bytes": 4981,
+    "lines": 93
+  },
+  {
+    "rel": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+    "bytes": 9517,
+    "lines": 179
+  },
+  {
+    "rel": "data/guides/ui-behaviors/light-dismiss-a-dialog.md",
+    "bytes": 3693,
+    "lines": 87
+  },
+  {
+    "rel": "data/guides/ui-behaviors/motion.md",
+    "bytes": 5189,
+    "lines": 102
+  },
+  {
+    "rel": "data/guides/ui-behaviors/move-dom-element-without-losing-state.md",
+    "bytes": 2634,
+    "lines": 59
+  },
+  {
+    "rel": "data/guides/ui-behaviors/parallax-scroll-effects.md",
+    "bytes": 9064,
+    "lines": 231
+  },
+  {
+    "rel": "data/guides/ui-behaviors/persistent-top-layer-ui.md",
+    "bytes": 2345,
+    "lines": 50
+  },
+  {
+    "rel": "data/guides/ui-behaviors/physics-based-easing.md",
+    "bytes": 5954,
+    "lines": 121
+  },
+  {
+    "rel": "data/guides/ui-behaviors/platform-controls-dismiss-dialog.md",
+    "bytes": 2680,
+    "lines": 40
+  },
+  {
+    "rel": "data/guides/ui-behaviors/prevent-page-scroll-under-modal-dialog.md",
+    "bytes": 5089,
+    "lines": 59
+  },
+  {
+    "rel": "data/guides/ui-behaviors/same-document-transitions.md",
+    "bytes": 8485,
+    "lines": 178
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scoped-component-transitions.md",
+    "bytes": 12024,
+    "lines": 230
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scroll-completion-effects.md",
+    "bytes": 6793,
+    "lines": 98
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scroll-entry-exit-effects.md",
+    "bytes": 8052,
+    "lines": 174
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scroll-snap-realtime-feedback.md",
+    "bytes": 6871,
+    "lines": 157
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scroll-snap-state-sync.md",
+    "bytes": 4050,
+    "lines": 96
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scroll-target-on-load.md",
+    "bytes": 3439,
+    "lines": 57
+  },
+  {
+    "rel": "data/guides/ui-behaviors/scrollytelling.md",
+    "bytes": 8482,
+    "lines": 181
+  },
+  {
+    "rel": "data/guides/ui-behaviors/search-hidden-content.md",
+    "bytes": 6967,
+    "lines": 142
+  },
+  {
+    "rel": "data/guides/ui-behaviors/spatial-navigation.md",
+    "bytes": 5800,
+    "lines": 57
+  },
+  {
+    "rel": "data/guides/ui-behaviors/swipe-to-remove.md",
+    "bytes": 27826,
+    "lines": 546
+  },
+  {
+    "rel": "data/guides/ui-behaviors/swipe-to-reveal.md",
+    "bytes": 10791,
+    "lines": 165
+  },
+  {
+    "rel": "data/guides/ui-components/card.md",
+    "bytes": 8413,
+    "lines": 133
+  },
+  {
+    "rel": "data/guides/ui-components/checkbox.md",
+    "bytes": 5645,
+    "lines": 143
+  },
+  {
+    "rel": "data/guides/ui-components/dark-mode-toggle.md",
+    "bytes": 9388,
+    "lines": 139
+  },
+  {
+    "rel": "data/guides/ui-components/dialog.md",
+    "bytes": 12388,
+    "lines": 227
+  },
+  {
+    "rel": "data/guides/ui-components/hovercard.md",
+    "bytes": 11506,
+    "lines": 280
+  },
+  {
+    "rel": "data/guides/ui-components/menu.md",
+    "bytes": 29155,
+    "lines": 411
+  },
+  {
+    "rel": "data/guides/ui-components/navigation-drawer.md",
+    "bytes": 16375,
+    "lines": 366
+  },
+  {
+    "rel": "data/guides/ui-components/persistent-app-tours.md",
+    "bytes": 5354,
+    "lines": 137
+  },
+  {
+    "rel": "data/guides/ui-components/persistent-toast-notifications.md",
+    "bytes": 3618,
+    "lines": 64
+  },
+  {
+    "rel": "data/guides/ui-components/progress-ring.md",
+    "bytes": 6174,
+    "lines": 181
+  },
+  {
+    "rel": "data/guides/ui-components/progress.md",
+    "bytes": 10867,
+    "lines": 182
+  },
+  {
+    "rel": "data/guides/ui-components/scrollspy.md",
+    "bytes": 5948,
+    "lines": 128
+  },
+  {
+    "rel": "data/guides/ui-components/spinner.md",
+    "bytes": 5313,
+    "lines": 169
+  },
+  {
+    "rel": "data/guides/ui-components/stack-drill-down.md",
+    "bytes": 34192,
+    "lines": 690
+  },
+  {
+    "rel": "data/guides/user-experience/content-first-noise-reduction.md",
+    "bytes": 8465,
+    "lines": 156
+  },
+  {
+    "rel": "data/guides/visual-design/adapt-scrollbar-to-contrast-preferences.md",
+    "bytes": 3611,
+    "lines": 75
+  },
+  {
+    "rel": "data/guides/visual-design/apply-webgl-shaders.md",
+    "bytes": 13404,
+    "lines": 279
+  },
+  {
+    "rel": "data/guides/visual-design/browser-ui-theming.md",
+    "bytes": 3717,
+    "lines": 40
+  },
+  {
+    "rel": "data/guides/visual-design/color.md",
+    "bytes": 3596,
+    "lines": 44
+  },
+  {
+    "rel": "data/guides/visual-design/complex-shapes.md",
+    "bytes": 3592,
+    "lines": 76
+  },
+  {
+    "rel": "data/guides/visual-design/contrast-color.md",
+    "bytes": 7014,
+    "lines": 188
+  },
+  {
+    "rel": "data/guides/visual-design/custom-text-decorations.md",
+    "bytes": 16727,
+    "lines": 336
+  },
+  {
+    "rel": "data/guides/visual-design/customize-scrollbar-color-and-thickness.md",
+    "bytes": 2483,
+    "lines": 60
+  },
+  {
+    "rel": "data/guides/visual-design/dark-mode.md",
+    "bytes": 16873,
+    "lines": 340
+  },
+  {
+    "rel": "data/guides/visual-design/equal-width-text-lines.md",
+    "bytes": 6541,
+    "lines": 98
+  },
+  {
+    "rel": "data/guides/visual-design/export-html-media-from-canvas.md",
+    "bytes": 17553,
+    "lines": 327
+  },
+  {
+    "rel": "data/guides/visual-design/expose-canvas-content-to-browser-features.md",
+    "bytes": 20075,
+    "lines": 434
+  },
+  {
+    "rel": "data/guides/visual-design/improve-text-layout-and-legibility.md",
+    "bytes": 5209,
+    "lines": 77
+  },
+  {
+    "rel": "data/guides/visual-design/interactive-content-in-3d-scenes.md",
+    "bytes": 19627,
+    "lines": 449
+  },
+  {
+    "rel": "data/guides/visual-design/precise-text-alignment.md",
+    "bytes": 4872,
+    "lines": 100
+  },
+  {
+    "rel": "data/guides/visual-design/shaped-cutouts.md",
+    "bytes": 7179,
+    "lines": 149
+  },
+  {
+    "rel": "data/guides/visual-design/soft-edge-content-fade.md",
+    "bytes": 2659,
+    "lines": 65
+  },
+  {
+    "rel": "data/guides/visual-design/typography.md",
+    "bytes": 2415,
+    "lines": 39
+  },
+  {
+    "rel": "data/guides/visual-design/visual-effects.md",
+    "bytes": 3599,
+    "lines": 101
+  },
+  {
+    "rel": "data/guides/visual-design/visually-stable-font-fallbacks.md",
+    "bytes": 2978,
+    "lines": 52
+  },
+  {
+    "rel": "data/guides/visual-design/visually-stable-mixed-fonts.md",
+    "bytes": 2914,
+    "lines": 64
+  },
+  {
+    "rel": "data/guides/visual-design/visually-texture-content.md",
+    "bytes": 3814,
+    "lines": 80
+  },
+  {
+    "rel": "data/guides/wasm/cpp-on-the-web.md",
+    "bytes": 8186,
+    "lines": 188
+  },
+  {
+    "rel": "data/guides/webmcp/agentic-forms.md",
+    "bytes": 6382,
+    "lines": 128
+  },
+  {
+    "rel": "data/guides/webmcp/agentic-javascript-tools.md",
+    "bytes": 22675,
+    "lines": 424
+  },
+  {
+    "rel": "data/guides/webmcp/webmcp.md",
+    "bytes": 4369,
+    "lines": 46
+  },
+  {
+    "rel": "data/skills/chrome-extensions/SKILL.md",
+    "bytes": 26456,
+    "lines": 531
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/api-calling.md",
+    "bytes": 2188,
+    "lines": 73
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/auth-identity.md",
+    "bytes": 4036,
+    "lines": 142
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/content-scripts.md",
+    "bytes": 3506,
+    "lines": 113
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/context-menus.md",
+    "bytes": 1844,
+    "lines": 73
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+    "bytes": 4810,
+    "lines": 178
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/declarative-net-request.md",
+    "bytes": 2794,
+    "lines": 113
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/devtools.md",
+    "bytes": 2889,
+    "lines": 103
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/icons.md",
+    "bytes": 2756,
+    "lines": 102
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/media-capture.md",
+    "bytes": 4805,
+    "lines": 141
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/message-passing.md",
+    "bytes": 4214,
+    "lines": 137
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/omnibox.md",
+    "bytes": 1819,
+    "lines": 84
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/permissions.md",
+    "bytes": 4641,
+    "lines": 114
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/popup-ui.md",
+    "bytes": 2378,
+    "lines": 95
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/prompt-api.md",
+    "bytes": 3835,
+    "lines": 118
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/service-worker.md",
+    "bytes": 4591,
+    "lines": 149
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/side-panel.md",
+    "bytes": 4480,
+    "lines": 148
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/storage.md",
+    "bytes": 1965,
+    "lines": 66
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/tab-management.md",
+    "bytes": 3756,
+    "lines": 133
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/extensions/user-scripts.md",
+    "bytes": 9414,
+    "lines": 274
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+    "bytes": 5786,
+    "lines": 179
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/webstore/privacy-policy.md",
+    "bytes": 4247,
+    "lines": 129
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/webstore/review-checklist.md",
+    "bytes": 7074,
+    "lines": 146
+  },
+  {
+    "rel": "data/skills/chrome-extensions/references/webstore/store-listing.md",
+    "bytes": 8033,
+    "lines": 202
+  },
+  {
+    "rel": "data/skills/chrome-extensions/skill-version.txt",
+    "bytes": 19,
+    "lines": 1
+  },
+  {
+    "rel": "data/skills/modern-web-guidance/SKILL.md",
+    "bytes": 5292,
+    "lines": 73
+  },
+  {
+    "rel": "icon.svg",
+    "bytes": 926,
+    "lines": 17
+  },
+  {
+    "rel": "index.js",
+    "bytes": 12059,
+    "lines": 280
+  },
+  {
+    "rel": "lib/guidance.js",
+    "bytes": 16635,
+    "lines": 444
+  },
+  {
+    "rel": "locale/en.json",
+    "bytes": 215,
+    "lines": 7
+  },
+  {
+    "rel": "locale/ru.json",
+    "bytes": 347,
+    "lines": 7
+  },
+  {
+    "rel": "market/awesome-dsh-plugin.yml",
+    "bytes": 555,
+    "lines": 9
+  },
+  {
+    "rel": "package.json",
+    "bytes": 1283,
+    "lines": 59
+  },
+  {
+    "rel": "test/guidance.test.mjs",
+    "bytes": 2764,
+    "lines": 70
+  },
+  {
+    "rel": "test/hardening.test.mjs",
+    "bytes": 7641,
+    "lines": 181
+  },
+  {
+    "rel": "test/paths.mjs",
+    "bytes": 213,
+    "lines": 6
+  },
+  {
+    "rel": "test/plugin.test.mjs",
+    "bytes": 3023,
+    "lines": 86
+  }
+]

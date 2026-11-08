@@ -1,0 +1,11 @@
+﻿import { readFileSync } from "node:fs";
+const r = JSON.parse(readFileSync("audit/repro/corpus/scan-results.json","utf8"));
+const inj = r.hits.filter(h=>h.area==="injection");
+const by = {};
+for (const h of inj) by[h.id] = (by[h.id]||0)+1;
+console.log("injection hits:", inj.length, JSON.stringify(by));
+const sev={}; for(const h of inj) sev[h.sev]=(sev[h.sev]||0)+1;
+console.log("injection by severity:", JSON.stringify(sev));
+const files=new Set(inj.map(h=>h.file));
+console.log("files with any injection hit:", files.size, [...files].join(", "));
+console.log("total hits all areas:", r.hits.length, "bySeverity:", JSON.stringify(r.bySev));

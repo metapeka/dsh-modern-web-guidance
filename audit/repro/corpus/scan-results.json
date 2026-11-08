@@ -1,0 +1,4830 @@
+{
+  "files": [
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\LICENSE",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\NOTICE",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\PUBLISHING.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\README.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\cordis.patch.yml",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides.json",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\accessibility\\accessibility.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\accessibility\\accessible-error-announcement.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\accessibility\\accessible-generated-content.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\accessibility\\respect-os-text-scale.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\built-in-ai\\language-detection.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\built-in-ai\\language-model.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\built-in-ai\\summarizer.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\built-in-ai\\translator.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\animate-to-intrinsic-sizes.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\atrule-support-conditionals.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\calculate-with-intrinsic-sizes.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\child-state-based-styling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\content-based-styling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\css-layout.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\css.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\design-token-reactivity.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\dynamic-sibling-styling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\fluid-scaling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\individual-transform-properties.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\overflow-clipping-control.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\reduce-style-repetition.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\responsive-design.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\selector-atrule-combinations.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\size-aware-styling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\style-parent-with-has.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\css\\usage-aware-component-variations.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\animated-select-picker.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\autofill-address-form.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\autofill-highlight-inputs.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\autofill-payment-form.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\autofill-sign-in-form.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\autofill-sign-up-form.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\brand-consistent-forms.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\branded-select-styling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\custom-select-picker-layouts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\form-fields-automatically-fit-contents.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\forms.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\ime-safe-enter-submit.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\required-field-feedback.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\rich-media-picker.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\select-menu-interaction.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\slider.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\sms-otp-form.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\switch.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\forms\\validate-input-after-interaction.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\accessible-web-components.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\custom-elements.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\form-associated-custom-elements.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\html.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\prerendering-custom-elements.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\shadow-dom.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\styling-web-components.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\html\\web-components.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\js\\calculate-event-differentials.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\js\\capture-location-agnostic-data.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\js\\coordinate-global-events.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\js\\sort-high-precision-timestamps.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\js\\support-global-calendar-systems.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\batch-analytics-events.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\break-up-long-tasks.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\calculate-total-foreground-time.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\conditional-async-dependencies.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\defer-rendering-heavy-content.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\defer-work-until-scroll-ends.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\deliver-optimized-decorative-images.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\deprioritize-background-fetches.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\detect-initial-visibility-state.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\efficient-background-processing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\faster-spa-view-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\flicker-free-client-side-ab-testing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\full-session-analytics.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\identify-heavy-scripts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\identify-inp-causes.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\improve-next-page-load-performance.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\interaction-paint-timing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\interactions-in-complex-layouts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\lazy-load-video-and-audio.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\optimize-image-priority.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\optimize-preload-priority.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\optimize-script-priority.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\out-of-order-html-streaming.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\performance.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\resolution-optimized-pseudo-elements.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\performance\\schedule-tasks-by-priority.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\privacy\\privacy.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\pwa\\migrate-web-app-origin.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\client-side-encryption.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\digital-signatures.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\local-network-access.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkey-authentication.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkey-conditional-create.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkey-management.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkey-reauthentication.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkey-registration.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\passkeys.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\quick-sign-ins.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\restrict-outbound-connections.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\sanitize-untrusted-html.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\secure-external-subresources.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\security.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\trusted-types.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\validate-origins.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\security\\verify-email-ownership.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\carousel-slide-effects.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\component-specific-light-dark-theme.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\icons.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\position-aware-tooltips.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\pull-to-reveal.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\responsive-table.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\scroll-position-aware-elements.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\scroll-progress-indicator.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\scrollability-affordance-hints.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\shrinking-header-on-scroll.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\state-aware-sticky-headers.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-atoms\\viewport-aware-dropdowns.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\2d-panning.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\anchor-positioning-tab-underline.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\animate-element-entry-exit.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\animate-to-from-top-layer.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\carousel-snap-highlights.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\consistent-cross-document-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\cross-document-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\custom-button-actions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\declarative-dialog-popover-control.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\directional-navigation-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\drag.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\dynamic-sibling-animations.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\group-element-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\highlight-text-ranges.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\interactive-content-reveal.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\interest-triggered-action-previews.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\interest-triggered-tooltips.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\light-dismiss-a-dialog.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\motion.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\move-dom-element-without-losing-state.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\parallax-scroll-effects.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\persistent-top-layer-ui.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\physics-based-easing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\platform-controls-dismiss-dialog.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\prevent-page-scroll-under-modal-dialog.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\same-document-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scoped-component-transitions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scroll-completion-effects.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scroll-entry-exit-effects.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scroll-snap-realtime-feedback.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scroll-snap-state-sync.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scroll-target-on-load.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\scrollytelling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\search-hidden-content.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\spatial-navigation.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\swipe-to-remove.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-behaviors\\swipe-to-reveal.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\card.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\checkbox.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\dark-mode-toggle.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\dialog.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\hovercard.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\menu.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\navigation-drawer.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\persistent-app-tours.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\persistent-toast-notifications.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\progress-ring.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\progress.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\scrollspy.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\spinner.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\ui-components\\stack-drill-down.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\user-experience\\content-first-noise-reduction.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\adapt-scrollbar-to-contrast-preferences.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\apply-webgl-shaders.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\browser-ui-theming.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\color.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\complex-shapes.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\contrast-color.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\custom-text-decorations.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\customize-scrollbar-color-and-thickness.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\dark-mode.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\equal-width-text-lines.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\export-html-media-from-canvas.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\expose-canvas-content-to-browser-features.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\improve-text-layout-and-legibility.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\interactive-content-in-3d-scenes.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\precise-text-alignment.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\shaped-cutouts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\soft-edge-content-fade.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\typography.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\visual-effects.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\visually-stable-font-fallbacks.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\visually-stable-mixed-fonts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\visual-design\\visually-texture-content.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\wasm\\cpp-on-the-web.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\webmcp\\agentic-forms.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\webmcp\\agentic-javascript-tools.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\guides\\webmcp\\webmcp.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\SKILL.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\api-calling.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\auth-identity.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\content-scripts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\context-menus.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\csp-sandbox.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\declarative-net-request.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\devtools.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\icons.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\media-capture.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\message-passing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\omnibox.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\permissions.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\popup-ui.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\prompt-api.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\service-worker.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\side-panel.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\storage.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\tab-management.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\extensions\\user-scripts.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\webstore\\chromewebstore-template.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\webstore\\privacy-policy.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\webstore\\review-checklist.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\references\\webstore\\store-listing.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\chrome-extensions\\skill-version.txt",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\data\\skills\\modern-web-guidance\\SKILL.md",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\icon.svg",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\index.js",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\lib\\guidance.js",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\locale\\en.json",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\locale\\ru.json",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\market\\awesome-dsh-plugin.yml",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\package.json",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\test\\guidance.test.mjs",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\test\\hardening.test.mjs",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\test\\paths.mjs",
+    "E:\\0ai\\dsh_mod_1\\dsh-modern-web-guidance\\test\\plugin.test.mjs"
+  ],
+  "hits": [
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "LICENSE",
+      "line": 4,
+      "sev": "low",
+      "match": "http://www.apache.org/licenses/"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "LICENSE",
+      "line": 196,
+      "sev": "low",
+      "match": "http://www.apache.org/licenses/LICENSE-2.0"
+    },
+    {
+      "area": "injection",
+      "id": "shell-cmd",
+      "file": "README.md",
+      "line": 93,
+      "sev": "high",
+      "inCode": false,
+      "match": "Run `npm",
+      "snippet": "   `data/`, and `package/skills/chrome-extensions` into `data/skills/`.\n2. Keep `data/skills/modern-web-guidance/SKILL.md` (this plugin's adapted version) — do not overwrite it with the\n   upstream CLI-oriented file.\n3. Run `npm test` to confirm the corpus still loads and the smoke queries still rank correctly.\n"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides.json",
+      "line": 1346,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "injection",
+      "id": "override",
+      "file": "data/guides.json",
+      "line": 1551,
+      "sev": "high",
+      "inCode": false,
+      "match": "override their system",
+      "snippet": "  },\n  {\n    \"id\": \"dark-mode-toggle\",\n    \"description\": \"Build a dark mode toggle component that allows users to override their system color scheme preference for the current site.\",\n    \"category\": \"ui-components\","
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 31,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 107,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 115,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 182,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 252,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 261,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 264,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 267,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 274,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 364,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 367,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 384,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 394,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 403,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 417,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 435,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 441,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 480,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 514,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 517,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 550,
+      "sev": "medium",
+      "inCode": false,
+      "match": "JavaScript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 553,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 559,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/accessibility/accessibility.md",
+      "line": 562,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/accessibility/respect-os-text-scale.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/built-in-ai/language-detection.md",
+      "line": 65,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 93,
+      "sev": "high",
+      "inCode": false,
+      "match": "system prompt",
+      "snippet": "\n### Context and Quota\n\nEach session has a maximum token limit. You can monitor usage via `session.contextUsage` and `session.contextWindow`. If the window overflows, the oldest messages (except the system prompt) are dropped.\n"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 167,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 192,
+      "sev": "high",
+      "inCode": false,
+      "match": "system instructions",
+      "snippet": "\n*Applies to: Prompt API.*\n\n**Do:** Provide system instructions during session initialization to improve the\nspeed of the first prompt."
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 195,
+      "sev": "high",
+      "inCode": false,
+      "match": "system instructions",
+      "snippet": "**Do:** Provide system instructions during session initialization to improve the\nspeed of the first prompt.\n\n**Don't:** Start with an empty session and send system instructions as part of\nthe first `prompt()` call. This increases latency because it forces the model to"
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 212,
+      "sev": "high",
+      "inCode": false,
+      "match": "system instructions",
+      "snippet": "\n**Do:**\n\n- Create a base session: To handle unrelated tasks efficiently, create a base session that contains only your system instructions and no previous conversational context.\n- Clone the baseline: Use `clone()` on that base session for new tasks to save the overhead of re-parsing system instructions. This lets you create parallel conversations or reset a task to its baseline."
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 213,
+      "sev": "high",
+      "inCode": false,
+      "match": "system instructions",
+      "snippet": "**Do:**\n\n- Create a base session: To handle unrelated tasks efficiently, create a base session that contains only your system instructions and no previous conversational context.\n- Clone the baseline: Use `clone()` on that base session for new tasks to save the overhead of re-parsing system instructions. This lets you create parallel conversations or reset a task to its baseline.\n"
+    },
+    {
+      "area": "injection",
+      "id": "system-prompt",
+      "file": "data/guides/built-in-ai/language-model.md",
+      "line": 218,
+      "sev": "high",
+      "inCode": false,
+      "match": "system instructions",
+      "snippet": "**Don't:**\n\n- Don't reuse the same session for unrelated tasks, and avoid cloning any session that already contains unnecessary interaction history. Both patterns can cause unrelated previous context to interfere with your current task.\n- Don't repeatedly call `create()` with identical system instructions. Use the cloning pattern instead to optimize performance.\n"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/built-in-ai/summarizer.md",
+      "line": 129,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/built-in-ai/translator.md",
+      "line": 159,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/css/calculate-with-intrinsic-sizes.md",
+      "line": 183,
+      "sev": "medium",
+      "inCode": false,
+      "match": "JavaScript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/child-state-based-styling.md",
+      "line": 52,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/child-state-based-styling.md",
+      "line": 54,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/content-based-styling.md",
+      "line": 56,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/content-based-styling.md",
+      "line": 57,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/content-based-styling.md",
+      "line": 66,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/css/css-layout.md",
+      "line": 38,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/overflow-clipping-control.md",
+      "line": 69,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/overflow-clipping-control.md",
+      "line": 122,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/css/overflow-clipping-control.md",
+      "line": 128,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/animated-select-picker.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/animated-select-picker.md",
+      "line": 25,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/animated-select-picker.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/animated-select-picker.md",
+      "line": 31,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-address-form.md",
+      "line": 29,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-address-form.md",
+      "line": 55,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-address-form.md",
+      "line": 64,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 31,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 63,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 80,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 81,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 82,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 86,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 90,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 91,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-payment-form.md",
+      "line": 96,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/autofill-sign-up-form.md",
+      "line": 104,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/brand-consistent-forms.md",
+      "line": 37,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/brand-consistent-forms.md",
+      "line": 43,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/brand-consistent-forms.md",
+      "line": 53,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/brand-consistent-forms.md",
+      "line": 57,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/custom-select-picker-layouts.md",
+      "line": 131,
+      "sev": "low",
+      "inCode": false,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/form-fields-automatically-fit-contents.md",
+      "line": 74,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/forms/forms.md",
+      "line": 118,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/forms/forms.md",
+      "line": 258,
+      "sev": "medium",
+      "inCode": false,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/forms.md",
+      "line": 309,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/forms/forms.md",
+      "line": 348,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/forms/forms.md",
+      "line": 378,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/required-field-feedback.md",
+      "line": 31,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/rich-media-picker.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/rich-media-picker.md",
+      "line": 23,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/forms/slider.md",
+      "line": 173,
+      "sev": "medium",
+      "inCode": false,
+      "match": "JavaScript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 28,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 32,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 74,
+      "sev": "low",
+      "match": "http://`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 79,
+      "sev": "low",
+      "match": "http://localhost`"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 150,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 166,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 169,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 176,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 198,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/validate-input-after-interaction.md",
+      "line": 28,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/validate-input-after-interaction.md",
+      "line": 30,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/validate-input-after-interaction.md",
+      "line": 90,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/forms/validate-input-after-interaction.md",
+      "line": 97,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 94,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 104,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 116,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 128,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "injection",
+      "id": "shell-cmd",
+      "file": "data/guides/html/html.md",
+      "line": 129,
+      "sev": "high",
+      "inCode": true,
+      "match": "run the <code>npm",
+      "snippet": "</figure>\n\n<!-- Inline code -->\n<p>To initialize the project, run the <code>npm install</code> command.</p>\n```"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 149,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 160,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 162,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 177,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 180,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 190,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 216,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 222,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 225,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/html/html.md",
+      "line": 233,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 275,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 301,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/html/html.md",
+      "line": 357,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/html.md",
+      "line": 386,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/html/html.md",
+      "line": 390,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/prerendering-custom-elements.md",
+      "line": 21,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/html/styling-web-components.md",
+      "line": 60,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "injection",
+      "id": "you-must-now",
+      "file": "data/guides/performance/calculate-total-foreground-time.md",
+      "line": 57,
+      "sev": "medium",
+      "inCode": false,
+      "match": "You should always",
+      "snippet": "\nThe `VisibilityStateEntry` API is a modern addition to the Performance Timeline and may not be supported in all browsers.\n\nBecause `performance.getEntriesByType('visibility-state')` returns an empty array in unsupported browsers, feature detection is built into the calculation flow. You should always check if entries are returned before proceeding.\n"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 9,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 33,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 66,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 71,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 117,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 121,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/flicker-free-client-side-ab-testing.md",
+      "line": 127,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "injection",
+      "id": "exfil",
+      "file": "data/guides/performance/full-session-analytics.md",
+      "line": 5,
+      "sev": "high",
+      "inCode": false,
+      "match": "send data to a server",
+      "snippet": "\nTo reliably track analytics, Core Web Vitals, and telemetry data that covers the entirety of a user's visit to a web page (not just until page load), use the `fetchLater()` API.\n\nThe `fetchLater()` API is the most reliably way to send data to a server in cases where a response is not required and delivery timing is not urgent, which applies to data such as user analytics, telemetry, error tracking, and performance metrics like Core Web Vitals.\n"
+    },
+    {
+      "area": "injection",
+      "id": "exfil",
+      "file": "data/guides/performance/full-session-analytics.md",
+      "line": 61,
+      "sev": "high",
+      "inCode": false,
+      "match": "send data to a server",
+      "snippet": "\n## Best Practices\n\n- **DO** use `fetchLater()` to send data to a server in any situation where a response is not necessary, and it's not critical that the data is sent immediately.\n- **DO** use an `AbortController` to cancel the pending fetch in cases where the data may need to be updated before the user leaves the page"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/improve-next-page-load-performance.md",
+      "line": 29,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/improve-next-page-load-performance.md",
+      "line": 36,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/improve-next-page-load-performance.md",
+      "line": 51,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/improve-next-page-load-performance.md",
+      "line": 64,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/improve-next-page-load-performance.md",
+      "line": 87,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/lazy-load-video-and-audio.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/lazy-load-video-and-audio.md",
+      "line": 34,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/lazy-load-video-and-audio.md",
+      "line": 51,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/lazy-load-video-and-audio.md",
+      "line": 70,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 26,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 39,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 45,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-image-priority.md",
+      "line": 51,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-preload-priority.md",
+      "line": 15,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-preload-priority.md",
+      "line": 18,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-preload-priority.md",
+      "line": 21,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 15,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 16,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 18,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 19,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 21,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/optimize-script-priority.md",
+      "line": 22,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 25,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 30,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 39,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 58,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 64,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/out-of-order-html-streaming.md",
+      "line": 90,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 28,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/performance/performance.md",
+      "line": 29,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onload="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 32,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/performance.md",
+      "line": 36,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 69,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 78,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 81,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 144,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/performance/performance.md",
+      "line": 145,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 218,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 222,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 233,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 242,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/performance/performance.md",
+      "line": 243,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 325,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/performance/performance.md",
+      "line": 359,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/performance/schedule-tasks-by-priority.md",
+      "line": 46,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onload ="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 84,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 86,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 87,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 138,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 151,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/privacy/privacy.md",
+      "line": 155,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 9,
+      "sev": "low",
+      "match": "http://localhost`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 11,
+      "sev": "low",
+      "match": "http://`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 58,
+      "sev": "low",
+      "match": "http://`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 61,
+      "sev": "low",
+      "match": "http://`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 69,
+      "sev": "low",
+      "match": "http://192.168.1.100:8080/api/status"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 88,
+      "sev": "low",
+      "match": "http://127.0.0.1:45678/health"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 108,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 115,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 117,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 145,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 148,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/local-network-access.md",
+      "line": 149,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/passkey-authentication.md",
+      "line": 46,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/security/passkey-management.md",
+      "line": 174,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/png;"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/security/passkey-management.md",
+      "line": 175,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/png;"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/passkey-management.md",
+      "line": 228,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/passkeys.md",
+      "line": 8,
+      "sev": "low",
+      "match": "http://localhost`"
+    },
+    {
+      "area": "injection",
+      "id": "exfil",
+      "file": "data/guides/security/quick-sign-ins.md",
+      "line": 70,
+      "sev": "high",
+      "inCode": false,
+      "match": "POST it to your WebAuthn verification endpoint",
+      "snippet": "\n1. **Request both passkeys and passwords**: Decode the server options using `PublicKeyCredential.parseRequestOptionsFromJSON()` and call `navigator.credentials.get()` inside a user-initiated click handler with `password: true`, `publicKey`, and `uiMode: 'immediate'` (without passing `signal`).\n2. **Branch verification by `cred.type`**:\n    - If `cred.type === 'public-key'`, serialize the assertion with `cred.toJSON()` and POST it to your WebAuthn verification endpoint. When the server responds with HTTP `404`, call `PublicKeyCredential.signalUnknownCredential({ rpId: publicKey.rpId, credentialId: encoded.id })`.\n    - If `cred.type === 'password'`, POST `{ username: cred.id, password: cred.password }` to your password verification endpoint."
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 25,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 25,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 140,
+      "sev": "low",
+      "match": "ws://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 140,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 140,
+      "sev": "low",
+      "match": "http://..."
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 144,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 156,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 157,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 157,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 157,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 160,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 164,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 167,
+      "sev": "low",
+      "match": "wss://"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/sanitize-untrusted-html.md",
+      "line": 3,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/sanitize-untrusted-html.md",
+      "line": 14,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/security/sanitize-untrusted-html.md",
+      "line": 15,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onerror="
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/security/sanitize-untrusted-html.md",
+      "line": 16,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/sanitize-untrusted-html.md",
+      "line": 58,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/secure-external-subresources.md",
+      "line": 37,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/secure-external-subresources.md",
+      "line": 44,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/secure-external-subresources.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/secure-external-subresources.md",
+      "line": 56,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/secure-external-subresources.md",
+      "line": 57,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 43,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "injection",
+      "id": "exfil",
+      "file": "data/guides/security/security.md",
+      "line": 172,
+      "sev": "high",
+      "inCode": false,
+      "match": "post violations to your server",
+      "snippet": "- **DO NOT**: Include sensitive data (PII, authentication tokens, session identifiers, query strings with secrets) in logs or violation reports. Mask or omit them at the edge before they reach the reporting endpoint.\n\n### 2.4 Automated Discovery via Browser APIs and DevTools\n- **Reporting API**: Use `Reporting-Endpoints` in combination with report-only headers (e.g., `Content-Security-Policy-Report-Only`, `Document-Policy-Report-Only`) to have the browser automatically post violations to your server.\n- **Browser DevTools**: Use the **Issues Tab** in modern browsers (e.g., Chrome DevTools). It automatically surfaces blocked resources, mixed content, third-party cookie deprecation warnings, and feature policy violations without you having to crawl the codebase manually."
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 222,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 226,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 247,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 254,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/security.md",
+      "line": 361,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/security.md",
+      "line": 370,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 43,
+      "sev": "medium",
+      "inCode": false,
+      "match": "javascript:"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 50,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onerror="
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 75,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 75,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 76,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/trusted-types.md",
+      "line": 117,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 8,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 16,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 66,
+      "sev": "low",
+      "match": "http://sub.example.com`"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 85,
+      "sev": "low",
+      "match": "http://billing.example.co.uk/checkout"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 90,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/security/validate-origins.md",
+      "line": 138,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/verify-email-ownership.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/security/verify-email-ownership.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 58,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/svg+xml,"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 58,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 59,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/svg+xml,"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 59,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 180,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 183,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 186,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/position-aware-tooltips.md",
+      "line": 138,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/position-aware-tooltips.md",
+      "line": 141,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/responsive-table.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/scroll-position-aware-elements.md",
+      "line": 94,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/scroll-progress-indicator.md",
+      "line": 48,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/scroll-progress-indicator.md",
+      "line": 120,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/scrollability-affordance-hints.md",
+      "line": 81,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/scrollability-affordance-hints.md",
+      "line": 83,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/state-aware-sticky-headers.md",
+      "line": 11,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/state-aware-sticky-headers.md",
+      "line": 19,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+      "line": 86,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+      "line": 89,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+      "line": 115,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-atoms/viewport-aware-dropdowns.md",
+      "line": 116,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/2d-panning.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/2d-panning.md",
+      "line": 26,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/anchor-positioning-tab-underline.md",
+      "line": 71,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/animate-to-from-top-layer.md",
+      "line": 222,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/animate-to-from-top-layer.md",
+      "line": 225,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 9,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 15,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 50,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 53,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 78,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 92,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 107,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 115,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 123,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 129,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 135,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 157,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 186,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/consistent-cross-document-transitions.md",
+      "line": 195,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/ui-behaviors/cross-document-transitions.md",
+      "line": 110,
+      "sev": "medium",
+      "inCode": false,
+      "match": "JavaScript:"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/ui-behaviors/cross-document-transitions.md",
+      "line": 123,
+      "sev": "medium",
+      "inCode": false,
+      "match": "JavaScript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/custom-button-actions.md",
+      "line": 16,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/custom-button-actions.md",
+      "line": 21,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/custom-button-actions.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/custom-button-actions.md",
+      "line": 35,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 12,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 13,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 18,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 48,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 56,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 87,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 90,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 214,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/declarative-dialog-popover-control.md",
+      "line": 217,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/group-element-transitions.md",
+      "line": 12,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/interest-triggered-action-previews.md",
+      "line": 10,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/interest-triggered-action-previews.md",
+      "line": 63,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 14,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 25,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 74,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 124,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 127,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 159,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/interest-triggered-tooltips.md",
+      "line": 160,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/light-dismiss-a-dialog.md",
+      "line": 32,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/ui-behaviors/light-dismiss-a-dialog.md",
+      "line": 41,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/ui-behaviors/move-dom-element-without-losing-state.md",
+      "line": 3,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/ui-behaviors/move-dom-element-without-losing-state.md",
+      "line": 56,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/platform-controls-dismiss-dialog.md",
+      "line": 8,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/platform-controls-dismiss-dialog.md",
+      "line": 18,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-behaviors/scroll-entry-exit-effects.md",
+      "line": 153,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/scroll-snap-state-sync.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/search-hidden-content.md",
+      "line": 44,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/search-hidden-content.md",
+      "line": 65,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/swipe-to-remove.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/ui-behaviors/swipe-to-remove.md",
+      "line": 152,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/svg+xml;"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/ui-behaviors/swipe-to-remove.md",
+      "line": 152,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/swipe-to-reveal.md",
+      "line": 16,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-behaviors/swipe-to-reveal.md",
+      "line": 29,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 34,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/svg+xml;"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 34,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "data-uri",
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "data:image/svg+xml;"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 35,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "injection",
+      "id": "override",
+      "file": "data/guides/ui-components/dark-mode-toggle.md",
+      "line": 3,
+      "sev": "high",
+      "inCode": false,
+      "match": "override the system",
+      "snippet": "# Dark mode toggles\n\nA dark mode toggle lets users override the system color scheme for one site.\nThe override is applied by updating `<meta name=\"color-scheme\">`: `light dark` means \"follow the system preference\", `light` or `dark` pin an explicit scheme."
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/dark-mode-toggle.md",
+      "line": 60,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/dialog.md",
+      "line": 20,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/dialog.md",
+      "line": 208,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/dialog.md",
+      "line": 211,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 17,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 141,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 143,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 206,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 209,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/hovercard.md",
+      "line": 241,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 1,
+      "sev": "low",
+      "inCode": false,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 32,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 37,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 39,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 360,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/menu.md",
+      "line": 363,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 23,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 27,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 33,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 41,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/navigation-drawer.md",
+      "line": 51,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/persistent-app-tours.md",
+      "line": 11,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/persistent-app-tours.md",
+      "line": 13,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/persistent-app-tours.md",
+      "line": 75,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/persistent-app-tours.md",
+      "line": 78,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/persistent-app-tours.md",
+      "line": 107,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/persistent-toast-notifications.md",
+      "line": 34,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/persistent-toast-notifications.md",
+      "line": 37,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/progress-ring.md",
+      "line": 24,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 44,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 51,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 55,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 59,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 67,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/ui-components/scrollspy.md",
+      "line": 92,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 24,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 33,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 38,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 42,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 50,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 53,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 58,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 64,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 66,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 255,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 273,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/ui-components/stack-drill-down.md",
+      "line": 277,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/user-experience/content-first-noise-reduction.md",
+      "line": 57,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/user-experience/content-first-noise-reduction.md",
+      "line": 130,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/user-experience/content-first-noise-reduction.md",
+      "line": 133,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/apply-webgl-shaders.md",
+      "line": 206,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/apply-webgl-shaders.md",
+      "line": 275,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/browser-ui-theming.md",
+      "line": 33,
+      "sev": "low",
+      "inCode": false,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/color.md",
+      "line": 8,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/complex-shapes.md",
+      "line": 32,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/complex-shapes.md",
+      "line": 35,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/complex-shapes.md",
+      "line": 37,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/complex-shapes.md",
+      "line": 39,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/complex-shapes.md",
+      "line": 46,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/contrast-color.md",
+      "line": 151,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/guides/visual-design/contrast-color.md",
+      "line": 152,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/guides/visual-design/custom-text-decorations.md",
+      "line": 5,
+      "sev": "medium",
+      "inCode": false,
+      "match": "javascript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/dark-mode.md",
+      "line": 12,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "injection",
+      "id": "override",
+      "file": "data/guides/visual-design/dark-mode.md",
+      "line": 137,
+      "sev": "high",
+      "inCode": false,
+      "match": "override their system",
+      "snippet": "\n## OPTIONAL: Implementing a color-scheme toggle\n\nIf you want to allow users to manually override their system default for this site, you can implement a dark mode toggle.\nMost sites do not need a persistent toggle in the site UI."
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/export-html-media-from-canvas.md",
+      "line": 264,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/guides/visual-design/export-html-media-from-canvas.md",
+      "line": 277,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick ="
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/expose-canvas-content-to-browser-features.md",
+      "line": 269,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/expose-canvas-content-to-browser-features.md",
+      "line": 313,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/expose-canvas-content-to-browser-features.md",
+      "line": 354,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/expose-canvas-content-to-browser-features.md",
+      "line": 430,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/interactive-content-in-3d-scenes.md",
+      "line": 291,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/interactive-content-in-3d-scenes.md",
+      "line": 332,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/guides/visual-design/interactive-content-in-3d-scenes.md",
+      "line": 445,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 28,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 31,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 33,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 39,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 65,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 68,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 70,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 72,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 78,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 80,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/guides/visual-design/shaped-cutouts.md",
+      "line": 85,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/webmcp/agentic-javascript-tools.md",
+      "line": 8,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/webmcp/agentic-javascript-tools.md",
+      "line": 42,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/guides/webmcp/agentic-javascript-tools.md",
+      "line": 273,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<iframe"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/webmcp/webmcp.md",
+      "line": 44,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/guides/webmcp/webmcp.md",
+      "line": 44,
+      "sev": "low",
+      "match": "edge://"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 58,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 58,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 65,
+      "sev": "medium",
+      "inCode": true,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 71,
+      "sev": "medium",
+      "inCode": true,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 77,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 154,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 375,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/SKILL.md",
+      "line": 505,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/extensions/auth-identity.md",
+      "line": 105,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/extensions/auth-identity.md",
+      "line": 117,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 9,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 10,
+      "sev": "medium",
+      "inCode": false,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 11,
+      "sev": "medium",
+      "inCode": false,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "js-uri",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 12,
+      "sev": "medium",
+      "inCode": false,
+      "match": "javascript:"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 17,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 18,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 19,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick ="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 22,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "on-handler",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 23,
+      "sev": "medium",
+      "inCode": true,
+      "match": "onclick="
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 25,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 26,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 39,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 45,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 58,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "iframe-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 59,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<iframe"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 67,
+      "sev": "low",
+      "match": "chrome-extension://"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 101,
+      "sev": "medium",
+      "inCode": true,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 123,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 145,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/csp-sandbox.md",
+      "line": 166,
+      "sev": "medium",
+      "inCode": true,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/devtools.md",
+      "line": 20,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/devtools.md",
+      "line": 62,
+      "sev": "medium",
+      "inCode": true,
+      "match": "eval("
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/extensions/devtools.md",
+      "line": 102,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "data/skills/chrome-extensions/references/extensions/icons.md",
+      "line": 71,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "html",
+      "id": "script-tag",
+      "file": "data/skills/chrome-extensions/references/extensions/popup-ui.md",
+      "line": 40,
+      "sev": "medium",
+      "inCode": true,
+      "match": "<script"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/extensions/user-scripts.md",
+      "line": 34,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 17,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 21,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 25,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 47,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 52,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 58,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 74,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 77,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 83,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 92,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 97,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 104,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 119,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 129,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 143,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 146,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 153,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 160,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 165,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 169,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "html",
+      "id": "html-comment",
+      "file": "data/skills/chrome-extensions/references/webstore/chromewebstore-template.md",
+      "line": 173,
+      "sev": "low",
+      "inCode": true,
+      "match": "<!--"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/webstore/review-checklist.md",
+      "line": 15,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "data/skills/chrome-extensions/references/webstore/review-checklist.md",
+      "line": 85,
+      "sev": "low",
+      "match": "chrome://"
+    },
+    {
+      "area": "html",
+      "id": "eval",
+      "file": "data/skills/chrome-extensions/references/webstore/store-listing.md",
+      "line": 171,
+      "sev": "medium",
+      "inCode": false,
+      "match": "eval("
+    },
+    {
+      "area": "url",
+      "id": "plain-http",
+      "file": "icon.svg",
+      "line": 1,
+      "sev": "low",
+      "match": "http://www.w3.org/2000/svg"
+    },
+    {
+      "area": "url",
+      "id": "non-web-scheme",
+      "file": "package.json",
+      "line": 48,
+      "sev": "low",
+      "match": "git+https://"
+    }
+  ],
+  "byArea": {
+    "url": 49,
+    "injection": 16,
+    "html": 432
+  },
+  "bySev": {
+    "low": 312,
+    "high": 15,
+    "medium": 170
+  },
+  "groupCount": {
+    "url/plain-http": 22,
+    "injection/shell-cmd": 2,
+    "html/iframe-tag": 34,
+    "injection/override": 3,
+    "html/html-comment": 256,
+    "html/on-handler": 15,
+    "html/js-uri": 8,
+    "html/script-tag": 99,
+    "injection/system-prompt": 6,
+    "injection/you-must-now": 1,
+    "injection/exfil": 4,
+    "url/non-web-scheme": 27,
+    "html/data-uri": 7,
+    "html/eval": 13
+  },
+  "urlSchemes": {
+    "http": 24,
+    "https": 223,
+    "ws": 9,
+    "wss": 8,
+    "chrome": 7,
+    "edge": 1,
+    "chrome-extension": 1,
+    "git+https": 1
+  },
+  "nonHttps": [
+    {
+      "file": "LICENSE",
+      "line": 4,
+      "url": "http://www.apache.org/licenses/"
+    },
+    {
+      "file": "LICENSE",
+      "line": 196,
+      "url": "http://www.apache.org/licenses/LICENSE-2.0"
+    },
+    {
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 74,
+      "url": "http://`"
+    },
+    {
+      "file": "data/guides/forms/sms-otp-form.md",
+      "line": 79,
+      "url": "http://localhost`"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 9,
+      "url": "http://localhost`"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 11,
+      "url": "http://`"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 58,
+      "url": "http://`"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 61,
+      "url": "http://`"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 69,
+      "url": "http://192.168.1.100:8080/api/status"
+    },
+    {
+      "file": "data/guides/security/local-network-access.md",
+      "line": 88,
+      "url": "http://127.0.0.1:45678/health"
+    },
+    {
+      "file": "data/guides/security/passkeys.md",
+      "line": 8,
+      "url": "http://localhost`"
+    },
+    {
+      "file": "data/guides/security/restrict-outbound-connections.md",
+      "line": 140,
+      "url": "http://..."
+    },
+    {
+      "file": "data/guides/security/validate-origins.md",
+      "line": 66,
+      "url": "http://sub.example.com`"
+    },
+    {
+      "file": "data/guides/security/validate-origins.md",
+      "line": 85,
+      "url": "http://billing.example.co.uk/checkout"
+    },
+    {
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 58,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/guides/ui-atoms/icons.md",
+      "line": 59,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/guides/ui-behaviors/swipe-to-remove.md",
+      "line": 152,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 34,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/guides/ui-components/checkbox.md",
+      "line": 35,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/guides/visual-design/contrast-color.md",
+      "line": 152,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "data/skills/chrome-extensions/references/extensions/icons.md",
+      "line": 71,
+      "url": "http://www.w3.org/2000/svg"
+    },
+    {
+      "file": "icon.svg",
+      "line": 1,
+      "url": "http://www.w3.org/2000/svg"
+    }
+  ]
+}
