@@ -11,10 +11,17 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.3.0` is live on npm** (2026-11-08, published by
-> `.github/workflows/release.yml` from this repo, with a sigstore provenance statement), and
-> `latest` points at it. Three details of that first publish are worth keeping, because they cost
-> an afternoon:
+> **Status: `dsh-modern-web-guidance@0.3.1` is live on npm, published over trusted publishing
+> (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
+> `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
+> through a one-off granular token instead, because a package must exist before a trusted publisher
+> can be attached to it; that token and its `NPM_TOKEN` secret are gone.
+>
+> The trusted publisher is pinned to `metapeka/dsh-modern-web-guidance` + workflow `release.yml`,
+> with `npm publish` allowed and no environment (the job declares none). The first publish after the
+> connection is created is what turns npm's "Pending validation" into a validated configuration.
+>
+> Three details of that bootstrap are worth keeping, because they cost an afternoon:
 >
 > - npm now refuses every publish unless the account has **2FA enrolled**. A granular token is only
 >   accepted when it carries the **Bypass two-factor authentication** flag; the flag reads back as
@@ -26,8 +33,9 @@ checks. What is missing is the repo itself.
 >   It is **not** a staged release — `npm stage list` stays empty. The release workflow polls the
 >   registry for five minutes instead of failing on the first 404, and `0.0.0-stage` is deprecated so
 >   nobody installs it by name.
-> - The temporary `NPM_TOKEN` secret and that token must be revoked once the trusted publisher is
->   configured on the package page; after that the workflow publishes over OIDC with no secret.
+> - Once the trusted publisher validates, tighten **Publishing access** on the package page to
+>   "Require two-factor authentication and disallow bypass 2fa tokens" — with OIDC in place, no
+>   long-lived token is needed, and npm is retiring bypass tokens for publishing during 2027.
 
 > **Status: the repo is public.** `github.com/metapeka/dsh-modern-web-guidance` was pushed as a
 > private repository, audited, and then flipped on 2026-11-08 — both channels below require a public
