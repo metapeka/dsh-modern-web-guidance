@@ -41,7 +41,10 @@ checks. What is missing is the repo itself.
       prerelease peer range that could silently exclude harness `-rc` builds.
 - [x] Installed and verified live in the `desktop` profile: both skills appear in the skill
       catalog, all three tools are listed by `Tool.listTools`, `web_guidance_search` and
-      `web_guidance_retrieve` return real guide content.
+      `web_guidance_retrieve` return real guide content. 0.2.0's `/guidance-stats` is registered by
+      the host command registry (it shows up in the slash menu with its description) and its handler
+      runs on a live instance: `--reset --yes` wrote the version-1 counters document to
+      `<profile>/storage/modern-web-guidance/stats.json`.
 
 ## 1. Create the GitHub repo (done — created private, later flipped to public)
 
@@ -144,8 +147,8 @@ Constraints worth knowing:
   `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI, the
   TFJS model and upstream's Clearcut telemetry are deliberately not included; neither are `docs/`,
   `audit/`, `test/`, `market/`, `AGENTS.md` or this file. 0.2.0 adds no dev files: its usage counters are
-  runtime state in the profile, not package content. `npm pack --dry-run` lists exactly what ships and
-  how big it is.
+  runtime state in the profile, not package content. `npm pack --dry-run` lists exactly what ships:
+  237 files, 690 KB packed / 1.9 MB unpacked at 0.2.0.
 - **This machine cannot reach `registry.npmjs.org`** (ECONNRESET; the upstream tarball had to come
   from `registry.npmmirror.com`). Publish from a network that can, or let a CI workflow do it.
 
