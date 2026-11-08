@@ -13,3 +13,9 @@ The five canonical triage roles, using their default label strings (`needs-triag
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+
+## CI
+
+`.github/workflows/test.yml` is the source of truth: every push to `main` and every PR runs `npm test` plus `npm pack --dry-run`, and `npm test` on its own reproduces it locally.
+
+A change to the tests, the `test` script or `package.json` `files` must update that workflow in the same PR.

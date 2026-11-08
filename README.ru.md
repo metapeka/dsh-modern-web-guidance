@@ -23,6 +23,7 @@
   <a href="LICENSE"><img alt="Лицензия" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="package.json"><img alt="Зависимости" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
   <a href="#безопасность-и-границы"><img alt="Телеметрия" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
+  <a href="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml"><img alt="Тесты" src="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Гайды" src="https://img.shields.io/badge/guides-193-2563eb">
   <img alt="Плагин DSH" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>

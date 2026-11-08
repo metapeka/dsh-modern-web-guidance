@@ -23,6 +23,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="package.json"><img alt="Dependencies" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
   <a href="#security-and-limits"><img alt="Telemetry" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
+  <a href="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml"><img alt="tests" src="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml/badge.svg"></a>
   <img alt="Guides" src="https://img.shields.io/badge/guides-193-2563eb">
   <img alt="DSH plugin" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>
