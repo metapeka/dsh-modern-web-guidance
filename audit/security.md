@@ -144,17 +144,19 @@ const markdown = await readFile(join(dataDir, relative), 'utf8')
 `__proto__`, `constructor` all yield 0 hits (`node audit/repro/security/probes.mjs`).
 
 What *can* reach it is the catalog file itself, i.e. the corpus-contribution / supply-chain surface.
-With a `guides.json` entry `{id: "../outside-secret", category: ".."}` the join collapses
+With a `guides.json` entry `{id: "../outside-fixture", category: ".."}` the join collapses
 `data/guides` and reads outside the package:
 
 ```
 guides=1 unknown=[]
-leaked content: "# planted secret\n\nOWNER_TOKEN=super-secret-value\n"
+leaked content: "# planted fixture\n\nPLANTED_MARKER=this-file-lives-outside-the-data-directory\n"
 ```
 
 (`node audit/repro/security/data-trust.mjs`; the tampered doc is also returned by `search()`.) The
-suffix is fixed to `.md`, which limits usefulness, but `.md` files are exactly where agent memory,
-`AGENTS.md` and repo notes live, and the content is returned to the model verbatim.
+fixture is generated at run time and cleaned up: it is not committed, and its marker is deliberately
+not credential-shaped so that secret scanners do not flag this public repo. The suffix is fixed to
+`.md`, which limits usefulness, but `.md` files are exactly where agent memory, `AGENTS.md` and repo
+notes live, and the content is returned to the model verbatim.
 
 **Fix:** validate `entry.category`/`entry.id` against `/^[a-z0-9][a-z0-9-]*$/` while building the
 index, and assert `resolve(path).startsWith(resolve(dataDir) + sep)` before reading. Fail the build
