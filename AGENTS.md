@@ -20,6 +20,10 @@ Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. Se
 
 A change to the tests, the `test` script or `package.json` `files` must update that workflow in the same PR.
 
+`.github/workflows/release.yml` publishes: manual dispatch only, no repository secrets (OIDC trusted
+publishing), skips versions already on the registry, and attaches the tarball to the `v<version>`
+release. Never make it run on push.
+
 ## Client half
 
 `client.js` is browser code shipped as-is: one file, no bundler, no new dependencies. It registers a

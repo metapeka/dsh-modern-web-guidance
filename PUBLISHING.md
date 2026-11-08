@@ -155,13 +155,32 @@ Constraints worth knowing:
   runtime state in the profile, not package content), and 0.3.0 adds one hand-written `client.js` with no
   build step. `npm pack --dry-run` lists exactly what ships:
   238 files, 699 KB packed / 1.9 MB unpacked at 0.3.0.
-- **This machine cannot reach `registry.npmjs.org`** (ECONNRESET; the upstream tarball had to come
-  from `registry.npmmirror.com`). Publish from a network that can, or let a CI workflow do it.
+- **Publishing runs on GitHub Actions, not here.** This machine cannot reach
+  `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
+
+### Publishing path: `.github/workflows/release.yml`
+
+Manual dispatch only, so nothing publishes by accident. It runs `npm test`, reads the version from
+`package.json`, skips npm when that exact version is already on the registry, publishes with
+`--provenance --access public`, then builds the tarball and attaches it to the `v<version>` release.
+
+It carries **no secrets**: publishing authenticates through OIDC trusted publishing
+(`id-token: write`). The one manual step, done once per package on npmjs.com:
+
+> package `dsh-modern-web-guidance` → Settings → Trusted publishing → add a publisher:
+> repository `metapeka/dsh-modern-web-guidance`, workflow `release.yml`, environment empty.
+
+Npm gates a brand-new trusted publisher for a while, so the first dispatch may wait until the gate
+opens (`2026-11-09 01:55 UTC` at the time of writing). Dispatch with `dry_run: true` to only build and
+attach the tarball — that path works immediately and is what the market entry can point at.
 
 ### Prebuilt tarball instead of npm
 
-If publishing to npm stays unavailable, attach a `.tgz` to a GitHub Release and point the entry
-at it. The URL must be `https` and hosted by GitHub Releases itself:
+The release workflow already attaches `dsh-modern-web-guidance.tgz` to every `v<version>` release,
+under a version-free name, which is exactly what the market entry wants. If publishing to npm stays
+unavailable, point the entry at that asset instead. The URL must be `https` and hosted by GitHub
+Releases itself:
+
 
 ```yaml
 # version-free asset name: survives every future release
