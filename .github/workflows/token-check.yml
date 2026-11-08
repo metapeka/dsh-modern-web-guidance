@@ -75,3 +75,14 @@ jobs:
           npm --version
           npm stage list 2>&1 | head -c 800; echo
           npm view dsh-modern-web-guidance versions --prefer-online --json 2>&1 | head -c 300; echo
+
+      - name: Tags and placeholder
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm install --global npm@11 >/dev/null 2>&1
+          echo "--- dist-tags"
+          npm dist-tag ls dsh-modern-web-guidance 2>&1 | head -c 400; echo
+          echo "--- deprecate the placeholder"
+          npm deprecate "dsh-modern-web-guidance@0.0.0-stage" "Placeholder from the first publish; install 0.3.0." 2>&1 | head -c 400; echo "exit=$?"
+          npm view dsh-modern-web-guidance@0.0.0-stage deprecated 2>&1 | head -c 300; echo
