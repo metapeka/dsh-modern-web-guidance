@@ -38,3 +38,9 @@ jobs:
           curl -s -o /tmp/tokens.json -w 'status=%{http_code}\n' \
             -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/tokens
           head -c 2000 /tmp/tokens.json; echo
+      - name: Account 2FA state
+        env:
+          TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          curl -s -H "Authorization: Bearer $TOKEN" https://registry.npmjs.org/-/npm/v1/user \
+            | jq '{tfa, tfa_configured: (.tfa != null and .tfa != false)}'
