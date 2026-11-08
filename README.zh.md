@@ -205,7 +205,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 ## 开发
 
 ```shell
-node --test test/
+npm test
 ```
 
 七个文件共 66 个测试：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；`plugin.test.mjs` 用模拟的 Cordis
