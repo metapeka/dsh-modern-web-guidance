@@ -24,6 +24,8 @@ jobs:
     name: Publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,9 +54,23 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish
-        if: steps.registry.outputs.published == 'false' && inputs.dry_run == false
+      # npm refuses to create a package over OIDC: the name has to exist before a trusted
+      # publisher can be attached to it (npm/documentation#1926). Until that first publish
+      # happened, an `NPM_TOKEN` secret supplies the credential; with the secret absent the
+      # OIDC path is used and no token is involved.
+      - name: Publish with the one-off token
+        if: steps.registry.outputs.published == 'false' && inputs.dry_run == false && env.NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
+
+      - name: Publish with the trusted publisher
+        if: steps.registry.outputs.published == 'false' && inputs.dry_run == false && env.NPM_TOKEN == ''
+        run: npm publish --provenance --access public
+
+      - name: Verify the published version
+        if: steps.registry.outputs.published == 'false' && inputs.dry_run == false
+        run: npm view "dsh-modern-web-guidance@${{ steps.version.outputs.value }}" version
 
       - name: Build the tarball
         run: |
