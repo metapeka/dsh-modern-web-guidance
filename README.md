@@ -1,7 +1,33 @@
-# dsh-modern-web-guidance
+<p align="center">
+  <img src="icon.png" width="96" height="96" alt="dsh-modern-web-guidance">
+</p>
 
-Modern web platform guidance for [DeepSeek Harness](https://github.com/deepseek-ai) agents — Google Chrome's
-[Modern Web Guidance](https://github.com/GoogleChrome/modern-web-guidance) catalog packaged as a DSH plugin.
+<h1 align="center">dsh-modern-web-guidance</h1>
+
+<p align="center">
+  Google Chrome's <a href="https://github.com/GoogleChrome/modern-web-guidance">Modern Web Guidance</a>, offline,<br>
+  as a <a href="https://github.com/deepseek-ai">DeepSeek Harness</a> plugin.
+</p>
+
+<p align="center">
+  193 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · no telemetry
+</p>
+
+<p align="center">
+  <b>English</b> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.zh.md">中文</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <a href="package.json"><img alt="Dependencies" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
+  <a href="#security-and-limits"><img alt="Telemetry" src="https://img.shields.io/badge/telemetry-none-brightgreen"></a>
+  <img alt="Guides" src="https://img.shields.io/badge/guides-193-2563eb">
+  <img alt="DSH plugin" src="https://img.shields.io/badge/DSH-plugin-0d9488">
+</p>
+
+---
 
 Coding models default to legacy web patterns because that is what their training data contains. This plugin puts 193
 curated, token-efficient guides in front of the agent, plus an offline search tool, so it reaches for the current
@@ -32,23 +58,32 @@ Published package (after `npm publish`):
 dsh plugin --profile desktop add dsh-modern-web-guidance
 ```
 
-From this directory (no registry needed):
-
-```shell
-dsh plugin --profile desktop add file:E:/path/to/dsh-modern-web-guidance
-```
-
 From GitHub:
 
 ```shell
 dsh plugin --profile desktop add github:metapeka/dsh-modern-web-guidance
 ```
 
+From a local checkout (no registry needed):
+
+```shell
+dsh plugin --profile desktop add file:E:/path/to/dsh-modern-web-guidance
+```
+
 From an agent session, `plugin_manager` with `action: "install_bundle"` and the absolute package directory as `target`
 does the same thing. The bundle inserts one row (`modern-web-guidance`) and needs no build step, no dependencies, and no
 native modules.
 
-## Try it
+## How to use
+
+Nothing has to be wired up: the plugin registers itself, and the `modern-web-guidance` skill tells the agent when to
+reach for it. There are three ways to work with it.
+
+### 1. Just ask for web work (default)
+
+The skill's routing description is "search 193 use-case guides before writing HTML, CSS or client-side JavaScript", so
+a normal request is enough — the agent searches, retrieves what it needs, and writes code against the current platform
+API instead of a workaround:
 
 ```text
 You: Add a modal settings dialog that closes on backdrop click.
@@ -58,6 +93,42 @@ Agent: web_guidance_search({"query": "light dismiss dialog"})
        web_guidance_retrieve({"ids": "light-dismiss-a-dialog,dialog"})
        → full guides with closedby/commandfor examples and Baseline fallbacks
 ```
+
+### 2. Ask for it explicitly
+
+Use this when you want the guarantee, or when the agent skipped the lookup on a task that clearly deserves one:
+
+- "check the modern web guidance for how this is done today"
+- "look it up in the guides before writing that CSS"
+- "verify this is Baseline, and show me the fallback"
+- "find the guide for light-dismiss dialogs and follow it"
+
+### 3. Browse the catalog yourself
+
+`web_guidance_list` answers "what is even in here" without spending a retrieval:
+
+```text
+web_guidance_list({})                          → 193 guides across 17 categories
+web_guidance_list({"category": "css"})         → the 18 CSS guides by id and title
+web_guidance_search({"query": "view transition"}) → ranked shortlist before you retrieve
+```
+
+Category filters are forgiving (`" CSS "` and `"Css"` mean `css`), and a misspelled category returns the list of real
+ones instead of an empty result.
+
+### Typical tasks
+
+| You want | Query the agent can use | Guide it lands on |
+|---|---|---|
+| A modal that closes on backdrop click | `light dismiss dialog` | `light-dismiss-a-dialog` |
+| Keep the page from scrolling under a modal | `prevent page scroll under modal` | `prevent-page-scroll-under-modal-dialog` |
+| A table that works on a phone | `responsive data table` | `responsive-table` |
+| Light/dark theme switching | `dark mode toggle` | `dark-mode-toggle` |
+| Sliding tab indicator without JavaScript | `anchor positioning` | `anchor-positioning-tab-underline` |
+| Inline validation that doesn't nag while typing | `form validation after interaction` | `validate-input-after-interaction` |
+| Passwordless sign-in | `passkey sign in` | `passkey-registration` |
+| Faster LCP | `prioritize hero image` | `fetchpriority` guides |
+| A Manifest V3 extension | (skill) `chrome-extensions` | extension skill references |
 
 ## How search works
 
@@ -133,10 +204,8 @@ audit findings and fails on the pre-hardening code. In a sandbox that forbids ch
 
 ## Publishing
 
-Marketplace submission and npm steps are documented in
-[PUBLISHING.md](https://github.com/metapeka/dsh-modern-web-guidance/blob/main/PUBLISHING.md); the
-prepared awesome-dsh-plugin entry lives in
-[`market/awesome-dsh-plugin.yml`](market/awesome-dsh-plugin.yml).
+Marketplace submission and npm steps are documented in [PUBLISHING.md](PUBLISHING.md); the prepared awesome-dsh-plugin
+entry lives in [`market/awesome-dsh-plugin.yml`](market/awesome-dsh-plugin.yml).
 
 ## Attribution and license
 

@@ -16,6 +16,8 @@
     "locale",
     "cordis.patch.yml",
     "README.md",
+    "README.ru.md",
+    "README.zh.md",
     "LICENSE",
     "NOTICE",
     "icon.svg",
