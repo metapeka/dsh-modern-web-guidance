@@ -11,6 +11,24 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
+> **Status: `dsh-modern-web-guidance@0.3.0` is live on npm** (2026-11-08, published by
+> `.github/workflows/release.yml` from this repo, with a sigstore provenance statement), and
+> `latest` points at it. Three details of that first publish are worth keeping, because they cost
+> an afternoon:
+>
+> - npm now refuses every publish unless the account has **2FA enrolled**. A granular token is only
+>   accepted when it carries the **Bypass two-factor authentication** flag; the flag reads back as
+>   `bypass_2fa: false` in `https://registry.npmjs.org/-/npm/v1/tokens` until 2FA is actually set up
+>   on the account, and publishing fails with `E403 … Two-factor authentication or granular access
+>   token with bypass 2fa enabled is required` even though the checkbox looked checked.
+> - A brand-new package answers `404` on `PUT` and then serves a `0.0.0-stage` placeholder (readme:
+>   "Temporary package placeholder for staged publishing") for a minute or two while npm creates it.
+>   It is **not** a staged release — `npm stage list` stays empty. The release workflow polls the
+>   registry for five minutes instead of failing on the first 404, and `0.0.0-stage` is deprecated so
+>   nobody installs it by name.
+> - The temporary `NPM_TOKEN` secret and that token must be revoked once the trusted publisher is
+>   configured on the package page; after that the workflow publishes over OIDC with no secret.
+
 > **Status: the repo is public.** `github.com/metapeka/dsh-modern-web-guidance` was pushed as a
 > private repository, audited, and then flipped on 2026-11-08 — both channels below require a public
 > one, because the catalog fetches `package.json` from it and npm cannot link a package to a repo
@@ -26,9 +44,9 @@ checks. What is missing is the repo itself.
 ## 0. Pre-flight (already done in this tree)
 
 - [x] `package.json` declares `dsh.bundle.patch` — this is what makes the package installable
-      via `dsh plugin add`. Declaring only `dsh.client` is the most common reason submissions
-      are rejected; this package declares neither `dsh.client` (it ships no browser UI) nor any
-      other half-manifest.
+      via `dsh plugin add`; declaring only `dsh.client` is the most common reason submissions are
+      rejected. Since 0.3.0 this package declares both: `dsh.bundle.patch` (installability) and
+      `dsh.client` (the sidebar panel), which is the combination the catalog wants.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 3 tools, 2 skills, 193 guides, 66 tests (`npm test`, which runs

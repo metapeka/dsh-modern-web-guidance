@@ -24,6 +24,7 @@
   <a href="package.json"><img alt="依赖" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
   <a href="#安全与边界"><img alt="遥测" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
   <a href="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml"><img alt="测试" src="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm" src="https://img.shields.io/npm/v/dsh-modern-web-guidance"></a>
   <img alt="指南" src="https://img.shields.io/badge/guides-193-2563eb">
   <img alt="DSH 插件" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>
@@ -53,7 +54,7 @@
 
 ## 安装
 
-从已发布的包安装（`npm publish` 之后）：
+从已发布的包安装：
 
 ```shell
 dsh plugin --profile desktop add dsh-modern-web-guidance
