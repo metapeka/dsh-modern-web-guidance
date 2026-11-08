@@ -11,6 +11,21 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
+> **Status: the repo exists but is private.**
+> `github.com/metapeka/dsh-modern-web-guidance` was pushed as a **private** repository, and
+> both channels below require a public one — the catalog fetches `package.json` from it, and
+> npm cannot link a package to a repo nobody can see. Until it is flipped, this tree is a
+> backup, not a submission. To open it:
+>
+> ```sh
+> gh repo edit metapeka/dsh-modern-web-guidance --visibility public \
+>   --accept-visibility-change-consequences
+> ```
+>
+> Flipping it is the only step that cannot be undone quietly — a public repo's history is
+> already indexed by the time you regret it. Two commits currently exist, both clean.
+> The `dsh-plugin` and `dsh` topics are already set, so nothing else needs adding.
+
 ## 0. Pre-flight (already done in this tree)
 
 - [x] `package.json` declares `dsh.bundle.patch` — this is what makes the package installable
@@ -28,28 +43,29 @@ checks. What is missing is the repo itself.
       catalog, all three tools are listed by `Tool.listTools`, `web_guidance_search` and
       `web_guidance_retrieve` return real guide content.
 
-## 1. Create the GitHub repo
+## 1. Create the GitHub repo (done — private)
 
-The `repository`, `bugs` and `homepage` fields in `package.json` already point at
-`github.com/metapeka/dsh-modern-web-guidance`, so create the repo under that exact name —
-otherwise npm and the curated list cannot link the package back to the repo.
+The `repository`, `bugs` and `homepage` fields in `package.json` point at
+`github.com/metapeka/dsh-modern-web-guidance`, so the repo had to exist under that exact name —
+otherwise npm and the curated list cannot link the package back to the repo. It now does:
 
 ```sh
-cd dsh-modern-web-guidance
+# what was already run
 git init -b main
-git add -A
-git commit -m "dsh-modern-web-guidance 0.1.0"
-gh repo create metapeka/dsh-modern-web-guidance --public --source . --push \
-  --description "Google Chrome's Modern Web Guidance for DeepSeek Harness: offline guide search, retrieve and list tools plus two skills."
-gh repo edit metapeka/dsh-modern-web-guidance --add-topic dsh-plugin
+git add -A && git commit -m "dsh-modern-web-guidance 0.1.0"
+gh repo create metapeka/dsh-modern-web-guidance --private --source . --push \
+  --description "Google Chrome's Modern Web Guidance for DeepSeek Harness: offline guide search, retrieve and list tools plus the modern-web-guidance and chrome-extensions skills."
+gh repo edit metapeka/dsh-modern-web-guidance --add-topic dsh-plugin --add-topic dsh
 ```
 
-Two repo-level requirements from the catalog:
+Two repo-level requirements from the catalog, both satisfied once the repo is public:
 
-- the **`dsh-plugin` topic** — required, checked by hand;
+- the **`dsh-plugin` topic** — required, checked by hand (already set);
 - the repo must be **at least one day old** when the PR is opened. CI checks this
   automatically; if you submit earlier the gate says "0.x days old" and simply passes by
-  itself a few hours later, without a push. Nothing is held against a resubmission.
+  itself a few hours later, without a push. Nothing is held against a resubmission. The clock
+  started when the repo was created, so a private repo left parked for a day arrives at the PR
+  with the age requirement already met.
 
 ## 2. Submit to awesome-dsh-plugin
 
