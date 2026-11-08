@@ -68,9 +68,24 @@ jobs:
         if: steps.registry.outputs.published == 'false' && inputs.dry_run == false && env.NPM_TOKEN == ''
         run: npm publish --provenance --access public
 
+      # A brand-new package shows a `0.0.0-stage` placeholder for a minute or two while npm
+      # finishes creating it, so the registry is polled instead of read once.
       - name: Verify the published version
         if: steps.registry.outputs.published == 'false' && inputs.dry_run == false
-        run: npm view "dsh-modern-web-guidance@${{ steps.version.outputs.value }}" version
+        run: |
+          for attempt in $(seq 1 20); do
+            found=$(npm view "dsh-modern-web-guidance@${{ steps.version.outputs.value }}" version 2>/dev/null || true)
+            if [ -n "$found" ]; then
+              echo "registry now serves $found"
+              exit 0
+            fi
+            echo "attempt $attempt: ${{ steps.version.outputs.value }} is not visible yet"
+            sleep 15
+          done
+          echo "::error::${{ steps.version.outputs.value }} never appeared on the registry after five minutes"
+          npm view dsh-modern-web-guidance versions --prefer-online --json || true
+          npm stage list || true
+          exit 1
 
       - name: Build the tarball
         run: |
