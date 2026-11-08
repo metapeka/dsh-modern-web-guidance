@@ -11,20 +11,17 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: the repo exists but is private.**
-> `github.com/metapeka/dsh-modern-web-guidance` was pushed as a **private** repository, and
-> both channels below require a public one — the catalog fetches `package.json` from it, and
-> npm cannot link a package to a repo nobody can see. Until it is flipped, this tree is a
-> backup, not a submission. To open it:
+> **Status: the repo is public.** `github.com/metapeka/dsh-modern-web-guidance` was pushed as a
+> private repository, audited, and then flipped on 2026-11-08 — both channels below require a public
+> one, because the catalog fetches `package.json` from it and npm cannot link a package to a repo
+> nobody can see. Verified anonymously: the repo page, `package.json`, the audit reports and the
+> marketplace icon (`raw.githubusercontent.com/…/main/icon.png`, `image/png`, 114 544 B) all return
+> 200 without credentials.
 >
-> ```sh
-> gh repo edit metapeka/dsh-modern-web-guidance --visibility public \
->   --accept-visibility-change-consequences
-> ```
->
-> Flipping it is the only step that cannot be undone quietly — a public repo's history is
-> already indexed by the time you regret it. Two commits currently exist, both clean.
-> The `dsh-plugin` and `dsh` topics are already set, so nothing else needs adding.
+> What remains before the PR: the repo must be **at least one day old** — created 2026-11-08
+> 01:55 UTC, so the gate opens 2026-11-09 01:55 UTC. The `dsh-plugin` and `dsh` topics are set.
+> Before the flip, history was scanned for credentials: none, and the one planted-secret fixture the
+> security repro used is no longer tracked (see the "Untrack the repro's runtime fixtures" commit).
 
 ## 0. Pre-flight (already done in this tree)
 
@@ -43,7 +40,7 @@ checks. What is missing is the repo itself.
       catalog, all three tools are listed by `Tool.listTools`, `web_guidance_search` and
       `web_guidance_retrieve` return real guide content.
 
-## 1. Create the GitHub repo (done — private)
+## 1. Create the GitHub repo (done — created private, later flipped to public)
 
 The `repository`, `bugs` and `homepage` fields in `package.json` point at
 `github.com/metapeka/dsh-modern-web-guidance`, so the repo had to exist under that exact name —
