@@ -50,3 +50,10 @@ jobs:
             const p = JSON.parse(raw);
             console.log(JSON.stringify({ tfa: p.tfa ?? null, tfa_mode: p.tfa_mode ?? null, name: p.name ?? null }));
           '
+
+      - name: Registry listing
+        run: |
+          echo "--- npm view"
+          npm view dsh-modern-web-guidance --json 2>&1 | head -c 1200; echo
+          echo "--- registry document"
+          curl -s https://registry.npmjs.org/dsh-modern-web-guidance | head -c 600; echo
