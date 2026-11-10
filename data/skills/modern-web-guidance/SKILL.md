@@ -83,7 +83,7 @@ Use this **only** for a broad, open-ended modernization or legacy-pattern scan w
 
 1. **Scan** — read the target files (or grep them with your own tools) for legacy patterns: obsolete APIs and attributes, hand-rolled workarounds for platform features, deprecated syntax, polyfills the runtime no longer needs. Note file and line for every candidate.
 2. **Verify** — for each candidate, call `web_guidance_search` for the modern capability it maps to, then retrieve that guide. Drop false positives: intentional fallbacks, vendor code, cross-file helpers, lookalikes.
-3. **Report** — summarize the verified findings and the modernization plan, and say plainly that this was a manual scan for the patterns you looked for. Upstream's deterministic `legacy-scan` covers only the subset of guides (~20% of the catalog) that carry legacy rules; a manual scan has no such coverage guarantee and no fixed rule set.
+3. **Report** — summarize the verified findings and the modernization plan, and say plainly that this was a manual scan for the patterns you looked for. Upstream's deterministic `legacy-scan` covers only the guides that carry legacy rules (33 of the 208); a manual scan has no such coverage guarantee and no fixed rule set.
 4. **Modernize** (only when the user asked to modernize, not merely to audit) — retrieve each finding's guide and apply its replacement, keeping existing libraries as fallbacks where the guide requires one. Re-read the modified files afterwards to confirm the old pattern is gone; do not edit safe code just to make the report look clean, and never invent a `legacy-scan` result.
 
 ## Fallback and support policy
