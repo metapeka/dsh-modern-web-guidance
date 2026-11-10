@@ -27,6 +27,36 @@ _Avoid_: copy, dump, export
 The upstream release identifier a snapshot was taken from, such as `2026_10_30-58d055df`.
 _Avoid_: build id, revision
 
+## Legacy scan
+
+**Legacy scan**:
+One run of the `web_guidance_legacy_scan` tool over the paths the caller explicitly named: it walks
+them, matches the rule table line by line and reports what it found. Read-only; it never writes,
+spawns a process or reaches the network.
+_Avoid_: audit, lint, codemod, migration
+
+**Marker scanner**:
+A scanner that matches regular expressions against individual lines of text, with no syntax tree and
+no semantic understanding. It is deliberately modest: a clean report means "none of the rules'
+markers matched", not "no legacy code". Upstream's own `legacy-scan` is an AST analyzer and is not
+shipped here; this plugin makes no parity claim.
+_Avoid_: analyzer, parser, static analysis
+
+**Rule**:
+One entry in `lib/scan-rules.js` — a stable id (`ls-01` … `ls-30`), the guide that fixes the pattern,
+a confidence, one imperative message naming the modern replacement, and the marker it matches.
+_Avoid_: check, pattern, detector
+
+**Finding**:
+One match produced by a rule: path, 1-based line and column, rule id, guide id, confidence, message
+and a clipped snippet of the matched line. One finding per rule, path and line.
+_Avoid_: hit, warning, error, issue
+
+**Confidence**:
+How conclusive a rule's marker is on its own — `high` when the marker alone is conclusive, `medium`
+when it is strong only in context, `low` when a false positive is likely.
+_Avoid_: severity, priority
+
 ## Telemetry
 
 **Call**:
@@ -34,7 +64,9 @@ One invocation of one of the plugin's tools by an agent. The unit every counter 
 _Avoid_: request, query, usage
 
 **Outcome**:
-The classification of a call: hit, miss, unknown id, list, or error.
+The classification of a call: hit, miss, unknown id, list, findings, clean, or error. The last three
+are scan-specific: `findings` is a scan that raised at least one finding, `clean` one that raised
+none, and an errored call is still counted.
 _Avoid_: result, status
 
 **Hit**:

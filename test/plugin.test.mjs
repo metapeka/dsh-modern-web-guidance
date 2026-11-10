@@ -28,12 +28,12 @@ function createContext() {
   return { ctx, tools, skills }
 }
 
-test('apply registers the three tools and two skills', () => {
+test('apply registers the four tools and two skills', () => {
   const { ctx, tools, skills } = createContext()
   apply(ctx)
   assert.deepEqual(
     tools.map((tool) => tool.name).sort(),
-    ['web_guidance_list', 'web_guidance_retrieve', 'web_guidance_search'],
+    ['web_guidance_legacy_scan', 'web_guidance_list', 'web_guidance_retrieve', 'web_guidance_search'],
   )
   assert.deepEqual(skills.map((skill) => skill.name).sort(), ['chrome-extensions', 'modern-web-guidance'])
   for (const tool of tools) {

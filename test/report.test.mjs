@@ -37,6 +37,36 @@ const SMALL = {
   ],
 }
 
+/**
+ * The same shape once the fourth tool has been counted: one scan that read 24 files and raised
+ * three findings. The numbers add up (6 search + 2 retrieve + 1 list + 1 scan = 10 calls) so the
+ * fixture reads like a real week rather than a bag of fields.
+ */
+const WITH_SCAN = {
+  periodDays: 7,
+  generatedAt: '2026-11-10T12:00:00.000Z',
+  corpus: { version: '2026_11_09-5bcc021b', snapshotDate: '2026-11-09', total: 208 },
+  totals: {
+    calls: 10,
+    hitRate: 0.6,
+    byTool: { search: 6, retrieve: 2, list: 1, 'legacy-scan': 1 },
+    byOutcome: { hit: 6, miss: 1, list: 1, 'unknown-id': 1, clean: 1 },
+    files: 24,
+    findings: 3,
+  },
+  topQueries: [
+    { query: 'light dismiss dialog', calls: 3, hits: 3, misses: 0, lastAt: '2026-11-10T09:12:00.000Z' },
+    { query: 'responsive data table', calls: 2, hits: 2, misses: 0, lastAt: '2026-11-10T08:40:00.000Z' },
+  ],
+  misses: [{ query: 'scroll linked animation', calls: 1, lastAt: '2026-11-10T07:02:00.000Z' }],
+  coverage: [
+    { category: 'css', retrieved: 2, total: 58 },
+    { category: 'ui-components', retrieved: 1, total: 14 },
+  ],
+  deadGuides: { total: 205, sample: ['anchor-positioning-tab-underline'] },
+  series: [{ day: '2026-11-10', calls: 10 }],
+}
+
 test('renders every section in the documented order', () => {
   const text = renderReport(SMALL)
   const markers = [
@@ -252,4 +282,71 @@ test('rendering never mutates the snapshot', () => {
   renderReport(snapshot)
   renderJson(snapshot)
   assert.deepEqual(snapshot, before)
+})
+
+test('a counted legacy scan adds one KPI line with files and findings', () => {
+  const text = renderReport(WITH_SCAN)
+  assert.match(text, /^Legacy scans: 1 call, 24 files scanned, 3 findings$/m)
+  assert.match(text, /Calls by tool: search 6, retrieve 2, legacy-scan 1, list 1/)
+  // The scan line belongs to the KPI block, before the lists.
+  const scanAt = text.indexOf('Legacy scans:')
+  assert.ok(scanAt > text.indexOf('Calls by outcome:'))
+  assert.ok(scanAt < text.indexOf('Queries that returned nothing:'))
+})
+
+test('plural scan counts read like prose', () => {
+  const text = renderReport({
+    ...WITH_SCAN,
+    totals: {
+      ...WITH_SCAN.totals,
+      calls: 20,
+      byTool: { ...WITH_SCAN.totals.byTool, 'legacy-scan': 2 },
+      files: 40,
+      findings: 7,
+    },
+  })
+  assert.match(text, /^Legacy scans: 2 calls, 40 files scanned, 7 findings$/m)
+})
+
+test('a clean scan reports its files even with no findings', () => {
+  const text = renderReport({
+    ...WITH_SCAN,
+    totals: { ...WITH_SCAN.totals, findings: 0 },
+  })
+  assert.match(text, /^Legacy scans: 1 call, 24 files scanned, 0 findings$/m)
+})
+
+test('renderJson carries tools[legacy-scan] and the findings total', () => {
+  const json = renderJson(WITH_SCAN)
+  assert.deepEqual(json.tools, {
+    'legacy-scan': { total: 1, files: 24, findings: 3 },
+  })
+  assert.equal(json.findings, 3)
+  assert.equal(json.totals, WITH_SCAN.totals)
+  assert.equal(json.totals.findings, 3)
+  assert.equal(json.series, WITH_SCAN.series)
+})
+
+test('a snapshot from a 0.4.x state file renders no scan section', () => {
+  const text = renderReport(SMALL)
+  assert.doesNotMatch(text, /legacy-scan/)
+  assert.doesNotMatch(text, /Legacy scans/)
+  assert.doesNotMatch(text, /files scanned/)
+
+  const json = renderJson(SMALL)
+  assert.equal('tools' in json, false)
+  assert.equal('findings' in json, false)
+})
+
+test('the empty state stays scan-free even when totals are sparse', () => {
+  const text = renderReport({
+    ...WITH_SCAN,
+    totals: { calls: 0, hitRate: 0, byTool: {}, byOutcome: {}, files: 0, findings: 0 },
+    topQueries: [],
+    misses: [],
+    coverage: [],
+  })
+  assert.match(text, /No calls recorded in the last 7 days/)
+  assert.doesNotMatch(text, /Legacy scans/)
+  assert.equal('tools' in renderJson({ ...WITH_SCAN, totals: { calls: 0, byTool: {} } }), false)
 })

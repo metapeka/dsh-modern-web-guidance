@@ -27,8 +27,9 @@ door for users; this page is the front door for anyone working on the plugin.
 
 | Path | What it is | Touch it when |
 | --- | --- | --- |
-| `index.js` | the plugin entry: three tools, two skills, one command, the search description | a tool's name, description or arguments change |
+| `index.js` | the plugin entry: four tools, two skills, one command, the search description | a tool's name, description or arguments change |
 | `lib/guidance.js` | index reading, BM25 ranking, retrieval, experimental annotation, limits | search quality, ranking or the retrieve rendering changes |
+| `lib/scan.js` · `lib/scan-rules.js` | the marker scanner (explicit paths, containment, caps) and its 30-rule table | the fourth tool's behaviour or a rule changes |
 | `lib/telemetry.js` · `lib/report.js` · `lib/store.js` | the local usage counters, the report shape, the on-disk store | the counters or `/guidance-stats` change |
 | `client.js` | the whole client half, shipped as-is: rail icon, panel, EN/RU/ZH dictionaries, bridge call | the panel or its translations change |
 | `locale/*.json` | the plugin-list card in each language | the plugin's title or description changes |
@@ -46,7 +47,8 @@ door for users; this page is the front door for anyone working on the plugin.
 | [docs/notes/upstream-v1.0.0-diff.md](notes/upstream-v1.0.0-diff.md) | every difference between upstream v1.0.0 and our previous snapshot | you are checking a corpus claim |
 | [docs/notes/upstream-v1.0.0-code-impact.md](notes/upstream-v1.0.0-code-impact.md) · [docs/notes/upstream-v1.0.0-surfaces.md](notes/upstream-v1.0.0-surfaces.md) | what the upstream release does and does not force us to change | you are planning a refresh |
 | [docs/notes/upstream-v1.0.0-plan.md](notes/upstream-v1.0.0-plan.md) | the 0.4.0 plan with its decisions and what was refused | you wonder why something is missing |
-| [docs/notes/legacy-scan-feasibility.md](notes/legacy-scan-feasibility.md) | the 0.5.0 `legacy-scan` verdict, rule set and security boundary | you are implementing the fourth tool |
+| [docs/notes/legacy-scan-feasibility.md](notes/legacy-scan-feasibility.md) | the 0.5.0 `legacy-scan` verdict, rule set and security boundary | you are wondering what the scanner does not do |
+| [docs/notes/legacy-scan-contract.md](notes/legacy-scan-contract.md) | the interface the 0.5.0 workstreams coded against: rule shape, scan result, error codes, caps | you are adding a rule or changing the scanner's contract |
 | [docs/notes/client-panel-spike.md](notes/client-panel-spike.md) | the spike that settled the panel's slot and bridge design | you are changing how the panel mounts |
 | [docs/notes/readme-p0p1-spec.md](notes/readme-p0p1-spec.md) | the source text behind the README's navigation and comparison sections | you edit the READMEs |
 | [docs/agents/](agents/) | the agent-facing conventions: issue tracker, triage labels, domain docs | you are wiring this repo into an agent workflow |
@@ -60,6 +62,10 @@ door for users; this page is the front door for anyone working on the plugin.
   numbers live in [docs/notes/upstream-v1.0.0-surfaces.md](notes/upstream-v1.0.0-surfaces.md).
 - **Change a tool** — `index.js` for the schema and description, `lib/guidance.js` for behaviour,
   `test/plugin.test.mjs` and `test/guidance.test.mjs` for the guard.
+- **Add or change a legacy-scan rule** — `lib/scan-rules.js` only (the scanner takes the table as
+  data); the contract, caps and error codes are in
+  [docs/notes/legacy-scan-contract.md](notes/legacy-scan-contract.md), and
+  `test/scan-rules.test.mjs` guards the table.
 - **Change the panel** — `client.js` only; it is shipped as a single file with no build step, and
   `test/client-locales.test.mjs` keeps its dictionaries in sync.
 - **Ship a release** — write `docs/releases/v<version>.md`, bump `package.json`, push, then dispatch

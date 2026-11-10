@@ -1,9 +1,12 @@
 /**
  * dsh-modern-web-guidance — Google Chrome's modern web platform guidance for DSH agents.
  *
- * Registers two skills (`modern-web-guidance`, `chrome-extensions`) and three offline
- * tools that search and load the bundled guide corpus. Everything runs locally: the
- * plugin ships its data, never calls the network, and contains no telemetry.
+ * Registers two skills (`modern-web-guidance`, `chrome-extensions`) and four offline
+ * tools: three that search and load the bundled guide corpus, plus `web_guidance_legacy_scan`,
+ * a marker scanner that points legacy patterns in the caller's own files at the guide that
+ * replaces them. Everything runs locally: the plugin ships its data, never calls the network,
+ * and contains no telemetry. The scanner reads only the relative paths it is given and never
+ * leaves the session workspace.
  */
 
 import { readFileSync } from 'node:fs'
@@ -12,6 +15,8 @@ import { fileURLToPath } from 'node:url'
 
 import { createGuidance } from './lib/guidance.js'
 import { renderJson, renderReport } from './lib/report.js'
+import { RULES, selectRules } from './lib/scan-rules.js'
+import { ScanError, scan } from './lib/scan.js'
 import { createFileStore, defaultStatePath } from './lib/store.js'
 import { classifyCall, createTelemetry } from './lib/telemetry.js'
 
@@ -44,6 +49,15 @@ const LIST_DESCRIPTION = [
   'titles and short descriptions for one category (css, ui-behaviors, ui-atoms, ui-components, forms, html, js,',
   'accessibility, visual-design, security, performance, built-in-ai, pwa, wasm, webmcp, privacy, user-experience).',
   'Use it when search phrasing did not match and you want to see what the catalog covers.',
+].join(' ')
+
+const SCAN_DESCRIPTION = [
+  'Scan the files you name for legacy web-platform patterns (jQuery-era DOM helpers, execCommand, document.write,',
+  'deprecated APIs) and map every finding to the Modern Web Guidance guide that replaces it. Pass 1-16 relative paths',
+  'inside the session workspace: directories are walked, and the scan stops at 200 files, 512 kB per file and 8 MB',
+  'total. This is a line-based marker scanner over 30 rules, not an AST analyzer, so treat each finding as a lead and',
+  'load the guide with web_guidance_retrieve before changing code. Report-only: it never writes, never spawns a',
+  'process and never touches the network.',
 ].join(' ')
 
 function textBlock(text) {
@@ -118,6 +132,79 @@ function renderList(args, value) {
     ...lines,
     'Call web_guidance_list with a category, or web_guidance_search with a capability query.',
   ].join('\n'))
+}
+
+/** How many findings and guides one rendered scan shows before it summarises the rest. */
+const SCAN_RENDER_LIMIT = { findings: 20, guides: 12 }
+
+/** Bytes as the short figure a report reads better with: `48 kB`, `1.7 MB`. */
+function formatBytes(bytes) {
+  const size = Number(bytes)
+  if (!Number.isFinite(size) || size <= 0) return '0 B'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} kB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function renderScan(_args, value) {
+  // A refusal is rendered as a result: the model needs the code and what to pass instead, not a stack.
+  if (value?.error !== undefined) {
+    if (value.error === 'unknown-rules') {
+      const unknown = Array.isArray(value.unknown) ? value.unknown : []
+      const ids = Array.isArray(value.rules) ? value.rules : []
+      const span = ids.length > 0 ? `${ids[0]} … ${ids[ids.length - 1]}` : 'ls-01 … ls-30'
+      return textBlock([
+        `Error: unknown-rules — unknown rule id(s): ${unknown.join(', ')}.`,
+        `Valid ids run ${span}. Omit "rules" to apply every rule.`,
+      ].join('\n'))
+    }
+    return textBlock([
+      `Error: ${String(value.error)} — ${String(value.message ?? 'the scan could not run')}`,
+      'Pass relative paths inside the session workspace; the scanner never resolves a path outside it.',
+    ].join('\n'))
+  }
+
+  if (value?.format === 'json') return textBlock(JSON.stringify(value, null, 2))
+
+  const scanned = value?.scanned ?? {}
+  const findings = Array.isArray(value?.findings) ? value.findings : []
+  const guides = Array.isArray(value?.guides) ? value.guides : []
+  const files = Number(scanned.files) || 0
+  // `skipped` is a capped sample, `skippedTotal` is the count. Prefer the count so a directory of a
+  // thousand assets reads as "1000 skipped" instead of "100 skipped", which is what the array holds.
+  const skipped = Number.isFinite(scanned.skippedTotal)
+    ? Number(scanned.skippedTotal)
+    : Array.isArray(scanned.skipped) ? scanned.skipped.length : 0
+  const summary = `Scanned ${files} file(s) (${formatBytes(scanned.bytes)}) — ${findings.length} finding(s)`
+  const lines = [skipped > 0 ? `${summary}; ${skipped} file(s) skipped.` : `${summary}.`]
+
+  if (findings.length === 0) {
+    lines.push('No rule in the table matched. That is not proof of modern code: the scanner works line by line and sees markers, not behaviour.')
+  } else {
+    for (const finding of findings.slice(0, SCAN_RENDER_LIMIT.findings)) {
+      lines.push(`- ${finding.path}:${finding.line}:${finding.column} ${finding.ruleId} (${finding.confidence}) ${finding.message}`)
+    }
+    if (findings.length > SCAN_RENDER_LIMIT.findings) {
+      lines.push(`… and ${findings.length - SCAN_RENDER_LIMIT.findings} more finding(s).`)
+    }
+  }
+
+  if (guides.length > 0) {
+    const shown = guides.slice(0, SCAN_RENDER_LIMIT.guides).map((guide) => `${guide.id} (${guide.findings})`)
+    const rest = guides.length - shown.length
+    const more = rest > 0 ? `, and ${rest} more` : ''
+    lines.push(`Load with web_guidance_retrieve: ${shown.join(', ')}${more}.`)
+  } else if (findings.length > 0) {
+    lines.push('No guide id is attached to these findings.')
+  }
+
+  if (value?.truncated === true) {
+    // The caps themselves are not repeated here: they live in lib/scan.js, and a literal copy in the
+    // renderer would silently drift from what the scanner actually enforces.
+    lines.push('Truncated: the scan stopped at one of its caps, so these findings are incomplete. Narrow the paths or the rules.')
+  }
+
+  return textBlock(lines.join('\n'))
 }
 
 function buildSearchTool(guidance) {
@@ -217,6 +304,63 @@ function buildListTool(guidance) {
   }
 }
 
+/**
+ * The fourth tool: an offline marker scanner over the caller's own files. The scanner and the rule
+ * table arrive as arguments so this file states which implementations back the tool in one place
+ * (`apply`), and a test can drive the tool without reaching into the modules directly.
+ * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
+ * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
+ * @returns {object} a tool definition.
+ */
+function buildScanTool(scanner, ruleSet) {
+  const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
+  return {
+    name: 'web_guidance_legacy_scan',
+    description: SCAN_DESCRIPTION,
+    parameters: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 16,
+          items: { type: 'string', maxLength: 512 },
+        },
+        rules: { type: 'array', maxItems: 30, items: { type: 'string', maxLength: 40 } },
+        format: { type: 'string', enum: ['summary', 'json'] },
+      },
+      required: ['paths'],
+      additionalProperties: false,
+    },
+    output: { schema: { type: 'object' }, render: renderScan },
+    async execute(args, exec) {
+      exec?.signal?.throwIfAborted?.()
+      const cwd = exec?.agent?.session?.header?.cwd ?? process.cwd()
+      const selected = ruleSet.selectRules(args?.rules)
+      // Unknown ids are named back rather than thrown: a typo should cost one retry, and the scan
+      // must not touch the filesystem at all when the rule set itself is wrong.
+      if (selected.unknown.length > 0) {
+        return { error: 'unknown-rules', unknown: selected.unknown, rules: allRuleIds }
+      }
+      try {
+        const result = await scanner.scan({
+          cwd,
+          paths: args?.paths,
+          rules: selected.rules,
+          signal: exec?.signal,
+        })
+        return { format: args?.format === 'json' ? 'json' : 'summary', cwd, ...result }
+      } catch (error) {
+        // A refusal (absolute path, escape, missing target, bad rule set) is an answer, not a crash.
+        if (error instanceof scanner.ScanError) {
+          return { error: error.code, subject: error.subject, message: error.message }
+        }
+        throw error
+      }
+    },
+  }
+}
+
 /** Read a skill body from the package; a missing file disables only that skill. */
 function readSkillBody(relativePath) {
   try {
@@ -252,11 +396,12 @@ const SKILL_DEFINITIONS = [
   },
 ]
 
-/** The three tools the counters track, and the short names the report prints. */
+/** The four tools the counters track, and the short names the report prints. */
 const TRACKED_TOOLS = new Map([
   ['web_guidance_search', 'search'],
   ['web_guidance_retrieve', 'retrieve'],
   ['web_guidance_list', 'list'],
+  ['web_guidance_legacy_scan', 'legacy-scan'],
 ])
 
 /** Defaults for the counters; the plugin row can override both. */
@@ -460,6 +605,11 @@ export function apply(ctx, config = {}) {
     const tool = build(guidance)
     ctx.effect(() => ctx.tools.register(tool), `modern-web-guidance ${tool.name}`)
   }
+
+  // The scanner is registered beside the loop rather than through it: its two modules are injected
+  // explicitly instead of being derived from `guidance`.
+  const scanTool = buildScanTool({ scan, ScanError }, { RULES, selectRules })
+  ctx.effect(() => ctx.tools.register(scanTool), `modern-web-guidance ${scanTool.name}`)
 
   for (const definition of SKILL_DEFINITIONS) {
     const content = readSkillBody(definition.bodyPath)

@@ -1,0 +1,8 @@
+/* Two markers the rule table knows: a vendor scrollbar and the 2009 flexbox syntax. */
+.legacy-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.legacy-flex {
+  display: -webkit-box;
+}

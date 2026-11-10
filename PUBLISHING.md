@@ -11,7 +11,7 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.4.1` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.5.0` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
@@ -79,8 +79,10 @@ was opened on 2026-11-10 with the 208-guide entry.
       `dsh.client` (the sidebar panel), which is the combination the catalog wants.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
-- [x] Real working code: 3 tools, 2 skills, 208 guides, and a `npm test` suite covering the index, the
-      plugin mount, the security invariants, the counter pipeline and the panel's three dictionaries
+- [x] Real working code: 4 tools, 2 skills, 208 guides, and a `npm test` suite of **150 tests in 12
+      files** covering the index, the plugin mount, the security invariants, the counter pipeline, the
+      panel's three dictionaries and the legacy scanner (a run reports 149 passed plus 1 skipped where
+      the host forbids symlink creation, because the walk test skips itself there rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
       `npm pack --dry-run` on every push and PR, so it guards both the suite and the package contents.
@@ -91,7 +93,7 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] No `@deepseek-ai/*` dependencies at all — nothing to move into `peerDependencies`, and no
       prerelease peer range that could silently exclude harness `-rc` builds.
 - [x] Installed and verified live in the `desktop` profile: both skills appear in the skill
-      catalog, all three tools are listed by `Tool.listTools`, `web_guidance_search` and
+      catalog, all three tools then shipped are listed by `Tool.listTools`, `web_guidance_search` and
       `web_guidance_retrieve` return real guide content. 0.2.0's `/guidance-stats` is registered by
       the host command registry (it shows up in the slash menu with its description) and its handler
       runs on a live instance: `--reset --yes` wrote the version-1 counters document to
@@ -153,13 +155,13 @@ Rules that apply to this submission, from the catalog's `contributing.md`:
   edited by hand — they are regenerated on `main` after merge.
 - **`description.en` is the only required field.** `zh` is optional; a maintainer fills it in.
   A description containing `": "` must be quoted, which the prepared file already does.
-- **The description is checked against the code.** "three tools", "208 guides", the two skill
+- **The description is checked against the code.** "four tools", "208 guides", the two skill
   names and the `modern-web-guidance` / `chrome-extensions` pair all exist as claimed. Do not
   add adjectives to it later — overstating is the one thing that gets a good plugin sent back.
 - **Category is `skill`.** The taxonomy is `agi ui usage theme model identity session memory
   tools wsl browser vision voice docs skill workflow git notify dev security remote market fun`.
   This package is not document rendering (`docs`) and not browser control (`browser`); it ships
-  two skills and three tools. A near miss is re-filed by a maintainer rather than bounced.
+  two skills and four tools. A near miss is re-filed by a maintainer rather than bounced.
 - **`icon:` must be a GitHub-hosted raster image** (`png`/`jpg`/`jpeg`/`webp`) — SVG is refused,
   and the field is optional. This repo ships both: `icon.svg` for the plugin surface (`package.json`
   `icon`) and `icon.png`, its 512×512 rasterisation, for the marketplace. `market/…yml` points
@@ -207,9 +209,10 @@ Constraints worth knowing:
   `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI
   (including `legacy-scan`), its precomputed vector tables under `gen/` and upstream's Clearcut telemetry are
   deliberately not included; neither are `docs/`, `audit/`, `test/`, `market/`, `AGENTS.md` or this file.
-  0.2.0 adds no dev files (its usage counters are runtime state in the profile, not package content), and
-  0.3.0 adds one hand-written `client.js` with no build step. `npm pack --dry-run` lists exactly what ships:
-  254 files, 854 kB packed / 2.5 MB unpacked at 0.4.1.
+  0.2.0 adds no dev files (its usage counters are runtime state in the profile, not package content),
+  0.3.0 adds one hand-written `client.js` with no build step, and 0.5.0 adds the two scanner modules
+  (`lib/scan.js`, `lib/scan-rules.js`) — still no dependency, no build step. `npm pack --dry-run` lists
+  exactly what ships: 256 files, 873 kB packed / 2.5 MB unpacked at 0.5.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 

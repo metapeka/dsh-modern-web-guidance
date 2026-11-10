@@ -43,6 +43,9 @@ window.__ModuleLoader__.load({
       'kpi.period': 'Period',
       'kpi.periodValue': 'Last {days} days',
       'kpi.corpus': 'Guides',
+      'stats.legacyScan': 'Legacy scans',
+      'stats.findings': 'Findings',
+      'tool.legacyScan': 'Legacy scan',
       'section.queries': 'Top queries',
       'section.queries.empty': 'No queries to rank yet.',
       'section.coverage': 'Category coverage',
@@ -83,6 +86,9 @@ window.__ModuleLoader__.load({
       'kpi.period': 'Период',
       'kpi.periodValue': 'Последние {days} дн.',
       'kpi.corpus': 'Подсказок',
+      'stats.legacyScan': 'Сканирования устаревшего кода',
+      'stats.findings': 'Замечания',
+      'tool.legacyScan': 'Сканер устаревшего кода',
       'section.queries': 'Частые запросы',
       'section.queries.empty': 'Пока нет запросов для рейтинга.',
       'section.coverage': 'Покрытие по категориям',
@@ -127,6 +133,9 @@ window.__ModuleLoader__.load({
       'kpi.period': '统计周期',
       'kpi.periodValue': '最近 {days} 天',
       'kpi.corpus': '指引数量',
+      'stats.legacyScan': '遗留代码扫描',
+      'stats.findings': '发现问题数',
+      'tool.legacyScan': '遗留代码扫描工具',
       'section.queries': '热门查询',
       'section.queries.empty': '暂无可排序的查询。',
       'section.coverage': '分类覆盖率',
@@ -166,6 +175,25 @@ window.__ModuleLoader__.load({
     /** A string, or ''. */
     function asText(value) {
       return typeof value === 'string' ? value : ''
+    }
+
+    /**
+     * The first finite number among the candidates, or 0. An object counts as its own `total`.
+     *
+     * The fourth tool's counter is read this way on purpose: the 0.5.0 report carries it as
+     * `tools['legacy-scan']`, the snapshot carries the same number as `totals.byTool['legacy-scan']`,
+     * and a report built from a 0.4.x state file carries neither. Missing must read as 0 — a panel
+     * that printed `NaN` or threw would be worse than one that shows nothing yet.
+     *
+     * @param {...unknown} candidates
+     * @returns {number}
+     */
+    function firstCount(...candidates) {
+      for (const candidate of candidates) {
+        const value = candidate !== null && typeof candidate === 'object' ? candidate.total : candidate
+        if (typeof value === 'number' && Number.isFinite(value)) return value
+      }
+      return 0
     }
 
     /** The plain objects of an array value, or [] when it is not an array. */
@@ -287,6 +315,8 @@ window.__ModuleLoader__.load({
       }
       const corpus = payload.corpus !== null && typeof payload.corpus === 'object' ? payload.corpus : {}
       const dead = payload.deadGuides !== null && typeof payload.deadGuides === 'object' ? payload.deadGuides : {}
+      const tools = payload.tools !== null && typeof payload.tools === 'object' ? payload.tools : {}
+      const byTool = totals.byTool !== null && typeof totals.byTool === 'object' ? totals.byTool : {}
 
       return {
         periodDays: asCount(payload.periodDays),
@@ -311,6 +341,8 @@ window.__ModuleLoader__.load({
           total: asCount(row.total),
         })),
         deadGuides: { total: asCount(dead.total), sample: Array.isArray(dead.sample) ? dead.sample : [] },
+        legacyScan: firstCount(tools['legacy-scan'], byTool['legacy-scan']),
+        findings: firstCount(payload.findings, totals.findings),
       }
     }
 
@@ -424,7 +456,10 @@ window.__ModuleLoader__.load({
         cursor: 'pointer',
       },
       refreshBusy: { opacity: 0.6, cursor: 'default' },
-      kpis: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' },
+      // 120px is the narrow-panel budget: a ~320px panel spends 24px of padding on each side, and
+      // `2 × 120 + 8` fits even after the shell takes some of it, so the six tiles form a 2-column
+      // block instead of one tall column. On a wide panel `auto-fit` stretches them into one row.
+      kpis: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' },
       kpi: {
         display: 'flex',
         flexDirection: 'column',
@@ -538,11 +573,18 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** One KPI cell. */
-    function kpi(t, label, value) {
+    /**
+     * One KPI cell, with an optional hover hint naming the tool behind the number.
+     *
+     * @param {Function} t bound translator.
+     * @param {string} label already-localized tile label.
+     * @param {string} value already-formatted tile value.
+     * @param {string} [hint] already-localized tooltip.
+     */
+    function kpi(t, label, value, hint) {
       return h(
         'div',
-        { style: S.kpi, key: label },
+        { style: S.kpi, key: label, title: hint },
         h('div', { style: S.kpiLabel }, label),
         h('div', { style: S.kpiValue }, value),
       )
@@ -558,7 +600,11 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** The KPI row: total calls, hit rate, period, corpus size. */
+    /**
+     * The KPI row: total calls, hit rate, period, corpus size, plus the fourth tool's call count and
+     * the findings it reported. The last two tiles always render: a report from a 0.4.x state file
+     * has no such counter, and 0 is the honest number to show for it.
+     */
     function renderKpis(t, report) {
       const cells = [
         kpi(t, t('kpi.calls'), String(report.calls)),
@@ -566,6 +612,8 @@ window.__ModuleLoader__.load({
         kpi(t, t('kpi.period'), t('kpi.periodValue', { days: report.periodDays })),
       ]
       if (report.corpus.total > 0) cells.push(kpi(t, t('kpi.corpus'), String(report.corpus.total)))
+      cells.push(kpi(t, t('stats.legacyScan'), String(report.legacyScan), t('tool.legacyScan')))
+      cells.push(kpi(t, t('stats.findings'), String(report.findings)))
       return h('div', { style: S.kpis }, cells)
     }
 

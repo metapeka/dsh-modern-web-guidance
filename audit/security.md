@@ -209,6 +209,49 @@ tools reject until the host restarts. Availability nit, no security impact; fix 
 
 ---
 
+## F8 — Info — 0.5.0 read surface: `web_guidance_legacy_scan`
+
+Added with 0.5.0 (2026-11-10). The fourth tool is the first surface that reads files the *caller*
+names, so its boundary is stated here rather than inferred from the corpus path. `lib/scan.js` is
+read-only and imports only `node:fs/promises` (`readdir`, `readFile`, `realpath`, `stat`) and
+`node:path`, plus the rule table (which imports nothing); `index.js` passes `cwd` from the session
+header and nothing else.
+
+- **Explicit relative paths only.** `paths` is 1–16 strings. An absolute path, a UNC path, a leading
+  `~`, an empty string or a NUL byte is refused (`path-absolute` / `paths`) before any read; a named
+  path that does not exist is `path-missing` rather than silence. There is no default target, no
+  "scan the repo" and no glob expansion by the plugin.
+- **Containment.** Each named path is resolved against the session cwd and `realpath`ed; the real
+  result must be inside the real cwd (separator-aware prefix, equal counts as inside) or the call is
+  refused with `path-outside`. A symlink met *while walking* that leaves the cwd is not an error —
+  that entry is skipped with `reason: 'outside'` — and symlinked directories are never entered. The
+  walk-side branch is guarded by `test/scan-core.test.mjs`; that case skips itself on a machine that
+  forbids symlink creation (a file sandbox without the privilege) and passes where the host allows
+  it, so a green run on a permissive host covers it and a skip on a locked-down one is not a pass.
+  The named-path refusal *is* reproduced below on every host.
+- **Caps, tighten-only.** `SCAN_LIMITS` fixes 16 paths, 200 files, 512 KiB per file, 8 MiB total,
+  200 findings, 100 skipped entries and 160-character snippets; the `limits` argument may only
+  tighten a numeric cap or replace the extension/skip-directory lists. Binary files (NUL in the first
+  8 000 bytes), unreadable files and non-allowlisted extensions are skipped, never fatal; hitting a
+  cap sets `truncated` instead of returning more.
+- **Never writes, spawns or phones home.** No write API, no `child_process`, no network client and no
+  `eval` of file content: a rule's `source` is compiled once as `new RegExp(source, 'g')` and matched
+  one line at a time with `lastIndex` reset per line. Snippets are control-character-escaped and
+  clipped, so a scanned file cannot smuggle terminal control bytes into a report.
+- **Report-only and honest.** No AST, no automatic fixes, no parity with upstream's engine: 30 rules
+  over 30 of the 208 guides (14.4 %). A clean result means "none of these 30 markers matched", not
+  "no legacy code"; false positives and misses are expected and the tool's text says so.
+
+Residual risk, accepted: the tool can put up to 200 matching lines from files the model explicitly
+named into the model's context — the same data the agent could read with its own file tools, bounded
+and escaped, but it is file content entering context. That is the reason for the caps, the extension
+allowlist and the explicit-paths rule; it is not a reason to widen any of them.
+
+Repro: `audit/repro/security/scan-containment.mjs` reproduces the `path-outside` refusal against a
+temp workspace and prints the exact command and output (see Repro artifacts below).
+
+---
+
 ## Areas verified clean (what I checked, not a checklist)
 
 - **Code execution:** no `eval`, `new Function`, `vm`, `require`, dynamic `import()` of non-literals,
@@ -273,4 +316,23 @@ tools reject until the host restarts. Availability nit, no security impact; fix 
 - `audit/repro/security/resource.mjs` — unbounded `retrieve()`, `expand()` blowup, memory.
 - `audit/repro/security/data-trust.mjs` — tampered `guides.json` → read outside `data/`
   (self-contained; creates and removes its own temp dir).
+- `audit/repro/security/scan-containment.mjs` — 0.5.0 read surface: an explicit path outside a temp
+  workspace is refused with `path-outside` while the in-workspace scan still raises a finding
+  (self-contained; creates and removes its own temp dirs).
 - Run each from the package root with `node audit\repro\security\<name>.mjs`.
+
+`scan-containment.mjs` — exact command and output in this tree (2026-11-10):
+
+```text
+> node audit/repro/security/scan-containment.mjs
+command: node audit/repro/security/scan-containment.mjs
+tool call: web_guidance_legacy_scan({ paths: ["../tmp-scan-outside/secret.md"] })
+
+error: path-outside — "../tmp-scan-outside/secret.md" resolves outside the session workspace; the scanner only reads inside it.
+subject: "../tmp-scan-outside/secret.md"
+
+inside the workspace: scanned=1 files, findings=1
+OK — path-outside refusal reproduced; the in-workspace scan still works.
+
+cleaned up tmp-scan-workspace/ and tmp-scan-outside/
+```

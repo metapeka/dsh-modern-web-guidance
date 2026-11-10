@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  208 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · local counters only
+  208 Baseline-aware guides · 4 tools · 2 skills · zero dependencies · local counters only
 </p>
 
 <p align="center">
@@ -63,8 +63,13 @@ calls. Usage counters have existed since 0.2.0, but they never leave the machine
 | Tool | `web_guidance_search` | Ranked guide ids for a 2–5 word capability query, optional category filter |
 | Tool | `web_guidance_retrieve` | Full markdown for one or more guide ids (max 10 guides / 120k characters per call) |
 | Tool | `web_guidance_list` | Catalog overview: counts per category, or ids/titles for one category |
+| Tool | `web_guidance_legacy_scan` | Regex marker scan of explicit paths for legacy patterns; reports findings, changes nothing |
 | Skill | `modern-web-guidance` | The workflow: search → retrieve → implement → verify → disclose |
 | Skill | `chrome-extensions` | Manifest V3 engineering and Chrome Web Store submission guidance |
+
+The scanner is report-only. `web_guidance_legacy_scan` takes `paths` (1–16 files or directories, no default target), an
+optional `rules` list of up to 30 rule ids, and `format: 'summary' | 'json'`; it reads at most 200 files, 512 kB per file
+and 8 MB per call, and returns at most 200 findings.
 
 The catalog covers `css`, `ui-atoms`, `ui-components`, `ui-behaviors`, `forms`, `html`, `js`, `accessibility`,
 `visual-design`, `security`, `performance`, `built-in-ai`, `pwa`, `wasm`, `webmcp`, `privacy`, and `user-experience`.
@@ -112,6 +117,7 @@ reach for it. There are three ways to work with it.
 | "show me the guide" | `web_guidance_retrieve` | full markdown, up to 10 guides or 120 000 characters per call |
 | "what is even in here?" | `web_guidance_list` | counts per category, or ids and titles for one category |
 | "is the catalog actually being used?" | `/guidance-stats` | the local report as text; `--json` is what the panel reads |
+| "will the code I am about to write or review use a legacy pattern?" | `web_guidance_legacy_scan` | findings for the paths you name explicitly, up to 200 per call |
 
 ### 1. Just ask for web work (default)
 
@@ -175,17 +181,17 @@ and security budget. The honest split:
 
 | | Google `modern-web-guidance` | This plugin |
 | --- | --- | --- |
-| Shape | npm package: a CLI plus skills, run as `npx -y modern-web-guidance@latest …` | DSH plugin: 3 tools, 2 skills, a sidebar panel |
+| Shape | npm package: a CLI plus skills, run as `npx -y modern-web-guidance@latest …` | DSH plugin: 4 tools, 2 skills, a sidebar panel |
 | Audience | any agent that can run a shell command | DeepSeek Harness sessions |
 | Guide corpus | 208 indexed guides (209 `.md` files, one byte-identical duplicate) | the same 208, byte-identical, snapshot `2026_11_09-5bcc021b` |
 | Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
 | Runtime dependencies | Node plus the CLI engines shipped in the package | none |
 | Network | `npx` fetches the package, then works locally | never — the corpus is inside the package |
-| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | not shipped; planned as a dependency-free, report-only regex scanner in 0.5.0 |
+| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped in 0.5.0: a dependency-free regex scanner over 30 rules, explicit paths only, report only |
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, `/guidance-stats`, and the sidebar panel |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 254 files, 854 kB packed, 2.5 MB unpacked |
+| Size | — | 256 files, 873 kB packed, 2.5 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -276,9 +282,9 @@ sections, and states the trust boundary — retrieved guides are reference mater
 The corpus is third-party text that ends up in a model's context, and tool arguments come from that model, so both
 sides are bounded:
 
-- **No network, no execution, one local write.** The plugin imports only local `node:fs`, `node:path` and `node:url`; it
-  has no dependencies and no lifecycle scripts, so nothing is fetched or run at install time. The only file it writes is
-  its own counters file (see [Usage stats](#usage-stats)).
+- **No network, no execution, one local write.** The plugin imports only local `node:fs`, `node:fs/promises`, `node:path`,
+  `node:url` and `node:buffer`; it has no dependencies and no lifecycle scripts, so nothing is fetched or run at install
+  time. The only file it writes is its own counters file (see [Usage stats](#usage-stats)).
 - **Guides cannot smuggle commands.** Upstream's guide bodies cross-reference each other with
   `npx -y modern-web-guidance@latest retrieve "…"` (197 occurrences in 64 guides). Those references are rewritten to
   `web_guidance_retrieve({"ids":["…"]})` when the index loads, so nothing a model reads from the catalog asks it to
@@ -288,12 +294,17 @@ sides are bounded:
   Retrieving all 208 guides would hand back 1.9 MB (~475k tokens) in one result.
 - **`web_guidance_search` is bounded**: the query is capped at 512 characters and 24 distinct terms before the lexical
   scan. A 137 KB query used to block the host's event loop for seconds; the same shape now costs milliseconds.
+- **The scanner reads only what it is given.** `web_guidance_legacy_scan` has no default target: the caller names 1–16
+  paths, each must resolve inside the session workspace, and a symlink that escapes it is skipped rather than followed.
+  It refuses absolute paths, paths outside the workspace and missing paths (`path-absolute`, `path-outside`,
+  `path-missing`), caps the read at 200 files, 512 kB per file and 8 MB per call, and never writes a byte.
 - **The catalog cannot reach outside the package**: entry ids and categories must be slugs, and every resolved path is
   checked to stay inside the data directory. A tampered `guides.json` used to be able to read any `*.md` on disk.
 - **Failures retry and stay opaque**: a transient read error no longer poisons the tool for the session, and tool errors
   no longer disclose absolute install paths.
 
-Both properties are covered by `test/hardening.test.mjs`, which fails on the pre-hardening code. The full audit — three
+These properties are covered by `test/hardening.test.mjs`, which fails on the pre-hardening code, and by
+`test/scan-core.test.mjs` for the scanner's containment and caps. The full audit — three
 reports plus runnable repros — lives in [`audit/`](audit/), and the repro scripts under `audit/repro/` exit non-zero
 while a defect is live.
 
@@ -301,7 +312,7 @@ while a defect is live.
 
 ## 📊 Usage stats
 
-Since 0.2.0 the plugin records what the three tools are actually asked for. The counters are local: no endpoint, no
+Since 0.2.0 the plugin records what the four tools are actually asked for. The counters are local: no endpoint, no
 analytics service, no third-party SDK, and nothing leaves the machine.
 
 The report is a human slash command, not a tool the agent can call:
@@ -317,6 +328,8 @@ The report is a human slash command, not a tool the agent can call:
 counts, per-category hit counts, per-guide retrieve counts, and the last 1000 calls with their query text and returned
 ids. Misses are the point — a count of misses that cannot be reproduced cannot be fixed.
 
+0.5.0 adds a fourth row (`legacy-scan`) and a findings total to the same report.
+
 Where it lives: the profile's durable storage, the same trust boundary that already holds session logs. Retention
 defaults to 90 days, and `--reset --yes` erases it.
 
@@ -327,18 +340,19 @@ Turn it off: set `enabled: false` in the plugin config — no listener is regist
 ## 🖥 Sidebar panel
 
 The plugin adds a client half: a guidance icon in the left rail opens **Guidance Insights** in the central area. It
-shows the same counters `/guidance-stats` prints, as a view:
+shows the same counters `/guidance-stats` prints — four tools plus the finding total — as a view:
 
 - total calls and hit rate for the last 7 days
 - the most frequent queries, with hit and miss counts
 - category coverage — retrieved guides against the 208 in the corpus
 - the queries that found nothing
 - how many guides were never retrieved
+- the scanner's finding total for the same window
 
 A single refresh control re-reads the counters; there is nothing else to press.
 
 The panel is read-only. It never changes a counter, never leaves the machine, and adds no network calls and no new
-tools — the same three tools stay exactly three. `/guidance-stats` remains the text and `--json` version for the
+tools — the same four tools stay exactly four. `/guidance-stats` remains the text and `--json` version for the
 terminal and for the agent; the panel is that report as a view.
 
 <a id="configuration"></a>
@@ -383,6 +397,12 @@ dialog", "view transition", "container query"), not sentences. If a query still 
 is volatile in one engine — see [Experimental guides](#experimental-guides). The guide is still the
 right shape; feature-detect it before shipping.
 
+**What can the legacy scanner actually do?** It is a regex marker scan, not a parser: 30 rules matched
+line by line, covering 30 of the 208 guides (14.4 %), with no AST, no data-flow analysis and no autofix —
+it reports and stops. It makes no parity claim with Chrome's own `legacy-scan`, a 4.99 MB engine with a
+bundled TypeScript compiler; this one is a dependency-free pass that can produce false positives and
+misses, so treat a finding as a lead to verify, not as a verdict.
+
 **Does anything leave my machine?** No. The corpus is inside the package, search is computed
 in-process, and there are no network calls. The usage counters are local files and can be switched off
 with `enabled: false` — see [Security and limits](#security-and-limits) and [ADR 0001](docs/adr/0001-local-telemetry.md).
@@ -401,8 +421,8 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | Release | State | What it is |
 | --- | --- | --- |
 | 0.4.0 | shipped | the upstream v1.0.0 corpus (208 guides) plus experimental marking |
-| 0.4.1 | this pass | docs: navigation, the comparison, the catalog map |
-| 0.5.0 | next | `legacy-scan` as a fourth tool: 30–35 regex rules ported from upstream's engine, explicit paths only, report-only output. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+| 0.4.1 | shipped | docs: navigation, the comparison, the catalog map |
+| 0.5.0 | this release | `legacy-scan` as the fourth tool: 30 regex rules, explicit paths only, report only — `web_guidance_legacy_scan`, with a fourth counter and a findings total in the panel. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
@@ -423,6 +443,7 @@ no network, no code generation" for a gain the lexical index does not show.
 | [`audit/`](audit) | you want the 0.1.x security, corpus and bug audits as they were written |
 | [`docs/adr/`](docs/adr) | you want the decisions: local telemetry, and what followed |
 | [`docs/notes/`](docs/notes) | you want the research behind a release (upstream diffs, feasibility studies, plans) |
+| [`docs/notes/legacy-scan-feasibility.md`](docs/notes/legacy-scan-feasibility.md) | you want the analysis behind `legacy-scan`: what upstream's engine does, what a regex scan can match, and the verdict |
 
 <a id="development"></a>
 
@@ -432,11 +453,12 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs the suite: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
-`plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the
-security invariants; `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs`
-cover the counter pipeline; `client-locales.test.mjs` keeps the panel's three dictionaries in sync. In a
-sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
+`npm test` runs 150 tests across twelve files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
+`report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline;
+`scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its rule table and
+the tool contract, and `scan.test.mjs` is the end-to-end scan; `client-locales.test.mjs` keeps the panel's three
+dictionaries in sync. In a sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
 
 <a id="publishing"></a>
 

@@ -14,6 +14,32 @@ The five canonical triage roles, using their default label strings (`needs-triag
 
 Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. See `docs/agents/domain.md`.
 
+## Product surface
+
+Four model-facing tools: `web_guidance_search`, `web_guidance_retrieve` and `web_guidance_list`
+(`lib/guidance.js`), plus `web_guidance_legacy_scan` (`lib/scan.js`). Two skills
+(`modern-web-guidance`, `chrome-extensions`), one human command (`/guidance-stats`) and one panel.
+The scanner is the only tool that reads caller-named files, and it is confined to the session
+workspace; everything else reads the bundled corpus.
+
+## The legacy scanner
+
+`lib/scan.js` walks explicit relative paths and matches rules line by line; `lib/scan-rules.js` is the
+rule table (`ls-01` … `ls-30`, each with a `guideId`, a `confidence` and one imperative `message`).
+It is a marker scanner, not an AST analyzer: 30 rules over 30 of the 208 guides, no upstream parity,
+report-only — it never writes, spawns a process or reaches the network. The full interface is
+`docs/notes/legacy-scan-contract.md`.
+
+- **A new rule goes into `lib/scan-rules.js`, never into the scanner**: a `guideId` that exists in
+  `data/guides.json`, a `confidence`, a message naming the modern replacement, and a test in
+  `test/scan-rules.test.mjs` (plus `test/scan.test.mjs` when the matching behaviour itself changes).
+- **Caps are the scanner's, not the caller's**: `SCAN_LIMITS` fixes 16 paths, 200 files, 512 KiB per
+  file, 8 MiB total, 200 findings, 100 skipped entries and 160-character snippets; a `limits`
+  argument may only tighten them.
+- **Paths are relative and stay inside the session workspace**: absolute paths are refused, every
+  named path is `realpath`-checked against the session cwd, and a symlink met while walking that
+  leaves the workspace is skipped rather than followed.
+
 ## CI
 
 `.github/workflows/test.yml` is the source of truth: every push to `main` and every PR runs `npm test` plus `npm pack --dry-run`, and `npm test` on its own reproduces it locally.

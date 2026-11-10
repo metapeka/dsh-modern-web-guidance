@@ -145,6 +145,42 @@ test('the command and tool names stay Latin in Chinese', () => {
   }
 })
 
+/** The three keys the 0.5.0 panel gained for the fourth tool, in the order every dictionary keeps. */
+const LEGACY_SCAN_KEYS = ['stats.legacyScan', 'stats.findings', 'tool.legacyScan']
+
+test('the fourth tool is named in every dictionary, in the same order', () => {
+  for (const name of DICTIONARIES) {
+    const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+    const keys = [...dictionary.keys()]
+    const positions = LEGACY_SCAN_KEYS.map((key) => {
+      const position = keys.indexOf(key)
+      assert.notEqual(position, -1, `${name} is missing ${key}`)
+      return position
+    })
+    assert.deepEqual(positions, [...positions].sort((left, right) => left - right), `${name} keeps the fourth-tool keys out of order`)
+  }
+})
+
+test('the fourth-tool keys carry the same placeholders and are really translated', () => {
+  for (const key of LEGACY_SCAN_KEYS) {
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} is not Chinese: "${ZH.get(key)}"`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+})
+
+test('the panel renders the fourth tool and survives a report without its counter', () => {
+  for (const key of LEGACY_SCAN_KEYS) {
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}')`), `client.js never renders ${key}`)
+  }
+  // A report built from a 0.4.x state file has no `legacy-scan` counter and no findings total. Both
+  // tiles still render, so both numbers must be read through the helper that answers 0 for a missing
+  // field rather than formatting `undefined` into the row as `NaN`.
+  assert.match(CLIENT_SOURCE, /legacyScan: firstCount\(/, 'the fourth tool count is not read tolerantly')
+  assert.match(CLIENT_SOURCE, /findings: firstCount\(/, 'the findings total is not read tolerantly')
+})
+
 test('the plugin-list locale card mirrors locale/en.json in every language', () => {
   const read = (locale) => JSON.parse(readFileSync(join(PACKAGE_DIR, 'locale', `${locale}.json`), 'utf8'))
   const en = read('en')
