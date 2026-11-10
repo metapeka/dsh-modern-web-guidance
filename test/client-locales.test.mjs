@@ -229,12 +229,16 @@ const SCANNER_KEYS = [
   'section.scanner',
   'scanner.none',
   'scanner.last',
+  'scanner.skipped',
+  'scanner.cut',
   'scanner.rules',
   'scanner.guides',
   'scanner.scan',
   'scanner.scanning',
   'scanner.failed',
   'scan.summary',
+  'scan.skipped',
+  'scan.skippedMore',
   'scan.clean',
   'scan.truncated',
   'row.title',
@@ -282,6 +286,51 @@ test('the scanner section is fed by the report and can start a scan', () => {
   assert.ok(truncated.length >= 2, 'the truncation notice is missing from the panel or the chat row')
   // The section renders in the empty state too: its button is the only way to scan from the panel.
   assert.match(CLIENT_SOURCE, /renderEmpty\(t, report\)[\s\S]{0,160}renderScanner\(t, report, scan, busy, runScan\)/)
+})
+
+test('the scan caveats are read from the value and rendered, not dropped', () => {
+  // The value `/guidance-scan --format json` returns already carries both caveats; the panel reads
+  // them instead of rendering the counts alone.
+  assert.match(CLIENT_SOURCE, /skipped: readSkipMap\(scanned\.skippedByReason\)/, 'the scan skip map is not read')
+  assert.match(CLIENT_SOURCE, /skipped: readSkipMap\(value\.skipped\)/, 'the stored scan skip map is not read')
+  // A missing map on a 0.7.2 state file reads as empty instead of crashing the section.
+  assert.match(
+    CLIENT_SOURCE,
+    /value !== null && typeof value === 'object' && Array\.isArray\(value\) === false/,
+    'a non-object skip map is no longer ignored',
+  )
+  // Three reasons fit a rail; the rest are counted on the same line rather than hidden.
+  assert.ok(CLIENT_SOURCE.includes('const SKIP_REASONS_SHOWN = 3'), 'the skip-reason limit changed')
+  assert.match(CLIENT_SOURCE, /const rest = skipped\.rows\.length - shown\.length/, 'the remaining reasons are not counted')
+  assert.match(CLIENT_SOURCE, /if \(rest > 0\) reasons\.push\(t\('scan\.skippedMore'/, 'the +N more suffix is not rendered')
+  // Reason tokens are the scanner's own vocabulary, shown verbatim exactly like a rule id.
+  assert.match(CLIENT_SOURCE, /shown\.map\(\(row\) => `\$\{row\.calls\} \$\{row\.name\}`\)/, 'reasons are no longer printed as count + token')
+  assert.ok(!CLIENT_SOURCE.includes("t(row.name"), 'a skip reason is translated')
+  // Both render sites: the button's inline result and the chat row that carries the same value.
+  const calls = CLIENT_SOURCE.match(/skipLine\(t, value\.skipped, SKIP_REASONS_SHOWN\)/g) ?? []
+  assert.equal(calls.length, 2, 'the skip line is missing from the panel result or the chat row')
+  assert.match(CLIENT_SOURCE, /if \(value\.skipped\.total > 0\)/, 'the skip line is rendered even when nothing was skipped')
+})
+
+test('a stale last scan without the new fields renders a shorter line, not a broken one', () => {
+  // 0.7.2 state files have no `skipped`/`truncated` in `lastScan`: the line keeps its date and two
+  // counts and simply adds nothing, instead of printing `undefined` or throwing.
+  assert.match(
+    CLIENT_SOURCE,
+    /if \(last !== null && last\.skipped\.total > 0\) lastFacts\.push\(t\('scanner\.skipped'/,
+    'the skipped fact is not conditional on a non-empty map',
+  )
+  assert.match(
+    CLIENT_SOURCE,
+    /if \(last !== null && last\.truncated\) lastFacts\.push\(t\('scanner\.cut'\)/,
+    'the truncated fact is not conditional on the flag being true',
+  )
+  assert.ok(
+    CLIENT_SOURCE.includes("lastFacts.length === 0 ? t('scanner.none') : lastFacts.join(' · ')"),
+    'the last-scan line is no longer one joined line',
+  )
+  // `lastScan: null` still says nothing has run; the new facts never resurrect it.
+  assert.match(CLIENT_SOURCE, /last === null\s*\n?\s*\? \[\]/, 'a null last scan no longer starts empty')
 })
 
 test('the chat row registers into the keyed tool-view slot under the scan wire name', () => {

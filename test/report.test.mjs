@@ -536,8 +536,9 @@ test('renderJson passes the scan detail through under the snapshot names', () =>
   const json = renderJson(RICH)
   assert.deepEqual(json.topRules, RICH.topRules)
   assert.deepEqual(json.topScanGuides, RICH.topScanGuides)
-  assert.deepEqual(json.lastScan, RICH.lastScan)
-  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules'])
+  // RICH predates the audit fields, so the JSON defaults them instead of omitting them.
+  assert.deepEqual(json.lastScan, { ...RICH.lastScan, skipped: {}, truncated: false })
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
   assert.equal(json.findings, 3)
 })
 
@@ -556,7 +557,93 @@ test('scan counters never leak paths or snippets into the report', () => {
   assert.doesNotMatch(text, /addEventListener/)
 
   const json = renderJson(leaky)
-  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules'])
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
   assert.equal('path' in json.lastScan, false)
   assert.equal('snippet' in json.lastScan, false)
+})
+
+// --- The last scan's audit tails: skip counts and truncation ---------------------------------
+
+test('the last scan line appends skip counts and a truncation flag', () => {
+  const audited = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, skipped: { extension: 277, 'dot-directory': 2 }, truncated: true },
+  })
+
+  assert.match(
+    audited,
+    /^Last scan: 2026-11-10, 12 files, 4 findings \(rules: ls-05, ls-08, ls-13, ls-17, ls-21\); skipped 279 \(277 extension, 2 dot-directory\); truncated$/m,
+  )
+  // Both tails stay on the same line; the report does not grow a second row.
+  assert.equal(audited.split('\n').filter((entry) => entry.startsWith('Last scan:')).length, 1)
+})
+
+test('each audit tail appears only when it has something to say', () => {
+  const skippedOnly = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, skipped: { 'too-many': 3 }, truncated: false },
+  })
+  assert.match(skippedOnly, /; skipped 3 \(3 too-many\)$/m)
+  assert.doesNotMatch(skippedOnly, /truncated/)
+
+  const truncatedOnly = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, skipped: {}, truncated: true },
+  })
+  assert.match(truncatedOnly, /\(rules: [^)]*\); truncated$/m)
+  assert.doesNotMatch(truncatedOnly, /skipped \d/)
+
+  // The plain 0.7.2 line stays exactly as it was.
+  assert.match(renderReport(RICH), /^Last scan: 2026-11-10, 12 files, 4 findings \(rules: .*\)$/m)
+})
+
+test('skip reasons keep the scan tokens and are ordered by count then name', () => {
+  const text = renderReport({
+    ...RICH,
+    lastScan: {
+      ...RICH.lastScan,
+      rules: [],
+      skipped: { extension: 5, 'dot-directory': 1, binary: 1 },
+    },
+  })
+
+  assert.match(text, /^Last scan: 2026-11-10, 12 files, 4 findings; skipped 7 \(5 extension, 1 binary, 1 dot-directory\)$/m)
+})
+
+test('renderJson passes the audit fields through, trims them and defaults an old state', () => {
+  const audited = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, skipped: { extension: 277, 'dot-directory': 2 }, truncated: true },
+  })
+  assert.deepEqual(audited.lastScan, {
+    at: '2026-11-10T09:42:11.000Z',
+    files: 12,
+    findings: 4,
+    rules: ['ls-05', 'ls-08', 'ls-13', 'ls-17', 'ls-21', 'ls-33'],
+    skipped: { extension: 277, 'dot-directory': 2 },
+    truncated: true,
+  })
+
+  // A snapshot written by 0.7.2 carries the four old keys; the new ones default instead of vanishing.
+  const old = renderJson({ ...RICH, lastScan: { at: '2026-11-10T09:42:11.000Z', files: 12, findings: 4, rules: [] } })
+  assert.deepEqual(old.lastScan.skipped, {})
+  assert.equal(old.lastScan.truncated, false)
+
+  // Malformed values and the fifth reason are dropped, never passed through.
+  const junky = renderJson({
+    ...RICH,
+    lastScan: {
+      ...RICH.lastScan,
+      skipped: { extension: 5, binary: 2, 'dot-directory': 2, large: 1, unreadable: 1 },
+      truncated: 'yes',
+    },
+  })
+  assert.deepEqual(junky.lastScan.skipped, { extension: 5, binary: 2, 'dot-directory': 2, large: 1 })
+  assert.equal(junky.lastScan.truncated, false)
+
+  const malformed = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, skipped: { '': 4, binary: 'many' } },
+  })
+  assert.deepEqual(malformed.lastScan.skipped, {})
 })

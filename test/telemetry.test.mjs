@@ -275,8 +275,16 @@ test('flush persists what a later instance can read back', async () => {
 const finding = (ruleId, guideId = null) => ({ ruleId, guideId })
 
 /** A scan call classified exactly the way `index.js` classifies a real tool result. */
-function scanEntry(findings, files = 1) {
-  return classifyCall({ tool: 'web_guidance_legacy_scan', value: { scanned: { files }, findings } })
+function scanEntry(findings, files = 1, scanned = {}, truncated = false) {
+  return classifyCall({
+    tool: 'web_guidance_legacy_scan',
+    value: { scanned: { files, ...scanned }, findings, truncated },
+  })
+}
+
+/** The stored last scan with the audit defaults a state file written before 0.7.3 reads as. */
+function lastScanOf({ at, files, findings, rules, skipped = {}, truncated = false }) {
+  return { at, files, findings, rules, skipped, truncated }
 }
 
 test('a scan classifies which rules and guides fired, deduped and sorted', () => {
@@ -298,11 +306,34 @@ test('a scan classifies which rules and guides fired, deduped and sorted', () =>
   assert.equal(clean.outcome, 'clean')
   assert.deepEqual(clean.rules, [])
   assert.deepEqual(clean.guides, [])
+  // Nothing skipped and no cap hit reads as the audit defaults, not as missing fields.
+  assert.deepEqual(clean.skipped, {})
+  assert.equal(clean.truncated, false)
 
   const failed = classifyCall({ tool: 'web_guidance_legacy_scan', isError: true })
   assert.equal(failed.outcome, 'error')
   assert.deepEqual(failed.rules, [])
   assert.deepEqual(failed.guides, [])
+  assert.deepEqual(failed.skipped, {})
+  assert.equal(failed.truncated, false)
+})
+
+test('a scan carries the skip reasons and the truncation flag through classification', () => {
+  const entry = scanEntry(
+    [finding('ls-13', 'customize-scrollbar')],
+    70,
+    { skippedByReason: { extension: 277, 'dot-directory': 2 }, skippedTotal: 279, truncated: false },
+    true,
+  )
+
+  assert.equal(entry.files, 70)
+  assert.deepEqual(entry.skipped, { extension: 277, 'dot-directory': 2 })
+  assert.equal(entry.truncated, true)
+
+  // A truncated walk is also flagged when only the scan-level field says so.
+  const walkOnly = scanEntry([], 1, { truncated: true })
+  assert.equal(walkOnly.truncated, true)
+  assert.deepEqual(walkOnly.skipped, {})
 })
 
 test('one scan counts findings while the id list names each rule once', async () => {
@@ -322,12 +353,12 @@ test('one scan counts findings while the id list names each rule once', async ()
   assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 3 }])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'customize-scrollbar', count: 3 }])
   // The last-scan summary lists presence once, even though the counter saw three findings.
-  assert.deepEqual(snapshot.lastScan, {
+  assert.deepEqual(snapshot.lastScan, lastScanOf({
     at: new Date(NOW).toISOString(),
     files: 1,
     findings: 3,
     rules: ['ls-13'],
-  })
+  }))
 
   await telemetry.flush()
   assert.equal(store.state.scanRules['ls-13'], 3)
@@ -351,7 +382,7 @@ test('the same rule accumulates across scans while the last scan is replaced', a
     { guideId: 'customize-scrollbar', count: 3 },
     { guideId: 'dialog', count: 1 },
   ])
-  assert.deepEqual(snapshot.lastScan, { at: new Date(NOW).toISOString(), files: 2, findings: 1, rules: ['ls-13'] })
+  assert.deepEqual(snapshot.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 2, findings: 1, rules: ['ls-13'] }))
 })
 
 test('the top lists rank by findings and break ties by id', async () => {
@@ -449,7 +480,7 @@ test('a scan with no findings keeps the counters and records an empty rule list'
     { ruleId: 'ls-02', count: 1 },
     { ruleId: 'ls-13', count: 1 },
   ])
-  assert.deepEqual(snapshot.lastScan, { at: new Date(NOW).toISOString(), files: 2, findings: 0, rules: [] })
+  assert.deepEqual(snapshot.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 2, findings: 0, rules: [] }))
 })
 
 test('a document written before the scan counters loads and starts its blocks empty', async () => {
@@ -493,7 +524,7 @@ test('a last scan older than the window is dropped while the lifetime counters s
 
   await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-02', 'dialog')], 3) })
   const fresh = await telemetry.snapshot()
-  assert.deepEqual(fresh.lastScan, { at: new Date(NOW).toISOString(), files: 3, findings: 1, rules: ['ls-02'] })
+  assert.deepEqual(fresh.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 3, findings: 1, rules: ['ls-02'] }))
   assert.deepEqual(fresh.topRules, [
     { ruleId: 'ls-13', count: 2 },
     { ruleId: 'ls-02', count: 1 },
@@ -520,12 +551,12 @@ test('the stored scan block is rebuilt defensively from a hand-edited document',
   const snapshot = await telemetry.snapshot()
   assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-02', count: 2 }])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'dialog', count: 1 }])
-  assert.deepEqual(snapshot.lastScan, {
+  assert.deepEqual(snapshot.lastScan, lastScanOf({
     at: new Date(NOW - 1000).toISOString(),
     files: 0,
     findings: 0,
     rules: ['ls-a', 'ls-b'],
-  })
+  }))
 
   const unreadable = telemetryWith({ store: memoryStore({ version: 1, since: NOW, calls: 0, byDay: {}, recent: [], lastScan: { at: 'not a date' } }) })
   assert.equal((await unreadable.telemetry.snapshot()).lastScan, null)
@@ -571,12 +602,12 @@ test('a failed scan is counted but does not become the last scan', async () => {
   })
 
   const snapshot = await telemetry.snapshot()
-  assert.deepEqual(snapshot.lastScan, {
+  assert.deepEqual(snapshot.lastScan, lastScanOf({
     at: new Date(NOW - 1000).toISOString(),
     files: 3,
     findings: 1,
     rules: ['ls-13'],
-  })
+  }))
   assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 1 }])
   assert.equal(snapshot.totals.byTool['legacy-scan'], 2)
 })
@@ -595,4 +626,143 @@ test('reset clears the rule and guide counters and the last scan', async () => {
   assert.deepEqual(store.state.scanGuides, {})
   assert.equal(store.state.lastScan, null)
 })
+
+// --- The last scan's audit trail: skipped reasons and truncation ------------------------------
+
+test('a scan with skips records them in the last scan', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'customize-scrollbar')], 70, {
+      skippedByReason: { extension: 277, 'dot-directory': 2 },
+      skippedTotal: 279,
+    }),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.lastScan, lastScanOf({
+    at: new Date(NOW).toISOString(),
+    files: 70,
+    findings: 1,
+    rules: ['ls-13'],
+    skipped: { extension: 277, 'dot-directory': 2 },
+  }))
+
+  await telemetry.flush()
+  assert.deepEqual(store.state.lastScan.skipped, { extension: 277, 'dot-directory': 2 })
+  assert.equal(store.state.lastScan.truncated, false)
+})
+
+test('a truncated scan is stored as such and survives a reload', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-02', 'dialog')], 200, { skippedByReason: { 'too-many': 341 }, skippedTotal: 341 }, true),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.equal(snapshot.lastScan.truncated, true)
+  assert.deepEqual(snapshot.lastScan.skipped, { 'too-many': 341 })
+  // The lifetime counters are untouched by truncation: they count what the scan did see.
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-02', count: 1 }])
+})
+
+test('the last scan keeps the top four skip reasons, ranked by count then name', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([], 12, {
+      skippedByReason: {
+        extension: 277,
+        'dot-directory': 2,
+        binary: 2,
+        large: 1,
+        unreadable: 1,
+        outside: 1,
+      },
+    }),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.lastScan.skipped, {
+    extension: 277,
+    binary: 2,
+    'dot-directory': 2,
+    large: 1,
+  })
+  assert.deepEqual(Object.keys(snapshot.lastScan.skipped), ['extension', 'binary', 'dot-directory', 'large'])
+})
+
+test('a clean scan records empty skips and no truncation', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([], 3) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 3, findings: 0, rules: [] }))
+})
+
+test('a last scan stored before the audit fields existed normalises without loss', async () => {
+  const seed = {
+    version: 1,
+    since: NOW,
+    calls: 1,
+    byDay: {},
+    byTool: {},
+    byOutcome: {},
+    byCategory: {},
+    retrieved: {},
+    scanRules: { 'ls-13': 4 },
+    scanGuides: { 'customize-scrollbar': 4 },
+    lastScan: {
+      at: new Date(NOW - 1000).toISOString(),
+      files: 70,
+      findings: 97,
+      rules: ['ls-13', 'ls-02'],
+    },
+    recent: [],
+  }
+  const { telemetry } = telemetryWith({ store: memoryStore(seed) })
+
+  const snapshot = await telemetry.snapshot()
+  // Exactly the six documented keys, with the audit fields defaulted rather than absent.
+  assert.deepEqual(Object.keys(snapshot.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
+  assert.deepEqual(snapshot.lastScan, lastScanOf({
+    at: new Date(NOW - 1000).toISOString(),
+    files: 70,
+    findings: 97,
+    rules: ['ls-02', 'ls-13'],
+  }))
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 4 }])
+})
+
+test('malformed skip fields are dropped instead of reaching the snapshot', async () => {
+  const seed = {
+    version: 1,
+    since: NOW,
+    calls: 1,
+    byDay: {},
+    recent: [],
+    lastScan: {
+      at: new Date(NOW).toISOString(),
+      files: 1,
+      findings: 1,
+      rules: ['ls-13'],
+      skipped: { extension: 'many', '': 3, binary: -2, 'dot-directory': 2 },
+      truncated: 'yes',
+    },
+  }
+  const { telemetry } = telemetryWith({ store: memoryStore(seed) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.lastScan.skipped, { 'dot-directory': 2 })
+  assert.equal(snapshot.lastScan.truncated, false)
+})
+
 

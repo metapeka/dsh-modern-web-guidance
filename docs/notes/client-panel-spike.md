@@ -100,3 +100,28 @@ hand-written file; the bridge contract above did not change.
   being written, and the settled `block` for a result. A `summary`-format answer is parsed back into the
   same table; anything it cannot read degrades to the text the generic card would have shown.
 
+## What the 0.7.3 caveats added
+
+0.7.2 taught the scan's own text to say what it skipped; the panel drew its summary from the JSON and
+stayed silent, so a live run showed `70 файлов, 97 замечаний` and nothing about the 280 paths behind it.
+0.7.3 puts the two caveats on all three surfaces the panel owns. Still one file, still no new dependency,
+still no host method: the data was already in the answer.
+
+- **Three surfaces, one line shape.** (1) The button result appends `scan.skipped` under `scan.summary`,
+  naming the top three reasons and adding `scan.skippedMore` inside the parentheses when there are more.
+  (2) The section's last-scan line appends `scanner.skipped` and `scanner.cut` to the facts it already
+  joined with ` · ` — the total and the flag only, never the breakdown. (3) The chat tool row adds the
+  same line under its table, for a JSON **and** a summary answer.
+- **Four new keys, no fifth string.** `scan.skipped` (`Skipped {count} ({reasons})`), `scan.skippedMore`
+  (`+{more} more`), `scanner.skipped` (`skipped {count}`) and `scanner.cut` (`truncated`), times EN, RU
+  and ZH. Truncation reuses `scan.truncated` from 0.7.0 — `Truncated: the scan hit a cap, so this list is
+  incomplete.` — because a second wording for the same fact would be a second thing to keep in sync.
+- **One parser, both formats.** The chat row already read the `- path:line:column rule (confidence)` lines
+  back out of a summary answer; it now also recognises `Skipped 279 path(s): 277 extension, 2
+  dot-directory`, so the row's skip line appears whether the model called the tool with `format: 'json'`
+  or `'summary'`. The reasons are read verbatim and never mapped through a dictionary.
+- **A stale `stats.json` renders shorter, not wrong.** The last-scan line only appends the skip total when
+  the stored map is non-empty and the flag only when it is set, so a 0.7.2 state (no `skipped`, no
+  `truncated`) prints the line it always did. Inventing `skipped 0` or a bare `truncated` would turn the
+  absence of a fact into a claim.
+

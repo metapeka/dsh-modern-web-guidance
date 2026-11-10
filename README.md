@@ -219,7 +219,7 @@ and security budget. The honest split:
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 901 kB packed, 2.6 MB unpacked |
+| Size | — | 256 files, 905 kB packed, 2.6 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -381,14 +381,20 @@ draws the counters `/guidance-stats` prints as a map, and answers four questions
 - **with what, and how it ended** — calls by tool and by outcome, side by side
 - **what the scanner catches** — the last completed scan, the rules that matched most (up to 10) and the guides those
   findings point at; the button below runs the scanner over every code file in the session workspace (Markdown is
-  skipped and reported as skipped) and shows that run's result inline
+  skipped and reported as skipped) and shows that run's result inline — `Scanned 70 files, 97 findings` followed by
+  `Skipped 280 (278 extension, 2 dot-directory)` and, when a cap cut the list, the truncation line, so a count is never
+  printed without the caveats behind it
 
 Below those, the report's lists: the most frequent queries with hit and miss counts, category coverage against the 208
 guides, the queries that found nothing, and the dead guides — listed by id, up to 20.
 
 Refresh re-reads the counters, and the `7 d` / `30 d` switch sends `/guidance-stats --json --days N` to the host. In a
 conversation, a scan renders as a table — rule, place, confidence, guide — up to 16 rows and an "and N more" count,
-whichever format the call asked for.
+whichever format the call asked for, with the same skip line under it: the summary format prints `Skipped 280 path(s):
+278 extension, 2 dot-directory` as prose and the row reads that line back, so JSON and summary answers show the same
+caveats. The last-scan line makes the same point in one line — `Last scan: 2026-11-10 · 70 files · 97 findings ·
+skipped 280 · truncated`, the total and the flag only — and a state file written before 0.7.3 simply renders shorter
+rather than claiming nothing was skipped.
 
 The panel is read-only apart from the scan button: it changes no counter, never leaves the machine, and adds no network
 calls and no new tools — the same four tools stay exactly four. A scan it starts is counted like any other scan. Paths
@@ -471,6 +477,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.7.0 | shipped | the panel becomes a map rather than a scoreboard — period switch, calls per day, per tool and per outcome, dead guides by id, an honest hit rate, what the scanner catches and a scan button — with `/guidance-scan` as the scanner's human command and a chat table for its findings |
 | 0.7.1 | shipped | the scanner stops reading documentation: `.md` and `.mdx` leave the allowlist and are reported as skipped, so a project whose only defect is its prose scans clean |
 | 0.7.2 | shipped | the scanner stops entering dot-directories and honours a workspace-root `.scanignore`, and the scan text now itemises what it skipped per reason — `Skipped 279 path(s): 277 extension, 2 dot-directory` |
+| 0.7.3 | shipped | the panel stops quoting a scan without its caveats: the button result, the last-scan line and the chat table row all say how many paths were skipped and by which reasons, and whether a cap truncated the list; `lastScan` stores both facts and an older state file upgrades silently |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
@@ -501,7 +508,7 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 221 tests across fifteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 234 tests across fifteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its

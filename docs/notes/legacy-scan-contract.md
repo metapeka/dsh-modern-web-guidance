@@ -313,6 +313,69 @@ into one string.
   which surface started the scan; that is the contract, not an accident. With the counters off the
   recorder's sink is a no-op, so the command runs and records nothing.
 
+## `lastScan` — the stored scan summary (0.7.3)
+
+`stats.json` keeps one scan summary, so the report and the panel can say what the last scan did without
+re-running it. Six keys, and `version` stays `1` — the two new fields are additive:
+
+```js
+lastScan: {
+  at: '2026-11-10T21:26:09.000Z',                    // ISO 8601, replaced by every completed scan
+  files: 70,
+  findings: 97,
+  rules: ['ls-13', 'ls-21'],                         // distinct ids, capped for display
+  skipped: { extension: 278, 'dot-directory': 2 },   // top FOUR reasons, count desc then name
+  truncated: false,                                  // true when the run stopped at any cap
+}
+```
+
+- **Written only by a completed scan** — outcome `findings` or `clean`. A refusal (`error`) leaves the
+  previous `lastScan` untouched, on the tool and on the command alike, so the counters never claim a scan
+  that did not happen.
+- **`skipped` is a reduction, and its sum can be smaller than the scan's own total.** The map keeps the
+  **top four** reasons (count descending, then name ascending; zero and negative counts dropped; `{}` when
+  nothing was skipped, never a map of zeros), while one run can skip for up to eight reasons. With five or
+  more, the printed `skipped N (…)` sums only what the state kept and is therefore lower than
+  `scanned.skippedTotal`. Measured: the map `{ extension: 100, binary: 50, large: 20, scanignore: 9,
+  unreadable: 1 }` is stored as four rows summing to **179** while the scan's own total was **180**. That is
+  the contract, not a bug: the state document is a summary, and the fresh scan result — the panel's button,
+  the chat row, the tool's own text — carries every reason and its own `Skipped N path(s)` total.
+- **`truncated` is a fact about that run, not about the project.** It is true when the scan stopped at
+  **any** cap — files, bytes or findings (`payload.truncated === true || scanned.truncated === true`).
+- **An old state file upgrades silently.** A 0.7.2 document has neither field: `skipped` reads as `{}` and
+  `truncated` as `false`, so the first report after upgrading renders the shorter line — no `skipped 0`,
+  no invented `truncated` — and the next completed scan rewrites the file with six keys. No migration
+  step, no `version` bump, nothing to run by hand. Malformed values are dropped in the same spirit: a
+  `lastScan` whose `at` the state reader cannot parse is dropped and reads as `null` — the report then omits
+  its `Last scan:` line rather than printing "unknown" — and non-numeric counts read as zero.
+- **`prune` is unchanged**: it still nulls only a stale `lastScan`. The lifetime counters, `scanRules`,
+  `scanGuides` and `reset` behave exactly as in 0.7.0.
+
+The text tails are fixed strings, one per surface, and the panel keys below are named so this contract and
+`client.js` cannot drift. Measured, not paraphrased — `renderReport` with a six-key `lastScan` prints:
+
+```text
+Last scan: 2026-11-10, 70 files, 97 findings (rules: ls-13); skipped 280 (278 extension, 2 dot-directory); truncated
+```
+
+- report text — that line: the date, two counts, then ` (rules: …)` (up to five ids, omitted when none),
+  then `; skipped N (…)` when the map is non-empty, then `; truncated` when the flag is set. The `N` is the
+  sum of the stored map, so it obeys the top-four caveat above.
+- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 97 findings · skipped 280 · truncated`, built
+  from `scanner.last`, `file`/`finding` plurals, `scanner.skipped` and `scanner.cut`, joined with ` · `; the
+  date is the `YYYY-MM-DD` part, and each later fact is omitted when absent.
+- panel, button result — `Scanned 70 files, 97 findings` (`scan.summary`) then `Skipped 280 (278 extension,
+  2 dot-directory)` (`scan.skipped`), with at most **three** reasons named and `+N more` (`scan.skippedMore`)
+  inside the parentheses beyond that; its count is the fresh scan's own total. Truncation reuses the 0.7.0
+  string `scan.truncated` — `Truncated: the scan hit a cap, so this list is incomplete.` — so there is no
+  fifth key.
+- chat tool row — the same `Skipped …` line under the table, for a JSON **and** a summary answer: the
+  summary format prints `Skipped 279 path(s): 277 extension, 2 dot-directory` as prose and the row parses
+  that line back, so one reader serves both formats.
+- Reason tokens are **never translated**, on any of those surfaces: `dot-directory` stays `dot-directory`
+  in EN, RU and ZH, exactly as a rule id stays `ls-13`. They are values a reader matches against a scan,
+  not UI words.
+
 ## Stats, report and panel
 
 - `lib/telemetry.js`: the kind map grows to four (`search`, `retrieve`, `list`, `legacy-scan`). A call that
@@ -322,6 +385,14 @@ into one string.
 - `client.js`: three new dictionary keys in `EN`, `RU` and `ZH` (`stats.legacyScan`, `stats.findings`,
   `tool.legacyScan`) — key order and placeholders identical, `test/client-locales.test.mjs` enforces it —
   and the KPI row shows the fourth tool plus the finding count.
+- **0.7.3 — both caveats on every surface.** `lib/report.js` passes `skipped` and `truncated` through with
+  the `{}` / `false` defaults and appends the two tails described above, and the panel reads the same
+  fields in three places: the button result (`scan.summary` → `scan.skipped` → `scan.truncated`), the
+  last-scan line (`scanner.last` → `scanner.skipped` → `scanner.cut`) and the chat tool row, which adds
+  the skip line under its table for JSON and summary answers alike. Four new keys per language —
+  `scan.skipped`, `scan.skippedMore`, `scanner.skipped`, `scanner.cut` — and the fifth string is the
+  existing `scan.truncated`. No path and no snippet appears on any of the three: these are counters, and
+  the chat table is where files and lines belong.
 
 ## Release
 

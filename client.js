@@ -12,6 +12,12 @@
  * `web_guidance_legacy_scan`, which is an unclaimed key: the generic card stays in place for every
  * other tool, and this row replaces only that one.
  *
+ * A scan is reported with its caveats, never as bare counts: how many paths the walk skipped and why
+ * (`skippedByReason` / a stored `lastScan.skipped`), and whether a cap cut the list short
+ * (`truncated`). Both are counts and raw reason tokens — `extension`, `dot-directory` — shown
+ * untranslated exactly like a rule id, and both are optional in older data, where the line is
+ * simply shorter.
+ *
  * Bridge note: `commands.execute` is a host method already exposed as a Remote
  * (`@Remote(agent, line, submittedAttachments, signal)`), so the panel needs no new host service and
  * no schema codegen. It resolves the Remote service lazily on every call: a page whose composition
@@ -46,6 +52,8 @@ window.__ModuleLoader__.load({
     const SCAN_LINE = '/guidance-scan . --format json'
     /** The wire name of the scan tool: the key ui-tool dispatches a row by, and the name in the log. */
     const SCAN_TOOL_NAME = 'web_guidance_legacy_scan'
+    /** Three skip reasons fit the rail width; the rest are counted on the same line. */
+    const SKIP_REASONS_SHOWN = 3
     /** Rules one scan ranks in the panel, and findings the chat row lists before it summarises. */
     const MAX_SCAN_RULES = 10
     const MAX_TOOL_ROWS = 16
@@ -76,12 +84,16 @@ window.__ModuleLoader__.load({
       'section.scanner': 'What the scanner catches',
       'scanner.none': 'No scan has run yet.',
       'scanner.last': 'Last scan: {when}',
+      'scanner.skipped': 'skipped {count}',
+      'scanner.cut': 'truncated',
       'scanner.rules': 'Rules that matched',
       'scanner.guides': 'Guides to load',
       'scanner.scan': 'Scan workspace folder',
       'scanner.scanning': 'Scanning the workspace...',
       'scanner.failed': 'The scan did not run: {message}',
       'scan.summary': 'Scanned {files}, {findings}',
+      'scan.skipped': 'Skipped {count} ({reasons})',
+      'scan.skippedMore': '+{more} more',
       'scan.clean': 'No rule matched.',
       'scan.truncated': 'Truncated: the scan hit a cap, so this list is incomplete.',
       'row.title': 'Legacy scan',
@@ -155,12 +167,16 @@ window.__ModuleLoader__.load({
       'section.scanner': 'Что находит сканер',
       'scanner.none': 'Сканирование ещё не запускали.',
       'scanner.last': 'Последнее сканирование: {when}',
+      'scanner.skipped': 'пропущено {count}',
+      'scanner.cut': 'обрезано',
       'scanner.rules': 'Сработавшие правила',
       'scanner.guides': 'Подсказки, которые стоит открыть',
       'scanner.scan': 'Сканировать рабочую папку',
       'scanner.scanning': 'Сканирую рабочую папку...',
       'scanner.failed': 'Сканирование не запустилось: {message}',
       'scan.summary': 'Просканировано {files}, {findings}',
+      'scan.skipped': 'Пропущено {count} ({reasons})',
+      'scan.skippedMore': '+{more} ещё',
       'scan.clean': 'Ни одно правило не сработало.',
       'scan.truncated': 'Список обрезан: сканирование упёрлось в лимит, поэтому он неполный.',
       'row.title': 'Сканер устаревшего кода',
@@ -238,12 +254,16 @@ window.__ModuleLoader__.load({
       'section.scanner': '扫描器发现了什么',
       'scanner.none': '还没有运行过扫描。',
       'scanner.last': '最近一次扫描：{when}',
+      'scanner.skipped': '跳过 {count}',
+      'scanner.cut': '已截断',
       'scanner.rules': '命中的规则',
       'scanner.guides': '需要打开的指引',
       'scanner.scan': '扫描工作区',
       'scanner.scanning': '正在扫描工作区...',
       'scanner.failed': '扫描未能运行：{message}',
       'scan.summary': '已扫描 {files}，{findings}',
+      'scan.skipped': '已跳过 {count} 个（{reasons}）',
+      'scan.skippedMore': '另有 {more} 项',
       'scan.clean': '没有规则命中。',
       'scan.truncated': '已截断：扫描触到上限，所以这份清单不完整。',
       'row.title': '遗留代码扫描',
@@ -498,11 +518,45 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * A `{ reason: count }` skip map as ranked rows plus its total.
+     *
+     * The reasons are the scanner's own vocabulary — `extension`, `binary`, `large`, `too-many`,
+     * `unreadable`, `outside`, `dot-directory`, `scanignore` — so they are shown verbatim, exactly
+     * like a rule id: translating them would invent a second name for something the text report and
+     * `/guidance-scan` already print. A missing map reads as empty, which is also what a stale stats
+     * file and a scan that skipped nothing produce, so neither case is an error.
+     *
+     * @param {unknown} value the `skippedByReason` map (scan value) or `skipped` map (last scan).
+     * @returns {{ rows: Array<{ name: string, calls: number }>, total: number }}
+     */
+    function readSkipMap(value) {
+      const rows = []
+      let total = 0
+      if (value !== null && typeof value === 'object' && Array.isArray(value) === false) {
+        for (const [reason, count] of Object.entries(value)) {
+          const name = asText(reason).trim()
+          const amount = asCount(count)
+          if (name === '' || amount <= 0) continue
+          rows.push({ name, calls: amount })
+          total += amount
+        }
+      }
+      rows.sort((left, right) => {
+        if (right.calls !== left.calls) return right.calls - left.calls
+        return left.name < right.name ? -1 : left.name > right.name ? 1 : 0
+      })
+      return { rows, total }
+    }
+
+    /**
      * The stored last scan, or null. A value without a usable date reads as null: the section then
      * says nothing has run rather than printing an empty date.
      *
+     * `skipped` and `truncated` are the caveats of the scan: 0.7.2 state files have neither, so a
+     * missing map reads as empty and a missing flag as false and the line is simply shorter.
+     *
      * @param {unknown} value
-     * @returns {{ at: string, files: number, findings: number, rules: string[] } | null}
+     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean } | null}
      */
     function readLastScan(value) {
       if (value === null || typeof value !== 'object') return null
@@ -513,6 +567,8 @@ window.__ModuleLoader__.load({
         files: asCount(value.files),
         findings: asCount(value.findings),
         rules: Array.isArray(value.rules) ? value.rules.filter((id) => typeof id === 'string' && id !== '') : [],
+        skipped: readSkipMap(value.skipped),
+        truncated: value.truncated === true,
       }
     }
 
@@ -730,11 +786,12 @@ window.__ModuleLoader__.load({
     /**
      * One `/guidance-scan --format json` value as the panel and the chat row render it.
      *
-     * Counts, ids, and the findings themselves: the panel renders only the counts, and the chat row
-     * renders the findings because there they belong to a call the session already made.
+     * Counts, ids, and the findings themselves: the panel renders only the counts and the skip map,
+     * and the chat row renders the findings because there they belong to a call the session already
+     * made.
      *
      * @param {unknown} payload
-     * @returns {{ files: number, bytes: number, findings: Array<object>, guides: Array<{ id: string, findings: number }>, truncated: boolean, rules: Array<{ name: string, calls: number }> }}
+     * @returns {{ files: number, bytes: number, findings: Array<object>, guides: Array<{ id: string, findings: number }>, skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, rules: Array<{ name: string, calls: number }> }}
      */
     function readScanValue(payload) {
       if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -754,6 +811,7 @@ window.__ModuleLoader__.load({
         bytes: asCount(scanned.bytes),
         findings,
         guides,
+        skipped: readSkipMap(scanned.skippedByReason),
         truncated: payload.truncated === true,
         rules: ruleCounts(findings).slice(0, MAX_SCAN_RULES),
       }
@@ -773,6 +831,7 @@ window.__ModuleLoader__.load({
     function readScanText(text) {
       const findings = []
       const guides = []
+      const skips = new Map()
       let truncated = false
       for (const line of text.split('\n')) {
         const trimmed = line.trim()
@@ -786,6 +845,17 @@ window.__ModuleLoader__.load({
             column: asCount(match[3]),
             guideId: '',
           })
+          continue
+        }
+        // `Skipped 279 path(s): 277 extension, 2 dot-directory` — the same counts the JSON carries,
+        // printed as prose. The reasons are read verbatim so the row can report them unchanged.
+        const skipped = /^Skipped (\d+) path\(s\)(?::\s*(.*))?\.?$/.exec(trimmed)
+        if (skipped !== null) {
+          for (const item of (skipped[2] ?? '').split(/,\s*/)) {
+            const pair = /^(\d+)\s+(\S+)$/.exec(item.trim())
+            if (pair === null) continue
+            skips.set(pair[2], asCount(pair[1]))
+          }
           continue
         }
         if (trimmed.startsWith('Load with web_guidance_retrieve:')) {
@@ -805,6 +875,7 @@ window.__ModuleLoader__.load({
         bytes: 0,
         findings,
         guides,
+        skipped: readSkipMap(Object.fromEntries(skips)),
         truncated,
         rules: ruleCounts(findings).slice(0, MAX_SCAN_RULES),
       }
@@ -1291,6 +1362,27 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * `Skipped 279 (277 extension, 2 dot-directory, +2 more)` — one line, counts and raw reason
+     * tokens only.
+     *
+     * Files that were never read are the other half of "Scanned 70 files, 97 findings": a scan whose
+     * walk refused a third of the tree reports a smaller number, and saying so is the difference
+     * between a report and a claim. Three reasons fit a rail width; the rest are counted, not hidden.
+     *
+     * @param {Function} t bound translator.
+     * @param {{ rows: Array<{ name: string, calls: number }>, total: number }} skipped the map.
+     * @param {number} limit how many reasons to name.
+     * @returns {string} the line.
+     */
+    function skipLine(t, skipped, limit) {
+      const shown = skipped.rows.slice(0, limit)
+      const reasons = shown.map((row) => `${row.calls} ${row.name}`)
+      const rest = skipped.rows.length - shown.length
+      if (rest > 0) reasons.push(t('scan.skippedMore', { more: rest }))
+      return t('scan.skipped', { count: skipped.total, reasons: reasons.join(', ') })
+    }
+
+    /**
      * What the scanner catches, plus the button that runs one.
      *
      * The section reads the counters the report carries — the last scan, the rules that matched, the
@@ -1306,17 +1398,24 @@ window.__ModuleLoader__.load({
      */
     function renderScanner(t, report, scan, busy, onScan) {
       const last = report.lastScan
+      // The last scan is one line: date, two counts, and — when the stored scan has them — how many
+      // paths were skipped and whether the list was cut. Older state files carry neither, so the
+      // line is simply shorter instead of guessing.
+      const lastFacts =
+        last === null
+          ? []
+          : [
+              t('scanner.last', { when: last.at }),
+              plural(t, 'file', last.files),
+              plural(t, 'finding', last.findings),
+            ]
+      if (last !== null && last.skipped.total > 0) lastFacts.push(t('scanner.skipped', { count: last.skipped.total }))
+      if (last !== null && last.truncated) lastFacts.push(t('scanner.cut'))
       const children = [
         h(
           'div',
           { style: S.note, key: 'scan-summary' },
-          last === null
-            ? t('scanner.none')
-            : [
-                t('scanner.last', { when: last.at }),
-                plural(t, 'file', last.files),
-                plural(t, 'finding', last.findings),
-              ].join(' · '),
+          lastFacts.length === 0 ? t('scanner.none') : lastFacts.join(' · '),
         ),
       ]
       if (report.topRules.length > 0) {
@@ -1365,6 +1464,11 @@ window.__ModuleLoader__.load({
             }),
           ),
         )
+        // What the walk refused and whether it was cut: the two caveats that turn the counts above
+        // from a claim into a report. Both are already in the value the command returned.
+        if (value.skipped.total > 0) {
+          children.push(h('div', { style: S.note, key: 'scan-skipped' }, skipLine(t, value.skipped, SKIP_REASONS_SHOWN)))
+        }
         if (value.truncated) children.push(h('div', { style: S.stateBody, key: 'scan-truncated' }, t('scan.truncated')))
         if (value.rules.length > 0) {
           for (const [index, rule] of value.rules.entries()) children.push(scanRuleLine(rule, index === 0))
@@ -1591,6 +1695,9 @@ window.__ModuleLoader__.load({
         if (rest > 0) body.push(h('div', { style: T.note, key: 'more' }, t('row.more', { count: rest })))
       } else {
         body.push(h('div', { style: T.note, key: 'clean' }, t('scan.clean')))
+      }
+      if (value.skipped.total > 0) {
+        body.push(h('div', { style: T.note, key: 'skipped' }, skipLine(t, value.skipped, SKIP_REASONS_SHOWN)))
       }
       if (value.truncated) body.push(h('div', { style: T.note, key: 'truncated' }, t('scan.truncated')))
       if (value.guides.length > 0) {

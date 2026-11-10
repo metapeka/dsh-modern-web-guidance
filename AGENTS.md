@@ -89,3 +89,13 @@ Panel strings live in three dictionaries — `EN`, `RU` and `ZH` — registered 
 `ctx.locale.register(NS, { en, ru, zh })` call. `test/client-locales.test.mjs` enforces key, order and
 placeholder parity between them and the shape of `locale/*.json`, so a new string must land in all three
 languages in the same commit.
+
+- **Both scan caveats are on screen, on all three surfaces, and a stale state file renders shorter**
+  (0.7.3): the button result (`scan.skipped`, `scan.skippedMore`), the last-scan line (`scanner.skipped`,
+  `scanner.cut`) and the chat tool row all say how many paths the walk skipped and whether a cap truncated
+  the list. Truncation reuses `scan.truncated`; there is no fifth string. Skip **reason tokens stay raw and
+  untranslated** — `dot-directory` in EN, RU and ZH alike, like a rule id — and they are never mapped
+  through the locale dictionaries. A `stats.json` written before 0.7.3 has no `skipped`/`truncated`, so the
+  line must render *shorter*: never invent a `skipped 0` and never show `truncated` because the field was
+  absent. The stored map keeps the top four reasons, so its sum can be smaller than the scan's own
+  `skippedTotal` — that is the contract, not a bug to "fix" in the panel.

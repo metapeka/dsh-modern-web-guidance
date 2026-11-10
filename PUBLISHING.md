@@ -11,13 +11,13 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.7.1` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.7.2` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
-> 0.7.2 is prepared in this tree and **not yet published**: its tag runs the same workflow, with
+> 0.7.3 is prepared in this tree and **not yet published**: its tag runs the same workflow, with
 > nothing to configure and no token to add.
 >
 > The trusted publisher is pinned to `metapeka/dsh-modern-web-guidance` + workflow `release.yml`,
@@ -83,10 +83,11 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 4 tools, 2 skills, 208 guides, two human commands, and a `npm test` suite of
-      **221 tests in 15 files** covering the index, the plugin mount, the security invariants, the counter
+      **234 tests in 15 files** covering the index, the plugin mount, the security invariants, the counter
       pipeline, the panel's three dictionaries, the legacy scanner (including the "Markdown is skipped"
-      case, the dot-directory rule and the `.scanignore` grammar), the rule table's guide hashes and the
-      `/guidance-scan` command (a run reports 220 passed plus 1 skipped where the host forbids symlink
+      case, the dot-directory rule and the `.scanignore` grammar), the six-key `lastScan` summary and the
+      panel's skip/truncation lines, the rule table's guide hashes and the
+      `/guidance-scan` command (a run reports 233 passed plus 1 skipped where the host forbids symlink
       creation, because the walk test skips itself there rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
@@ -222,8 +223,10 @@ Constraints worth knowing:
   `client.js` and `index.js`, so the file list and the zero-dependency shape hold. 0.7.1 removes `.md`
   and `.mdx` from the scanner's extension allowlist — again no file, no dependency, no build step, and no
   change to `files`. 0.7.2 adds the dot-directory rule and the `.scanignore` reader as source inside
-  `lib/scan.js`, and a `.scanignore` is a workspace file the user writes, never one we ship. `npm pack
-  --dry-run` lists exactly what ships: 256 files, 901 kB packed / 2.6 MB unpacked at 0.7.2.
+  `lib/scan.js`, and a `.scanignore` is a workspace file the user writes, never one we ship. 0.7.3 adds
+  two fields to the stored `lastScan` and four locale strings — code and dictionaries, no file, no
+  dependency, no build step. `npm pack
+  --dry-run` lists exactly what ships: 256 files, 905 kB packed / 2.6 MB unpacked at 0.7.3.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 
