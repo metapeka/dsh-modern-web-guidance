@@ -153,6 +153,32 @@ const WITH_SCAN_GOLDEN = [
   'Period: last 7 days (generated 2026-11-10T12:00:00.000Z)',
 ].join('\n')
 
+/**
+ * A one-rule slice of the scanner's table (`RULES` in `lib/scan-rules.js`), copied exactly as that
+ * table writes it. The enrichment tests feed this in instead of importing the real table: the
+ * renderer's contract is "look the id up and pass the text through", and a local fixture keeps that
+ * visible without pinning the test to a rule the scanner may retire.
+ */
+const RULE_TABLE = [
+  {
+    id: 'ls-17',
+    guideId: 'html',
+    confidence: 'medium',
+    message: 'Build the DOM with createElement/append instead of document.write(), which discards the parsed document.',
+    source: 'document\\.write(?:ln)?\\s*\\(',
+  },
+]
+
+/**
+ * The catalog's `guideId -> description` record as `readCatalog()` derives it from
+ * `data/guides.json`. Two ids only: `dialog` is known, and every other id in `RICH` must read as an
+ * unknown guide, which is the case worth proving.
+ */
+const GUIDE_DESCRIPTIONS = {
+  dialog: 'Use the native dialog element with showModal() for modal and non-modal dialogs.',
+  html: 'How a modern HTML page is structured: semantic elements, forms, and script loading.',
+}
+
 test('renders every section in the documented order', () => {
   const text = renderReport(SMALL)
   const markers = [
@@ -374,6 +400,7 @@ test('rendering never mutates the snapshot', () => {
     const before = structuredClone(snapshot)
     renderReport(snapshot)
     renderJson(snapshot)
+    renderJson(snapshot, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
     assert.deepEqual(snapshot, before)
   }
 })
@@ -646,4 +673,115 @@ test('renderJson passes the audit fields through, trims them and defaults an old
     lastScan: { ...RICH.lastScan, skipped: { '': 4, binary: 'many' } },
   })
   assert.deepEqual(malformed.lastScan.skipped, {})
+})
+
+// --- The described scan rows: the message, confidence and guide behind every id -----------------
+
+test('renderJson describes the scan rows it was given tables for', () => {
+  const json = renderJson(RICH, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+
+  // The row is the same id and count, with the rule table's own sentence and confidence attached.
+  assert.deepEqual(json.topRules.find((row) => row.ruleId === 'ls-17'), {
+    ruleId: 'ls-17',
+    count: 1,
+    message: 'Build the DOM with createElement/append instead of document.write(), which discards the parsed document.',
+    confidence: 'medium',
+    guideId: 'html',
+  })
+  // A rule the slice does not contain is described as unknown, not described as a guess.
+  assert.deepEqual(json.topRules.find((row) => row.ruleId === 'ls-13'), {
+    ruleId: 'ls-13',
+    count: 4,
+    message: '',
+    confidence: '',
+    guideId: null,
+  })
+
+  // Every row survives the enrichment, in the snapshot's own order.
+  assert.equal(json.topRules.length, RICH.topRules.length)
+  assert.deepEqual(json.topRules.map((row) => row.ruleId), RICH.topRules.map((row) => row.ruleId))
+
+  // The guide description comes from the catalog, and an id it does not know reads as empty.
+  assert.deepEqual(json.topScanGuides, [
+    { guideId: 'dialog', count: 2, description: GUIDE_DESCRIPTIONS.dialog },
+    { guideId: 'css-anchor', count: 3, description: '' },
+  ])
+})
+
+test('the guide table may arrive as the catalog entry array instead of a record', () => {
+  const json = renderJson(RICH, {
+    rules: RULE_TABLE,
+    guides: [{ id: 'dialog', description: GUIDE_DESCRIPTIONS.dialog }],
+  })
+  assert.deepEqual(json.topScanGuides[0], {
+    guideId: 'dialog',
+    count: 2,
+    description: GUIDE_DESCRIPTIONS.dialog,
+  })
+})
+
+test('an unknown rule id keeps its row instead of losing a true count', () => {
+  const json = renderJson(
+    { ...RICH, topRules: [{ ruleId: 'ls-99', count: 121 }] },
+    { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS },
+  )
+  assert.deepEqual(json.topRules, [
+    { ruleId: 'ls-99', count: 121, message: '', confidence: '', guideId: null },
+  ])
+})
+
+test('a missing catalog reads as an empty description, never as a missing row', () => {
+  const noGuides = renderJson(RICH, { rules: RULE_TABLE })
+  assert.deepEqual(noGuides.topScanGuides, [
+    { guideId: 'dialog', count: 2, description: '' },
+    { guideId: 'css-anchor', count: 3, description: '' },
+  ])
+
+  // An empty options object describes nothing and still keeps both lists whole.
+  const bare = renderJson(RICH, {})
+  assert.equal(bare.topRules.length, RICH.topRules.length)
+  assert.deepEqual(bare.topRules[0], {
+    ruleId: 'ls-08',
+    count: 2,
+    message: '',
+    confidence: '',
+    guideId: null,
+  })
+})
+
+test('scanCountsScope says the described lists are lifetime totals', () => {
+  assert.equal(
+    renderJson(RICH, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS }).scanCountsScope,
+    'lifetime',
+  )
+  // The flag describes the lists, not the tables: it is there even when nothing can be looked up.
+  assert.equal(renderJson(RICH, {}).scanCountsScope, 'lifetime')
+  // A snapshot with no scans at all still carries it: the command's document is a lifetime document.
+  assert.equal(renderJson(SMALL, {}).scanCountsScope, 'lifetime')
+  // The frozen, no-options document predates the flag and must not grow it.
+  assert.equal('scanCountsScope' in renderJson(RICH), false)
+})
+
+test('renderJson without options keeps the pre-enrichment document exactly', () => {
+  const frozen = renderJson(RICH)
+  assert.deepEqual(Object.keys(frozen), [
+    'periodDays', 'corpus', 'totals', 'topQueries', 'misses', 'coverage', 'deadGuides', 'series',
+    'tools', 'findings', 'topRules', 'topScanGuides', 'lastScan',
+  ])
+  // The rows are the snapshot's own `{ id, count }` pairs, with no meaning attached.
+  assert.deepEqual(frozen.topRules, RICH.topRules)
+  assert.deepEqual(frozen.topScanGuides, RICH.topScanGuides)
+
+  // The described document differs only by the enriched rows and the scope flag above them.
+  const described = renderJson(RICH, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+  assert.deepEqual(Object.keys(described), [
+    'periodDays', 'corpus', 'totals', 'topQueries', 'misses', 'coverage', 'deadGuides', 'series',
+    'tools', 'findings', 'scanCountsScope', 'topRules', 'topScanGuides', 'lastScan',
+  ])
+  for (const key of [
+    'periodDays', 'corpus', 'totals', 'topQueries', 'misses', 'coverage', 'deadGuides', 'series',
+    'tools', 'findings', 'lastScan',
+  ]) {
+    assert.deepEqual(described[key], frozen[key], `${key} must not change when rows are described`)
+  }
 })

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { renderJson, renderReport } from '../lib/report.js'
+import { RULES } from '../lib/scan-rules.js'
 import { createFileStore } from '../lib/store.js'
 import { classifyCall, createTelemetry } from '../lib/telemetry.js'
 
@@ -404,6 +405,71 @@ test('a legacy-scan result is counted through the plugin listener', async () => 
     const json = JSON.parse((await command.handler({ rawInput: '--json' })).text)
     assert.deepEqual(json.tools, { 'legacy-scan': { total: 1, files: 12, findings: 2 } })
     assert.equal(json.findings, 2)
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('/guidance-stats --json describes the scan ids the host knows', async () => {
+  const home = await isolatedHome()
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const listener = registered.listeners.find((entry) => entry.event === 'tools/result')
+    // A finding naming a real rule and a real guide, so the command can describe both from the
+    // tables the plugin already loads: the rule table it registers and the catalog it counts against.
+    listener.handler(
+      { name: 'web_guidance_legacy_scan', arguments: { paths: ['src'] } },
+      {
+        isError: false,
+        value: {
+          ...scanResult({ files: 4, findings: 0 }),
+          findings: [
+            {
+              path: 'src/legacy.js',
+              line: 12,
+              column: 3,
+              ruleId: 'ls-17',
+              guideId: 'html',
+              confidence: 'medium',
+              message: 'the finding message is the scanner\'s, not the report\'s',
+              snippet: 'document.write("<p>")',
+            },
+          ],
+          guides: [{ id: 'html', findings: 1 }],
+        },
+      },
+    )
+    await settle()
+
+    const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
+    const json = JSON.parse((await command.handler({ rawInput: '--json' })).text)
+    const rule = RULES.find((entry) => entry.id === 'ls-17')
+    const catalog = JSON.parse(await readFile(new URL('../data/guides.json', import.meta.url), 'utf8'))
+    const guide = catalog.find((entry) => entry.id === 'html')
+
+    // The flag documents that both lists are lifetime totals, not filtered by --days.
+    assert.equal(json.scanCountsScope, 'lifetime')
+    // The sentence and confidence come from the rule table, not from the finding the scan raised.
+    assert.deepEqual(json.topRules, [
+      {
+        ruleId: 'ls-17',
+        count: 1,
+        message: rule.message,
+        confidence: rule.confidence,
+        guideId: rule.guideId,
+      },
+    ])
+    assert.deepEqual(json.topScanGuides, [
+      { guideId: 'html', count: 1, description: guide.description },
+    ])
+
+    // The text report is a counter, not evidence: it names ids and numbers only, as before.
+    const text = await command.handler({ rawInput: '' })
+    assert.match(text.text, /^Most matched rules: ls-17 1$/m)
+    assert.doesNotMatch(text.text, /createElement/)
   } finally {
     await rm(home, { recursive: true, force: true })
   }

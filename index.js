@@ -602,14 +602,16 @@ function readCorpusMeta() {
 }
 
 /**
- * Catalog metadata the report needs: per-category totals, the id list, and which category each
- * guide belongs to, so coverage counts guides rather than search hits.
+ * Catalog metadata the report needs: per-category totals, the id list, which category each guide
+ * belongs to (so coverage counts guides rather than search hits), and each guide's one-line
+ * description, so the JSON report can name what a counted guide is about instead of only its id.
  * @returns {object}
  */
 function readCatalog() {
   const guides = JSON.parse(readFileSync(join(DATA_DIR, 'guides.json'), 'utf8'))
   const byCategory = Object.create(null)
   const categoryOf = Object.create(null)
+  const descriptionOf = Object.create(null)
   const ids = []
   const seen = new Set()
   for (const guide of guides) {
@@ -623,10 +625,11 @@ function readCatalog() {
     const category = String(guide.category ?? 'uncategorised')
     ids.push(id)
     categoryOf[id] = category
+    if (typeof guide.description === 'string') descriptionOf[id] = guide.description
     byCategory[category] = (byCategory[category] ?? 0) + 1
   }
   const meta = readCorpusMeta()
-  return { total: ids.length, byCategory, categoryOf, ids, ...meta }
+  return { total: ids.length, byCategory, categoryOf, descriptionOf, ids, ...meta }
 }
 
 /**
@@ -651,9 +654,12 @@ function parseStatsArguments(line) {
  * The human command that reads the counters. It never becomes a tool: the numbers serve the
  * maintainer, not the model.
  * @param {object} telemetry counters instance from `lib/telemetry.js`.
+ * @param {{ rules?: readonly object[], guides?: Record<string, string> }} [detail] the rule table
+ *   and the guide descriptions the `--json` output needs to explain its ids. They are passed in
+ *   rather than loaded here: the counters already hold the catalog, and there is one loader.
  * @returns {object} a CommandDefinition.
  */
-function buildStatsCommand(telemetry) {
+function buildStatsCommand(telemetry, detail = {}) {
   return {
     name: 'guidance-stats',
     description: 'Local usage counters for the guidance tools: calls, outcomes, missed queries, category coverage and dead guides.',
@@ -674,7 +680,7 @@ function buildStatsCommand(telemetry) {
 
         const snapshot = await telemetry.snapshot({ days: options.days })
         const text = options.json
-          ? JSON.stringify(renderJson(snapshot), null, 2)
+          ? JSON.stringify(renderJson(snapshot, detail), null, 2)
           : renderReport(snapshot)
         return { kind: 'success', text }
       } catch (error) {
@@ -721,13 +727,15 @@ function startUsageCounters(ctx, config, usage) {
   if (typeof ctx.on !== 'function') return
 
   let telemetry
+  let catalog
   try {
+    catalog = readCatalog()
     telemetry = createTelemetry({
       store: createFileStore({ file: defaultStatePath() }),
       clock: () => Date.now(),
       retentionDays: Number.isFinite(config?.retentionDays) ? config.retentionDays : DEFAULT_RETENTION_DAYS,
       ringLimit: 1000,
-      catalog: readCatalog(),
+      catalog,
     })
   } catch {
     return
@@ -785,7 +793,7 @@ function startUsageCounters(ctx, config, usage) {
 
   const commands = typeof ctx.get === 'function' ? ctx.get('commands') : undefined
   if (commands !== undefined && commands !== null && typeof commands.register === 'function') {
-    const definition = buildStatsCommand(telemetry)
+    const definition = buildStatsCommand(telemetry, { rules: RULES, guides: catalog.descriptionOf })
     ctx.effect(() => commands.register(definition), 'modern-web-guidance /guidance-stats')
   }
 }

@@ -232,6 +232,7 @@ const SCANNER_KEYS = [
   'scanner.skipped',
   'scanner.cut',
   'scanner.rules',
+  'scanner.lifetime',
   'scanner.guides',
   'scanner.scan',
   'scanner.scanning',
@@ -378,6 +379,177 @@ test('the panel counts and the chat row locates', () => {
     CLIENT_SOURCE.includes('const place = findingPlace(finding)'),
     'the chat row no longer locates a finding through findingPlace',
   )
+})
+
+/** The strings Phase A added: a rule row that explains itself instead of printing a bare pair. */
+test('a rule row names its confidence, its unit and the rule message', () => {
+  assert.match(CLIENT_SOURCE, /function scanRuleLine\(t, rule, first\)/, 'the rule row does not take the translator')
+  // The confidence token is raw, exactly like a rule id: no dictionary entry may ever grow for it.
+  assert.match(CLIENT_SOURCE, /h\('span', \{ style: S\.scanConfidence \}, confidence\)/, 'the confidence token is not rendered')
+  assert.ok(!CLIENT_SOURCE.includes('confidence.high'), 'a confidence token was translated')
+  // `121` alone says neither what it counts nor whether it is findings or files.
+  assert.ok(CLIENT_SOURCE.includes("plural(t, 'finding', rule.calls)"), 'the rule count does not name its unit')
+  // The message is a second line clamped by CSS (the full sentence stays in the title) and dropped
+  // when absent, because a live scan answer still carries only an id and a count.
+  assert.match(
+    CLIENT_SOURCE,
+    /message === '' \? null : h\('div', \{ style: S\.scanMessage, title: message \}, message\)/,
+    'the rule message is not rendered under the row',
+  )
+  assert.match(CLIENT_SOURCE, /WebkitLineClamp: '2'/, 'the rule message is not clamped to two lines')
+  assert.ok(!CLIENT_SOURCE.includes('message.slice('), 'the rule message is cut by the client instead of clamped by CSS')
+  // Every colour still comes from a theme token, never from a literal.
+  assert.ok(!/#[0-9a-fA-F]{3,10}\b/.test(CLIENT_SOURCE), 'a style value is a literal colour instead of a --dsw-alias-* token')
+})
+
+test('the report hands the rule and guide detail through, and an old host costs only a caption', () => {
+  assert.match(
+    CLIENT_SOURCE,
+    /topRules: rankedIds\(asRows\(payload\.topRules\), 'ruleId', \['message', 'confidence', 'guideId'\]\)\.slice\(0, MAX_SCAN_RULES\)/,
+    'the rule detail is not read from the report',
+  )
+  assert.match(
+    CLIENT_SOURCE,
+    /topScanGuides: rankedIds\(asRows\(payload\.topScanGuides\), 'guideId', \['description'\]\)\.slice\(0, MAX_SCAN_RULES\)/,
+    'the guide description is not read from the report',
+  )
+  // Every extra field defaults to '': a report that predates them renders the same row it did, only
+  // without the detail — version skew costs a hint, never the row.
+  assert.ok(
+    CLIENT_SOURCE.includes('for (const field of extras) ranked[field] = asText(row[field])'),
+    'the optional row fields are not read defensively',
+  )
+  assert.match(CLIENT_SOURCE, /scanCountsScope: asText\(payload\.scanCountsScope\)/, 'the count scope is not read')
+  // One caption, and only when the host says the ranked counts are lifetime totals.
+  assert.match(CLIENT_SOURCE, /if \(report\.scanCountsScope === 'lifetime'\)/, 'the lifetime caption is unconditional')
+  assert.ok(
+    CLIENT_SOURCE.includes("t('scanner.lifetime', { days: report.periodDays })"),
+    'the lifetime caption does not name the selected window',
+  )
+})
+
+test('the lifetime caption is translated and names the window in every language', () => {
+  for (const name of DICTIONARIES) {
+    const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+    assert.deepEqual(placeholders(dictionary.get('scanner.lifetime')), ['days'], `${name} does not name the {days} window`)
+  }
+  assert.match(RU.get('scanner.lifetime'), /[\u0400-\u04ff]/, 'RU.scanner.lifetime is not Russian')
+  assert.match(ZH.get('scanner.lifetime'), CJK, 'ZH.scanner.lifetime has no Chinese text')
+  assert.notEqual(RU.get('scanner.lifetime'), EN.get('scanner.lifetime'), 'RU.scanner.lifetime is copied from English')
+  assert.notEqual(ZH.get('scanner.lifetime'), EN.get('scanner.lifetime'), 'ZH.scanner.lifetime is copied from English')
+})
+
+test('the guide chips explain themselves without changing their text', () => {
+  // The visible text stays `id (count)`; the description is the hint, so it never lengthens the chip.
+  assert.ok(CLIENT_SOURCE.includes('`${guide.name} (${guide.calls})`'), 'the guide chip text changed')
+  assert.match(CLIENT_SOURCE, /title: description === '' \? guide\.name : description/, 'the guide chip carries no description hint')
+})
+
+/**
+ * The client half as the browser loads it: `window.__ModuleLoader__.load({ factory })` runs once, and
+ * the `apply(ctx)` the factory returns registers the three slots. Loading it here lets a test drive a
+ * component with the props the host passes, instead of only grepping the source for the call that
+ * renders it.
+ *
+ * React is stubbed to the one function this file calls — `createElement` — because the component
+ * under test is a plain function with no hooks.
+ */
+function loadClient() {
+  let spec
+  // The browser global, named `window` because that is what client.js reads.
+  const browserWindow = { __ModuleLoader__: { load(candidate) { spec = candidate } } }
+  const react = {
+    createElement(type, props, ...children) {
+      return { type, props: props === null || props === undefined ? {} : props, children }
+    },
+  }
+  const requireReact = (name) => {
+    assert.equal(name, 'react', `client.js required ${name} instead of react`)
+    return react
+  }
+  new Function('window', 'require', CLIENT_SOURCE)(browserWindow, requireReact)
+  assert.ok(spec !== undefined && typeof spec.factory === 'function', 'client.js registered no factory')
+  const components = new Map()
+  const ctx = {
+    locale: { bind: () => (key) => key, register() {} },
+    effect: (run) => run(),
+    slots: {
+      inject: (name, add) => add(),
+      register: (meta, component) => {
+        components.set(`${meta.name}:${meta.key ?? meta.id ?? ''}`, component)
+        return () => {}
+      },
+    },
+  }
+  spec.factory(requireReact).apply(ctx)
+  return components
+}
+
+/** Every element of a stubbed render tree, depth first. */
+function elementsOf(node, out = []) {
+  if (Array.isArray(node)) {
+    for (const child of node) elementsOf(child, out)
+    return out
+  }
+  if (node === null || typeof node !== 'object') return out
+  out.push(node)
+  for (const child of node.children ?? []) elementsOf(child, out)
+  return out
+}
+
+/** The English dictionary as a translator, substituting `{name}` placeholders. */
+function translate(key, params) {
+  const value = EN.get(key)
+  assert.notEqual(value, undefined, `no English string for ${key}`)
+  return value.replace(/\{(\w+)\}/g, (match, name) =>
+    params === undefined || params[name] === undefined ? match : String(params[name]),
+  )
+}
+
+test('the chat row keeps the finding message and snippet as tooltips, and an old result still renders', () => {
+  const row = loadClient().get('tool.call.toolview:web_guidance_legacy_scan')
+  assert.equal(typeof row, 'function', 'the chat row is not registered under the scan wire name')
+  const tree = row({
+    phase: 'result',
+    t: translate,
+    block: {
+      kind: 'result',
+      isError: false,
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            scanned: { files: 2, bytes: 20, skippedByReason: {} },
+            findings: [
+              {
+                ruleId: 'ls-17',
+                confidence: 'high',
+                path: 'src/a.js',
+                line: 12,
+                column: 3,
+                guideId: 'anchor-positioning',
+                message: 'Position the anchor instead of nudging the element',
+                snippet: 'margin-left: -1px;',
+              },
+              // A finding from a host that predates the two fields: the cells fall back to the hints
+              // they always had instead of rendering an empty tooltip or a broken row.
+              { ruleId: 'ls-18', confidence: 'low', path: 'src/b.js', line: 4, column: 1, guideId: '' },
+            ],
+          }),
+        },
+      ],
+    },
+  })
+  const elements = elementsOf(tree)
+  const cell = (text) => elements.find((element) => element.children.includes(text))
+  assert.equal(
+    cell('ls-17').props.title,
+    'Position the anchor instead of nudging the element',
+    'the rule cell lost its message tooltip',
+  )
+  assert.equal(cell('src/a.js:12').props.title, 'margin-left: -1px;', 'the place cell lost its snippet tooltip')
+  assert.equal(cell('ls-18').props.title, 'ls-18', 'the rule cell cannot fall back to its id')
+  assert.equal(cell('src/b.js:4').props.title, 'src/b.js:4', 'the place cell cannot fall back to its place')
 })
 
 test('the plugin-list locale card mirrors locale/en.json in every language', () => {

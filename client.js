@@ -18,6 +18,12 @@
  * untranslated exactly like a rule id, and both are optional in older data, where the line is
  * simply shorter.
  *
+ * The panel also explains what it counts instead of printing bare pairs: a rule row keeps its id, its
+ * raw confidence token and a count that names its unit, with the rule's own message clamped under it,
+ * and one caption says so when the ranked counts are lifetime totals rather than the selected window.
+ * A host that predates those fields sends none of them, and the row then renders exactly what it did
+ * before — version skew costs a caption or a hint, never a row.
+ *
  * Bridge note: `commands.execute` is a host method already exposed as a Remote
  * (`@Remote(agent, line, submittedAttachments, signal)`), so the panel needs no new host service and
  * no schema codegen. It resolves the Remote service lazily on every call: a page whose composition
@@ -87,6 +93,7 @@ window.__ModuleLoader__.load({
       'scanner.skipped': 'skipped {count}',
       'scanner.cut': 'truncated',
       'scanner.rules': 'Rules that matched',
+      'scanner.lifetime': 'Lifetime totals, not the {days}-day window',
       'scanner.guides': 'Guides to load',
       'scanner.scan': 'Scan workspace folder',
       'scanner.scanning': 'Scanning the workspace...',
@@ -170,6 +177,7 @@ window.__ModuleLoader__.load({
       'scanner.skipped': 'пропущено {count}',
       'scanner.cut': 'обрезано',
       'scanner.rules': 'Сработавшие правила',
+      'scanner.lifetime': 'Итоги за всё время, а не за {days} дн.',
       'scanner.guides': 'Подсказки, которые стоит открыть',
       'scanner.scan': 'Сканировать рабочую папку',
       'scanner.scanning': 'Сканирую рабочую папку...',
@@ -257,6 +265,7 @@ window.__ModuleLoader__.load({
       'scanner.skipped': '跳过 {count}',
       'scanner.cut': '已截断',
       'scanner.rules': '命中的规则',
+      'scanner.lifetime': '累计总数，不是最近 {days} 天的窗口',
       'scanner.guides': '需要打开的指引',
       'scanner.scan': '扫描工作区',
       'scanner.scanning': '正在扫描工作区...',
@@ -499,16 +508,25 @@ window.__ModuleLoader__.load({
      * The report ranks these too; ranking again keeps the panel's order its own promise and drops a
      * row that carries no usable id instead of rendering an empty name.
      *
+     * `fields` names the descriptive strings a row may carry besides its id and its count: the rule's
+     * message, confidence and guide, and the guide's description. They are read as text and default
+     * to '', because an older host sends none of them — a version skew costs the detail, never the
+     * row or the count that was already there.
+     *
      * @param {Array<Record<string, unknown>>} rows
      * @param {'ruleId' | 'guideId'} key
+     * @param {string[]} [fields] extra text fields to carry over, defaulting to ''.
      * @returns {Array<{ name: string, calls: number }>}
      */
-    function rankedIds(rows, key) {
+    function rankedIds(rows, key, fields) {
+      const extras = Array.isArray(fields) ? fields : []
       const out = []
       for (const row of rows) {
         const name = asText(row[key])
         if (name === '') continue
-        out.push({ name, calls: asCount(row.count) })
+        const ranked = { name, calls: asCount(row.count) }
+        for (const field of extras) ranked[field] = asText(row[field])
+        out.push(ranked)
       }
       out.sort((left, right) => {
         if (right.calls !== left.calls) return right.calls - left.calls
@@ -576,6 +594,11 @@ window.__ModuleLoader__.load({
      * Validate one `/guidance-stats --json` report and normalize it for rendering. The panel never
      * renders a partially parsed report: a missing or mistyped field raises instead.
      *
+     * The scan detail is the exception, because it is the newest and the thinnest: a rule's message,
+     * confidence and guide, a guide's description and the scope the counts were taken over are all
+     * read as optional text. A host that predates them sends nothing, and the section renders the
+     * ids and counts exactly as it did before instead of raising over a caption it cannot write.
+     *
      * @param {unknown} payload the parsed JSON.
      * @returns {object} the report the panel renders.
      */
@@ -636,8 +659,12 @@ window.__ModuleLoader__.load({
         },
         legacyScan: firstCount(tools['legacy-scan'], byTool['legacy-scan']),
         findings: firstCount(payload.findings, totals.findings),
-        topRules: rankedIds(asRows(payload.topRules), 'ruleId').slice(0, MAX_SCAN_RULES),
-        topScanGuides: rankedIds(asRows(payload.topScanGuides), 'guideId').slice(0, MAX_SCAN_RULES),
+        topRules: rankedIds(asRows(payload.topRules), 'ruleId', ['message', 'confidence', 'guideId']).slice(0, MAX_SCAN_RULES),
+        topScanGuides: rankedIds(asRows(payload.topScanGuides), 'guideId', ['description']).slice(0, MAX_SCAN_RULES),
+        // Which window the ranked rule counts cover. `'lifetime'` says they are not the {days} the
+        // rest of the panel shows; an older report has no such field, and then the section stays
+        // silent rather than claiming either way.
+        scanCountsScope: asText(payload.scanCountsScope),
         lastScan: readLastScan(payload.lastScan),
       }
     }
@@ -752,8 +779,12 @@ window.__ModuleLoader__.load({
      * for, and `occurrences` its length. Both are read defensively — an older host sends neither, and
      * then the row shows the single `line` exactly as before.
      *
+     * `message` and `snippet` are carried for the row's tooltips only: sixteen rows with a second
+     * text line each would bury the table, so the reader hovers a rule to see what it asks for and a
+     * place to see the code. An older host sends neither, and both read as ''.
+     *
      * @param {Record<string, unknown>} row
-     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string, lines: number[], occurrences: number }}
+     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string, lines: number[], occurrences: number, message: string, snippet: string }}
      */
     function readFinding(row) {
       const lines = Array.isArray(row.lines)
@@ -768,6 +799,8 @@ window.__ModuleLoader__.load({
         guideId: asText(row.guideId),
         lines,
         occurrences: asCount(row.occurrences) || lines.length || 1,
+        message: asText(row.message),
+        snippet: asText(row.snippet),
       }
     }
 
@@ -872,6 +905,10 @@ window.__ModuleLoader__.load({
             line: asCount(match[2]),
             column: asCount(match[3]),
             guideId: '',
+            // The summary line prints the rule's message after the confidence, so the chat row can
+            // keep the same hover hint for it as it does for a JSON answer.
+            message: match[6],
+            snippet: '',
           })
           continue
         }
@@ -1118,8 +1155,9 @@ window.__ModuleLoader__.load({
       splitCount: { flex: '0 0 auto', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary)' },
       // Twenty ids wrap into a few lines instead of adding twenty rows of scroll to the panel.
       deadList: { display: 'flex', flexWrap: 'wrap', gap: '4px' },
-      // The scanner section keeps a rule id beside its count: these are pairs, not a two-column
-      // table, so the number hugs the id instead of jumping to the far edge of a wide panel.
+      // A rule row is a line of facts — id, confidence, a count that names its unit — with the rule's
+      // own message wrapped underneath it, so `ls-17` explains itself without the reader opening
+      // lib/scan-rules.js. The count hugs the id instead of jumping to the far edge of a wide panel.
       scanHeading: {
         fontSize: '11px',
         letterSpacing: '0.04em',
@@ -1127,17 +1165,34 @@ window.__ModuleLoader__.load({
         color: 'var(--dsw-alias-label-tertiary)',
         marginTop: '2px',
       },
+      // What the counts below count: lifetime or the window above. One quiet line, never a claim.
+      scanCaption: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)', lineHeight: 1.4 },
       scanLine: {
         display: 'flex',
-        alignItems: 'baseline',
-        gap: '8px',
+        flexDirection: 'column',
+        gap: '2px',
         padding: '4px 0',
         borderTop: '1px solid var(--dsw-alias-separator-primary)',
         minWidth: 0,
       },
-      scanLineFirst: { display: 'flex', alignItems: 'baseline', gap: '8px', padding: '4px 0', minWidth: 0 },
+      scanLineFirst: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '4px 0', minWidth: 0 },
+      scanRuleHead: { display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0 },
       scanName: { flex: '0 0 auto', fontSize: '12px', fontWeight: 500 },
+      scanConfidence: { flex: '0 0 auto', fontSize: '11px', color: 'var(--dsw-alias-label-caption)' },
       scanCount: { flex: '0 0 auto', fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)' },
+      // Two lines of the rule's own text, clamped here rather than sliced by the client so the whole
+      // sentence stays in the element (and in its title); the panel stays a summary, not a manual.
+      // `-webkit-line-clamp` takes an integer, hence the string: a number would be sent as `2px`.
+      scanMessage: {
+        display: '-webkit-box',
+        WebkitLineClamp: '2',
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
+        fontSize: '11px',
+        color: 'var(--dsw-alias-label-tertiary)',
+        lineHeight: 1.45,
+        overflowWrap: 'anywhere',
+      },
       scanActions: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' },
       deadRow: {
         maxWidth: '100%',
@@ -1379,13 +1434,37 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** One `ls-13  4` pair: a rule id and how many findings it raised. */
-    function scanRuleLine(rule, first) {
+    /**
+     * One rule row: `ls-17  high  121 findings` on the first line, the rule's own message clamped to
+     * two lines under it — the section has to say what a rule is, not only how often it fired.
+     *
+     * The count carries its unit because a bare 121 next to a rule id cannot be told apart from 121
+     * files; the plural helper picks the language's form. `message` and `confidence` are optional:
+     * the ranked rows of the report carry them, while the rows of the panel's own live scan answer
+     * still carry only an id and a count, and there the first line simply ends after the count.
+     *
+     * @param {Function} t bound translator.
+     * @param {{ name: string, calls: number, message?: string, confidence?: string, guideId?: string }} rule
+     * @param {boolean} first whether this is the first row of its group (no separator above it).
+     * @returns {object} the row.
+     */
+    function scanRuleLine(t, rule, first) {
+      const message = asText(rule.message)
+      const confidence = asText(rule.confidence)
+      const guideId = asText(rule.guideId)
       return h(
         'div',
         { style: first ? S.scanLineFirst : S.scanLine, key: `rule-${rule.name}` },
-        h('span', { style: S.scanName, title: rule.name }, rule.name),
-        h('span', { style: S.scanCount }, String(rule.calls)),
+        h(
+          'div',
+          { style: S.scanRuleHead },
+          // Hovering the id names the guide that explains the fix; a host without the new fields
+          // leaves the id as its own hint.
+          h('span', { style: S.scanName, title: guideId === '' ? rule.name : guideId }, rule.name),
+          confidence === '' ? null : h('span', { style: S.scanConfidence }, confidence),
+          h('span', { style: S.scanCount }, plural(t, 'finding', rule.calls)),
+        ),
+        message === '' ? null : h('div', { style: S.scanMessage, title: message }, message),
       )
     }
 
@@ -1415,8 +1494,9 @@ window.__ModuleLoader__.load({
      *
      * The section reads the counters the report carries — the last scan, the rules that matched, the
      * guides to load — and answers its own button with the result of *that* scan. Counters are not
-     * evidence: this section shows ids and numbers, never a path and never a snippet. The chat row
-     * renders those, because there they belong to a call the session already made.
+     * evidence: this section shows ids, their counts and the rule's own message, never a path and
+     * never a snippet. The chat row renders those, because there they belong to a call the session
+     * already made.
      *
      * @param {Function} t bound translator.
      * @param {object} report the normalized report.
@@ -1448,7 +1528,18 @@ window.__ModuleLoader__.load({
       ]
       if (report.topRules.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-rules-head' }, t('scanner.rules')))
-        for (const [index, rule] of report.topRules.entries()) children.push(scanRuleLine(rule, index === 0))
+        // The ranked rules are lifetime counters: they are not the {days} window the tiles above
+        // show. Saying so costs one line; guessing either way would mislabel every number below.
+        if (report.scanCountsScope === 'lifetime') {
+          children.push(
+            h(
+              'div',
+              { style: S.scanCaption, key: 'scan-rules-scope' },
+              t('scanner.lifetime', { days: report.periodDays }),
+            ),
+          )
+        }
+        for (const [index, rule] of report.topRules.entries()) children.push(scanRuleLine(t, rule, index === 0))
       }
       if (report.topScanGuides.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-guides-head' }, t('scanner.guides')))
@@ -1456,9 +1547,16 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: S.deadList, key: 'scan-guides' },
-            report.topScanGuides.map((guide) =>
-              h('span', { style: S.deadRow, key: `guide-${guide.name}`, title: guide.name }, `${guide.name} (${guide.calls})`),
-            ),
+            report.topScanGuides.map((guide) => {
+              const description = asText(guide.description)
+              // The chip keeps `id (count)` as its visible text; the guide's own description is the
+              // hint, so a reader learns what to load without a second line or a wider panel.
+              return h(
+                'span',
+                { style: S.deadRow, key: `guide-${guide.name}`, title: description === '' ? guide.name : description },
+                `${guide.name} (${guide.calls})`,
+              )
+            }),
           ),
         )
       }
@@ -1499,7 +1597,7 @@ window.__ModuleLoader__.load({
         }
         if (value.truncated) children.push(h('div', { style: S.stateBody, key: 'scan-truncated' }, t('scan.truncated')))
         if (value.rules.length > 0) {
-          for (const [index, rule] of value.rules.entries()) children.push(scanRuleLine(rule, index === 0))
+          for (const [index, rule] of value.rules.entries()) children.push(scanRuleLine(t, rule, index === 0))
         } else {
           children.push(h('div', { style: S.note, key: 'scan-clean' }, t('scan.clean')))
         }
@@ -1706,12 +1804,17 @@ window.__ModuleLoader__.load({
         )
         for (const [index, finding] of shown.entries()) {
           const place = findingPlace(finding)
+          // Sixteen findings and no room for a second line each: the rule's message and the matched
+          // snippet live in the two cells' tooltips, so the table stays a table and a reader can
+          // still ask a row what it means and what it caught.
+          const ruleHint = asText(finding.message)
+          const placeHint = asText(finding.snippet)
           body.push(
             h(
               'div',
               { style: T.row, key: `finding-${index}`, title: place },
-              h('span', { style: T.rule }, finding.ruleId),
-              h('span', { style: T.place }, place),
+              h('span', { style: T.rule, title: ruleHint === '' ? finding.ruleId : ruleHint }, finding.ruleId),
+              h('span', { style: T.place, title: placeHint === '' ? place : placeHint }, place),
               h('span', { style: T.confidence }, finding.confidence),
               finding.guideId === ''
                 ? h('span', { style: T.guide }, '')
