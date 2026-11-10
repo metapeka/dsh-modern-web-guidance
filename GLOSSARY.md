@@ -63,10 +63,13 @@ _Avoid_: severity, priority
 **`.scanignore`**:
 An optional file at the workspace root listing paths one scan must not read: one pattern per line
 (`report/` for every directory of that name, `src/app.js` for one file, `*.min.js` for a name shape),
-`#` for a comment, `*` inside one path segment and never across `/`. It is read at the start of every
-scan; a malformed line is reported in the result and never fails the scan. It is **not** a security
-boundary — the scanner is already confined to `realpath(cwd)`, so the file can only make a scan read
-less than it is allowed to, never more.
+`#` for a comment, `*` inside one path segment and never across `/`. A pattern may name one file or a
+directory: with a trailing `/` it matches a directory only and skips its subtree, without the slash a path
+of that name — file or directory — matches. A pattern containing `/` is matched against the whole
+workspace-relative path from the root, so `src/app.js` names exactly that file; a single-segment pattern
+matches that name at any depth. It is read at the start of every scan; a malformed line is reported in the
+result and never fails the scan. It is **not** a security boundary — the scanner is already confined to
+`realpath(cwd)`, so the file can only make a scan read less than it is allowed to, never more.
 _Avoid_: .gitignore, allowlist, blocklist, sandbox rule
 
 ## Telemetry

@@ -356,6 +356,13 @@ test('a one-line pattern parks one file and leaves its neighbours readable', asy
   assert.deepEqual(value.scanned.ignoreProblems, [])
   assert.equal(value.scanned.files, 1)
   assert.deepEqual(value.findings.map((finding) => [finding.path, finding.ruleId]), [['pages/index.astro', 'ls-09']])
+
+  // Naming the parked file does not un-park it: the ignore wins over an explicit path, and the
+  // refusal is the same one-entry skip a walk records, not an error.
+  const named = await scan({ cwd: workspace, paths: ['pages/styleguide.astro'] })
+  assert.equal(named.scanned.files, 0)
+  assert.deepEqual(named.scanned.skipped, [{ path: 'pages/styleguide.astro', reason: 'scanignore' }])
+  assert.deepEqual(named.findings, [])
 })
 
 test('every skip is counted per reason, and the counts add up to skippedTotal', async (t) => {

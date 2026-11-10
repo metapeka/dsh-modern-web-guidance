@@ -122,6 +122,19 @@ file-agnostic. Feasible, but it belongs to a manifest-checking tool.
   checklist below is still a human read.
 - **Confidence is not verification.** `low` means "we know this marker is only a hint"; it does not
   mean the finding was checked. Only a verify stage (upstream's rubrics) would change that.
+- **`ls-12` stops at the line-clamp idiom (0.8.1).** The rule flags the prefixed-flexbox spellings that
+  cannot serve a clamp: `display: -webkit-flex`, `display: -webkit-inline-flex`, `-webkit-box-pack`,
+  `-webkit-box-align`, `-webkit-box-flex`, `-webkit-box-ordinal-group`, `-webkit-box-direction`, and
+  `-webkit-box-orient: horizontal`. It deliberately no longer fires on a bare `display: -webkit-box` or on
+  `-webkit-box-orient: vertical`, because those two are the line-clamp idiom itself:
+  `display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical` truncates text to three lines,
+  and "use unprefixed `display: flex`" is the one piece of advice that would break the block it was printed
+  beside. A rule is a single line regex and cannot see the `-webkit-line-clamp` line above the marker, so
+  the narrowing refuses the two spellings the idiom owns instead of trying to recognise the idiom. The cost
+  is real and accepted: a page that genuinely uses bare `display: -webkit-box` flexbox is now unreported,
+  while the clamp is common and the false positive was measured on the live bench project — its
+  `PostCard.astro:110-112` lost the wrong finding, so that scan went from 10 findings to 9 with `ls-12`
+  from 1 to 0. This is one rule's boundary, not a parity claim: no row of the upstream-gap table changes.
 
 ### Corpus refresh checklist
 

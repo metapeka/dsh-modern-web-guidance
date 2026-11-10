@@ -251,10 +251,33 @@ Those six directory patterns turn a `scan({ cwd, paths: ['.'] })` that returned 
 `skippedByReason: { scanignore: 6, extension: 1 }` and no truncation. A directory pattern is one skip for
 the subtree root, not one per file inside it.
 
+**A pattern may name one file, not only a directory.** The same mechanism parks a single page instead of a
+subtree: with a project whose `src/pages/` holds three pages that each trigger one rule, adding a line for
+one of them keeps that page in the repository while the walk reads past it.
+
+```text
+# .scanignore — park the demo page that shows the legacy form on purpose
+src/pages/styleguide.astro
+```
+
+Measured on exactly that workspace: `scan({ cwd, paths: ['.'] })` reports **2 files and 2 findings**
+(`src/pages/about.astro` and `src/pages/index.astro`), with `src/pages/styleguide.astro` returned as one
+`scanignore` skip; `skippedByReason` is `{ scanignore: 1, extension: 1 }`, the second being the ignore file
+itself, which is not code. The parked page contributes no finding and its siblings are untouched — the
+directory is not pruned, only the named file is. Naming the directory instead (`src/pages/`) reads the same
+two pages, so the two forms differ only in breadth.
+
 Two precedence rules, both from the same module header. A pattern covers the path itself **and every
 ancestor**, so a file named explicitly inside an ignored directory is skipped as `scanignore` rather than
 read behind the ignore file's back. And a path that is both inside a dot-directory and matched by a pattern
 is reported **once**, as `dot-directory`, because that check runs first.
+
+The same holds for a file pattern, and this is the part a user does not expect: naming the parked file
+explicitly, `scan({ cwd, paths: ['src/pages/styleguide.astro'] })`, returns **0 files and 0 findings** with
+the same single `scanignore` skip — the ignore wins over an explicit path instead of the path overriding the
+ignore. That is deliberate, not an oversight: `.scanignore` exists to make a scan read **less**, and an
+explicit path able to switch it off would turn the ignore file into a suggestion. Delete the line when you
+want the page read.
 
 `.scanignore` is **not a security boundary**. It is a convenience for a project that knows what it means by
 "here"; the scanner is already confined to `realpath(cwd)` by containment, so an ignore file can only make
@@ -264,15 +287,17 @@ a scan read less than it was already allowed to read, never more.
 
 This repository stores the rule table, so a scan of it reports the rule table's own markers as findings.
 `scan({ cwd, paths: ['.'] })` here returns **70 files scanned, 85 findings, 0 of them in Markdown,
-`truncated: false`**, with `skippedTotal: 282` (`skippedByReason: { extension: 280, dot-directory: 2 }`,
-100 of those entries returned, which is the cap). `scan({ cwd, paths: ['lib'] })` returns **6 files and 16
+`truncated: false`**, with `skippedTotal: 283` (`skippedByReason: { extension: 281, dot-directory: 2 }`,
+100 of those entries returned, which is the cap). The skip total is a moving figure and moves by one for
+every Markdown document added to the tree — `.md` is skipped as `extension` — so read it as a snapshot
+rather than a constant. `scan({ cwd, paths: ['lib'] })` returns **6 files and 16
 findings**. The 85 is expected, not a bug: 56 of them are the rule table stored as data —
 `test/scan-rules.test.mjs` (40) and `lib/scan-rules.js` (16). Of the remaining 29: 10 are the fixtures under
 `test/fixtures/scan/`, 17 come from the four other test files that assert on findings (`scan.test` 11,
 `scan-tool` 3, `scan-command` 2, `scan-core` 1), 1 from `audit/repro/security/scan-containment.mjs` and 1
 from `data/guides.json`. The two `dot-directory` skips are `.github` at the root and the `.hidden` fixture
-directory the ignore tests need. No finding here is truncated and none is lost: 102 hits land in 85 findings
-because ten of them are runs holding 27 hits between them.
+directory the ignore tests need. No finding here is truncated and none is lost: 109 hits land in 85 findings
+because eleven of them are runs holding 35 hits between them.
 
 Three releases moved these numbers, and no move was a regression:
 
@@ -377,7 +402,7 @@ lastScan: {
   files: 70,
   findings: 85,
   rules: ['ls-13', 'ls-21'],                         // distinct ids, capped for display
-  skipped: { extension: 280, 'dot-directory': 2 },   // top FOUR reasons, count desc then name
+  skipped: { extension: 281, 'dot-directory': 2 },   // top FOUR reasons, count desc then name
   truncated: false,                                  // true when the run stopped at any cap
 }
 ```
@@ -408,22 +433,22 @@ The text tails are fixed strings, one per surface, and the panel keys below are 
 `client.js` cannot drift. Measured, not paraphrased — `renderReport` with a six-key `lastScan` prints:
 
 ```text
-Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 282 (280 extension, 2 dot-directory); truncated
+Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 283 (281 extension, 2 dot-directory)
 ```
 
 - report text — that line: the date, two counts, then ` (rules: …)` (up to five ids, omitted when none),
   then `; skipped N (…)` when the map is non-empty, then `; truncated` when the flag is set. The `N` is the
   sum of the stored map, so it obeys the top-four caveat above.
-- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 85 findings · skipped 282 · truncated`, built
+- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 85 findings · skipped 283`, built
   from `scanner.last`, `file`/`finding` plurals, `scanner.skipped` and `scanner.cut`, joined with ` · `; the
   date is the `YYYY-MM-DD` part, and each later fact is omitted when absent.
-- panel, button result — `Scanned 70 files, 85 findings` (`scan.summary`) then `Skipped 282 (280 extension,
+- panel, button result — `Scanned 70 files, 85 findings` (`scan.summary`) then `Skipped 283 (281 extension,
   2 dot-directory)` (`scan.skipped`), with at most **three** reasons named and `+N more` (`scan.skippedMore`)
   inside the parentheses beyond that; its count is the fresh scan's own total. Truncation reuses the 0.7.0
   string `scan.truncated` — `Truncated: the scan hit a cap, so this list is incomplete.` — so there is no
   fifth key.
 - chat tool row — the same `Skipped …` line under the table, for a JSON **and** a summary answer: the
-  summary format prints `Skipped 282 path(s): 280 extension, 2 dot-directory` as prose and the row parses
+  summary format prints `Skipped 283 path(s): 281 extension, 2 dot-directory` as prose and the row parses
   that line back, so one reader serves both formats.
 - Reason tokens are **never translated**, on any of those surfaces: `dot-directory` stays `dot-directory`
   in EN, RU and ZH, exactly as a rule id stays `ls-13`. They are values a reader matches against a scan,

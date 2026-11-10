@@ -212,7 +212,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 906 kB，解包 2.7 MB |
+| 体积 | — | 256 个文件，打包 907 kB，解包 2.7 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -361,7 +361,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 - **用什么、结果如何** —— 按工具和按结果的两列并列
 - **扫描器发现了什么** —— 最近一次完成的扫描、命中最多（最多 10 条）的规则，以及这些发现指向的指南；下面的按钮
   会扫过当前会话工作区里所有代码文件（markdown 记为跳过并显示出来），并把这一次的结果就地显示：`已扫描 70 个
-  文件，85 条发现`，下面跟着 `已跳过 282 个（280 extension, 2 dot-directory）`，被上限截断时再加一行截断说明 ——
+  文件，85 条发现`，下面跟着 `已跳过 283 个（281 extension, 2 dot-directory）`，被上限截断时再加一行截断说明 ——
   数字不再脱离这些前提单独出现
 
 再往下是报告里的清单：热门查询及其各自的命中与未命中、对 208 篇指南的分类覆盖、没有结果的查询，以及从未被
@@ -369,11 +369,11 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 刷新会重新读取计数，`7 天` / `30 天` 开关则把 `/guidance-stats --json --days N` 发给宿主。对话里，扫描结果渲染成
 表格 —— 规则、位置、置信度、指南 —— 最多 16 行，多出来的显示“另有 N 条”，不管调用要的是哪种格式；表格下面还有
-同一行跳过说明：summary 格式把 `Skipped 282 path(s): 280 extension, 2 dot-directory` 打印成文字，那一行再把它读
+同一行跳过说明：summary 格式把 `Skipped 283 path(s): 281 extension, 2 dot-directory` 打印成文字，那一行再把它读
 回来，所以 JSON 与 summary 两种答案给出的是同样的前提。「位置」这一列打印的是位置而不是行：单次命中仍是
 `path:line`，连续命中打印 `path:110-112`，跨过一行时再补上计数 `path:2-4 (2)`，因为只给范围会夸大命中数。
 最近一次扫描那一行用一句话说同样的事：
-`最近一次扫描：2026-11-10 · 70 个文件 · 85 条发现 · 跳过 282 · 已截断`，只给总数和标记；而在 0.7.3 之前写下的
+`最近一次扫描：2026-11-11 · 70 个文件 · 85 条发现 · 跳过 283`，只给总数，被上限截断时才补上 `已截断`；而在 0.7.3 之前写下的
 状态文件只会渲染得更短，不会声称没有跳过任何东西。
 
 面板除了扫描按钮之外只读：它不改计数、不离开这台机器，也不新增网络请求和工具 —— 四个工具仍然是四个。由它发起的
@@ -448,6 +448,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.7.2 | 已发布 | 扫描器不再进入以点开头的目录，并读取工作区根目录的 `.scanignore`；扫描文本按原因列出跳过项 —— `Skipped 279 path(s): 277 extension, 2 dot-directory` |
 | 0.7.3 | 已发布 | 面板不再脱离前提单独报数字：按钮结果、最近一次扫描那一行、对话里的表格行都说清跳过了多少路径、按什么原因，以及是否被上限截断；`lastScan` 同时保存这两个事实，旧状态文件会静默升级 |
 | 0.8.0 | 已发布 | 一条发现变成一处代码位置而不是一行：同一规则在相邻行上的命中合并成一条带 `lines` 与 `occurrences` 的发现，各处文本打印范围（`path:110-112`，跨行时 `path:2-4 (2)`），200 条的上限数位置而不是命中 —— 数字变小是因为合并了，不是因为代码变干净了 |
+| 0.8.1 | 已发布 | `ls-12` 不再在会破坏代码的地方建议 `display: flex`：line-clamp 写法（`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`）不再报告，只保留无法用于 clamp 的前缀写法 —— 用召回率换精确度，确实把裸 `display: -webkit-box` 当作弹性盒的页面现在不再进入报告 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -477,7 +478,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 242 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 244 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，

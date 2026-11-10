@@ -1,11 +1,11 @@
-/* Four markers the rule table knows: a vendor scrollbar, the 2009 flexbox syntax, a dead
+/* Four markers the rule table knows: a vendor scrollbar, the prefixed flexbox syntax, a dead
    standard pseudo-class on a custom element, and a select-scoped validation state. */
 .legacy-scroll::-webkit-scrollbar {
   width: 8px;
 }
 
 .legacy-flex {
-  display: -webkit-box;
+  display: -webkit-flex;
 }
 
 .legacy-theme:host-context(.dark) {

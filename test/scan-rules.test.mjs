@@ -9,10 +9,12 @@
  */
 
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
+import { scan } from '../lib/scan.js'
 import { CONFIDENCE_ORDER, RULES, ruleById, selectRules } from '../lib/scan-rules.js'
 import { DATA_DIR } from './paths.mjs'
 
@@ -114,6 +116,49 @@ test('each rule fires on its legacy sample and stays quiet on the modern one', (
     const [legacy, modern] = SAMPLES[rule.id]
     assert.ok(new RegExp(rule.source).test(legacy), `${rule.id} missed its own sample`)
     assert.ok(!new RegExp(rule.source).test(modern), `${rule.id} fired on the modern counterpart`)
+  }
+})
+
+/** Scan one throwaway file with the real table and hand back only its `ls-12` findings. */
+async function ls12Findings(t, content) {
+  const directory = await mkdtemp(join(tmpdir(), 'ls-12-'))
+  t.after(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+  await writeFile(join(directory, 'sample.css'), content, 'utf8')
+  const value = await scan({ cwd: directory, paths: ['sample.css'] })
+  return value.findings.filter((finding) => finding.ruleId === 'ls-12')
+}
+
+test('ls-12 leaves the line-clamp idiom alone', async (t) => {
+  // The standard clamp block: the precursor display and the vertical orientation are what
+  // `-webkit-line-clamp` needs, and the flex advice would break it, so none of these lines is a finding.
+  const block = ['display: -webkit-box;', '-webkit-line-clamp: 3;', '-webkit-box-orient: vertical;'].join('\n')
+  assert.deepEqual(await ls12Findings(t, `${block}\n`), [])
+
+  // Each spelling on its own is quiet too, so a one-line excerpt in the wild cannot raise it either.
+  assert.deepEqual(await ls12Findings(t, '.x { display: -webkit-box; }\n'), [])
+  assert.deepEqual(await ls12Findings(t, '.x { -webkit-box-orient: vertical; }\n'), [])
+})
+
+test('ls-12 still flags the prefixed flexbox spellings that cannot be the idiom', async (t) => {
+  const rule = ruleById('ls-12')
+  const lines = [
+    '.x { display: -webkit-flex; }',
+    '.x { display: -webkit-inline-flex; }',
+    '.x { -webkit-box-pack: center; }',
+    '.x { -webkit-box-align: center; }',
+    '.x { -webkit-box-flex: 1; }',
+    '.x { -webkit-box-ordinal-group: 2; }',
+    '.x { -webkit-box-direction: reverse; }',
+    '.x { -webkit-box-orient: horizontal; }',
+  ]
+  for (const line of lines) {
+    const findings = await ls12Findings(t, `${line}\n`)
+    assert.equal(findings.length, 1, `ls-12 missed ${line}`)
+    assert.equal(findings[0].ruleId, 'ls-12')
+    assert.equal(findings[0].guideId, 'css-layout')
+    assert.equal(findings[0].message, rule.message)
   }
 })
 
