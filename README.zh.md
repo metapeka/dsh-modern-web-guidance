@@ -212,7 +212,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 907 kB，解包 2.7 MB |
+| 体积 | — | 256 个文件，打包 908 kB，解包 2.7 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -448,6 +448,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.7.2 | 已发布 | 扫描器不再进入以点开头的目录，并读取工作区根目录的 `.scanignore`；扫描文本按原因列出跳过项 —— `Skipped 279 path(s): 277 extension, 2 dot-directory` |
 | 0.7.3 | 已发布 | 面板不再脱离前提单独报数字：按钮结果、最近一次扫描那一行、对话里的表格行都说清跳过了多少路径、按什么原因，以及是否被上限截断；`lastScan` 同时保存这两个事实，旧状态文件会静默升级 |
 | 0.8.0 | 已发布 | 一条发现变成一处代码位置而不是一行：同一规则在相邻行上的命中合并成一条带 `lines` 与 `occurrences` 的发现，各处文本打印范围（`path:110-112`，跨行时 `path:2-4 (2)`），200 条的上限数位置而不是命中 —— 数字变小是因为合并了，不是因为代码变干净了 |
+| 0.8.2 | 已发布 | 0.8.1 的 `package.json` 带上了 UTF-8 BOM，宿主用 `JSON.parse` 校验会报 `SyntaxError: Unexpected token`，而 `require()` 与 `npm pack` 都能接受；0.8.2 去掉该标记，并加上对清单、入口文件与随包 JSON 的字节级测试，让 BOM 无法再通过 CI |
 | 0.8.1 | 已发布 | `ls-12` 不再在会破坏代码的地方建议 `display: flex`：line-clamp 写法（`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`）不再报告，只保留无法用于 clamp 的前缀写法 —— 用召回率换精确度，确实把裸 `display: -webkit-box` 当作弹性盒的页面现在不再进入报告 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
@@ -478,7 +479,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 244 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 245 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，

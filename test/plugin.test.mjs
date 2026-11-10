@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import { apply } from '../index.js'
@@ -99,4 +99,27 @@ test('list tool groups categories and lists one category', async () => {
   const oneCategory = await list.execute({ category: 'ui-atoms' }, {})
   assert.ok(oneCategory.guides.length > 0)
   assert.ok(oneCategory.guides.every((guide) => guide.id.length > 0))
+})
+
+// A byte-order mark is invisible in every editor and in `git diff`, but the host parses the manifest with
+// JSON.parse and Node's `require` strips the mark, so a BOM here passes every test and still makes the
+// install fail with "SyntaxError: Unexpected token". 0.8.1 shipped exactly that, so this is not theoretical.
+test('no shipped file the host parses starts with a byte-order mark', () => {
+  const files = [
+    'package.json',
+    'index.js',
+    'client.js',
+    'locale/en.json',
+    'locale/ru.json',
+    'locale/zh.json',
+    'data/guides.json',
+    'data/corpus.json',
+  ]
+  for (const file of files) {
+    const bytes = readFileSync(new URL(`../${file}`, import.meta.url))
+    assert.ok(
+      !(bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf),
+      `${file} starts with a UTF-8 BOM; the host parses it with JSON.parse, which fails on one`,
+    )
+  }
 })

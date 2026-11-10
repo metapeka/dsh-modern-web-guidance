@@ -222,7 +222,7 @@ and security budget. The honest split:
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 907 kB packed, 2.7 MB unpacked |
+| Size | — | 256 files, 908 kB packed, 2.7 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -484,6 +484,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.7.2 | shipped | the scanner stops entering dot-directories and honours a workspace-root `.scanignore`, and the scan text now itemises what it skipped per reason — `Skipped 279 path(s): 277 extension, 2 dot-directory` |
 | 0.7.3 | shipped | the panel stops quoting a scan without its caveats: the button result, the last-scan line and the chat table row all say how many paths were skipped and by which reasons, and whether a cap truncated the list; `lastScan` stores both facts and an older state file upgrades silently |
 | 0.8.0 | shipped | a finding becomes one code site instead of one line: a run of one rule's hits on neighbouring lines collapses into a single finding carrying `lines` and `occurrences`, every surface prints the range (`path:110-112`, `path:2-4 (2)` when it skips a line), and the 200-finding cap counts sites — so counts fall because blocks collapsed, not because code got cleaner |
+| 0.8.2 | shipped | 0.8.1 shipped a `package.json` carrying a UTF-8 byte-order mark, which the host rejects with `SyntaxError: Unexpected token` even though `require()` and `npm pack` accept it; 0.8.2 strips the mark and adds a byte-level test over the manifest, the entry files and the shipped JSON, so a BOM cannot pass CI again |
 | 0.8.1 | shipped | `ls-12` stops advising `display: flex` where that advice breaks code: the line-clamp idiom (`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`) is no longer reported, only the prefixed spellings a clamp cannot serve are — precision bought with recall, and a page that really does use bare `display: -webkit-box` as flexbox now goes unreported |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
@@ -515,7 +516,7 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 244 tests across fifteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 245 tests across fifteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its

@@ -11,14 +11,18 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.8.0` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.8.2` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
-> 0.8.1 is prepared in this tree and **not yet published**: its tag runs the same workflow, with
-> nothing to configure and no token to add.
+> 0.8.1 is on the registry but **broken for the host**: its `package.json` shipped with a UTF-8
+> byte-order mark, and the host validates the manifest with `JSON.parse`, which throws on one, so an
+> install fails with `SyntaxError: Unexpected token`. It is deprecated on npm and superseded by
+> 0.8.2, which ships the same code with the mark stripped and adds a test that fails if any shipped
+> JSON or entry file starts with a BOM. `require()` strips a BOM and `npm pack` does not complain,
+> which is why CI was green: the guard, not the workflow, is the fix.
 >
 > The trusted publisher is pinned to `metapeka/dsh-modern-web-guidance` + workflow `release.yml`,
 > with `npm publish` allowed and no environment (the job declares none). The first publish after the
@@ -83,11 +87,12 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 4 tools, 2 skills, 208 guides, two human commands, and a `npm test` suite of
-      **244 tests in 15 files** covering the index, the plugin mount, the security invariants, the counter
+      **245 tests in 15 files** covering the index, the plugin mount, the security invariants, the counter
       pipeline, the panel's three dictionaries, the legacy scanner (including the "Markdown is skipped"
-      case, the dot-directory rule, the `.scanignore` grammar and the run-collapse boundaries), the six-key
+      case, the dot-directory rule, the `.scanignore` grammar and the run-collapse boundaries), the
+      byte-level manifest guard that would have caught 0.8.1, the six-key
       `lastScan` summary and the panel's skip/truncation lines, the rule table's guide hashes and the
-      `/guidance-scan` command (a run reports 243 passed plus 1 skipped where the host forbids symlink
+      `/guidance-scan` command (a run reports 244 passed plus 1 skipped where the host forbids symlink
       creation, because the walk test skips itself there rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
@@ -229,8 +234,10 @@ Constraints worth knowing:
   `occurrences`) and adds two fields to every finding — again source inside `lib/scan.js`, `index.js` and
   `client.js`, so the file list and the zero-dependency shape hold. 0.8.1 narrows one rule's regex and
   retargets one fixture, so it is a two-line edit inside `lib/scan-rules.js` plus test fixtures: no file,
-  no dependency, no build step, and no change to the JSON shape. `npm pack
-  --dry-run` lists exactly what ships: 256 files, 907 kB packed / 2.7 MB unpacked at 0.8.1.
+  no dependency, no build step, and no change to the JSON shape. 0.8.2 ships the same source with the
+  byte-order mark stripped from `package.json` — a byte-level fix plus one test, no file added, nothing
+  else changed. `npm pack
+  --dry-run` lists exactly what ships: 256 files, 908 kB packed / 2.7 MB unpacked at 0.8.2.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 
