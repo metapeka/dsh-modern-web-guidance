@@ -8,7 +8,7 @@ const guidance = createGuidance({ dataDir: DATA_DIR })
 
 test('catalog is complete and loadable', async () => {
   const guides = await guidance.list()
-  assert.equal(guides.length, 193)
+  assert.equal(guides.length, 208)
   assert.ok(guides.every((guide) => typeof guide.id === 'string' && guide.id.length > 0))
   assert.equal(new Set(guides.map((guide) => guide.id)).size, guides.length)
 })
@@ -21,7 +21,9 @@ test('search ranks the specific guide first for a capability query', async () =>
     ['anchor positioning', 'anchor-positioning-tab-underline'],
     ['form validation after interaction', 'validate-input-after-interaction'],
     ['prevent page scroll under modal', 'prevent-page-scroll-under-modal-dialog'],
-    ['passkey sign in', 'passkey-registration'],
+    // v1.0.0 rewrote passkey-management for the sign-in flow, so "passkey sign in" now resolves
+    // there; the registration query is the stable one for the registration guide.
+    ['passkey registration', 'passkey-registration'],
   ]
   for (const [query, expected] of cases) {
     const results = await guidance.search(query, { limit: 3 })
@@ -59,6 +61,17 @@ test('retrieve returns full guide content and reports unknown ids', async () => 
 test('retrieve accepts an array of ids', async () => {
   const { guides } = await guidance.retrieve(['dialog', 'html'])
   assert.deepEqual(guides.map((guide) => guide.id).sort(), ['dialog', 'html'])
+})
+
+test('plain guides carry no experimental annotation', async () => {
+  const { guides } = await guidance.retrieve('dialog')
+  assert.equal(guides[0].experimental, false)
+  assert.match(guides[0].content, /^# /)
+  assert.doesNotMatch(guides[0].content, /Experimental:/)
+
+  const hits = await guidance.search('light dismiss dialog', { limit: 1 })
+  assert.equal(hits[0].experimental, false)
+  assert.doesNotMatch(hits[0].description, /experimental/)
 })
 
 test('stemmer folds common suffixes', () => {

@@ -89,7 +89,7 @@ test('a finished search is counted and the command renders the report', async ()
   assert.equal(report.kind, 'success')
   assert.match(report.text, /Guidance usage: 1 call/)
   assert.match(report.text, /dialog light dismiss/)
-  assert.match(report.text, /Corpus: version 2026_10_30-58d055df/)
+  assert.match(report.text, /Corpus: version 2026_11_09-5bcc021b/)
   assert.match(report.text, /Period: last 7 days/)
 
   await rm(home, { recursive: true, force: true })
@@ -109,7 +109,7 @@ test('the command honours --days and --json', async () => {
   const json = await command.handler({ rawInput: '--json' })
   const payload = JSON.parse(json.text)
   assert.equal(payload.periodDays, 7)
-  assert.equal(payload.corpus.total, 193)
+  assert.equal(payload.corpus.total, 208)
 
   await rm(home, { recursive: true, force: true })
 })

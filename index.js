@@ -20,7 +20,7 @@ const DATA_DIR = join(here, 'data')
 const SKILLS_DIR = join(DATA_DIR, 'skills')
 
 const SEARCH_DESCRIPTION = [
-  "Search Google Chrome's Modern Web Guidance catalog: 193 curated, token-efficient guides covering modern browser",
+  "Search Google Chrome's Modern Web Guidance catalog: 208 curated, token-efficient guides covering modern browser",
   'APIs and web best practices (dialogs, popovers, anchor positioning, container queries, view transitions,',
   'scroll-driven effects, forms and autofill, accessibility, passkeys, security, performance metrics such as LCP/INP/CLS,',
   'image and script prioritization, WebAssembly, built-in AI, WebMCP).',
@@ -35,6 +35,8 @@ const RETRIEVE_DESCRIPTION = [
   'Pass a comma-separated string or an array. Each guide is a complete markdown implementation guide with code,',
   'fallback policy, and Baseline compatibility notes. Retrieve the specific use-case guide plus any broader discipline',
   'guide that applies (html, css, forms, accessibility, performance, security).',
+  'A guide whose platform feature is an Origin Trial or a volatile (single-engine) feature opens with a short',
+  'experimental warning banner: respect it and confirm availability before relying on that API.',
 ].join(' ')
 
 const LIST_DESCRIPTION = [
@@ -56,7 +58,10 @@ function renderSearch(args, value) {
       'Try different wording (2-5 words, one capability per query), or call web_guidance_list to inspect the catalog.',
     ].join('\n'))
   }
-  const lines = results.map((hit) => `- ${hit.id} (${hit.category}): ${hit.title} — ${hit.description}`)
+  const lines = results.map((hit) => {
+    const marker = hit.experimental === true ? ' [experimental]' : ''
+    return `- ${hit.id}${marker} (${hit.category}): ${hit.title} — ${hit.description}`
+  })
   return textBlock([
     `${results.length} matching guide(s) for "${String(args?.query ?? '')}":`,
     ...lines,
@@ -77,10 +82,15 @@ function renderRetrieve(_args, value) {
   }
   const skipped = value?.skipped ?? []
   if (skipped.length > 0) {
+    // The bounds come from the retrieve payload (lib/guidance.js constants), never from a literal
+    // copy here: a second source of truth would silently drift from what the tool enforces.
     const limits = value?.limits ?? {}
-    const maxGuides = limits.maxGuides ?? 10
+    const bounds = []
+    if (Number.isFinite(limits.maxGuides)) bounds.push(`${limits.maxGuides} guides`)
+    if (Number.isFinite(limits.maxChars)) bounds.push(`${Math.round(limits.maxChars / 1000)}k characters`)
+    const limitText = bounds.length > 0 ? ` (limit: ${bounds.join(' / ')})` : ''
     parts.push([
-      `Not returned in this call (limit: ${maxGuides} guides / ${Math.round((limits.maxChars ?? 120000) / 1000)}k characters):`,
+      `Not returned in this call${limitText}:`,
       `${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? `, and ${skipped.length - 10} more` : ''}.`,
       'Request them in a separate call if you still need them.',
     ].join(' '))
@@ -221,7 +231,7 @@ const SKILL_DEFINITIONS = [
     name: 'modern-web-guidance',
     bodyPath: join('modern-web-guidance', 'SKILL.md'),
     description: [
-      "Google Chrome's curated modern web platform guidance: search 193 use-case guides before writing HTML, CSS or",
+      "Google Chrome's curated modern web platform guidance: search 208 use-case guides before writing HTML, CSS or",
       'client-side JavaScript, then apply their Baseline-aware fallbacks. Covers dialogs and popovers, anchor positioning,',
       'container queries, view transitions, scroll-driven effects, forms and autofill, accessibility, passkeys, performance',
       '(LCP/INP/CLS), image/script priority, WebAssembly, built-in AI and WebMCP.',
@@ -283,9 +293,15 @@ function readCatalog() {
   const byCategory = Object.create(null)
   const categoryOf = Object.create(null)
   const ids = []
+  const seen = new Set()
   for (const guide of guides) {
     const id = String(guide.id ?? '')
     if (id === '') continue
+    // A duplicate id would otherwise inflate `total` and the per-category counts while the search
+    // index reports the guide once (lib/guidance.js rejects duplicates outright), so the report
+    // would disagree with the tools. First occurrence wins.
+    if (seen.has(id)) continue
+    seen.add(id)
     const category = String(guide.category ?? 'uncategorised')
     ids.push(id)
     categoryOf[id] = category

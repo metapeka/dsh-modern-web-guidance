@@ -42,14 +42,24 @@ test('retrieve deduplicates repeated ids', async () => {
   assert.equal(guides.length, 1)
 })
 
-test('retrieve bounds guide count and reports what it skipped', async () => {
+test('retrieve bounds the total size and count, reporting what it skipped', async () => {
   const all = await guidance.list()
   const value = await guidance.retrieve(all.map((guide) => guide.id))
-  assert.equal(value.guides.length, 10)
+  const chars = value.guides.reduce((sum, guide) => sum + guide.content.length, 0)
+  // Assert the contract, not the number of guides a particular corpus order happens to fill: the
+  // 120 000-character cap is what binds here, and it must hold for the body actually returned.
+  assert.deepEqual(value.limits, { maxGuides: 10, maxChars: 120_000 })
+  assert.ok(value.guides.length <= value.limits.maxGuides, `returned ${value.guides.length} guides`)
+  assert.ok(chars <= value.limits.maxChars, `retrieve returned ${chars} characters`)
   assert.equal(value.truncated, true)
   assert.ok(value.skipped.length > 0)
-  const chars = value.guides.reduce((sum, guide) => sum + guide.content.length, 0)
-  assert.ok(chars <= 120_000, `retrieve returned ${chars} characters`)
+  // Every requested id is accounted for exactly once: served, or explicitly named as skipped.
+  assert.equal(value.guides.length + value.skipped.length, all.length)
+  // A request that fits is served whole, with nothing reported as skipped.
+  const small = await guidance.retrieve(['dialog', 'html'])
+  assert.equal(small.truncated, false)
+  assert.deepEqual(small.skipped, [])
+  assert.equal(small.guides.length, 2)
 })
 
 test('retrieve bounds the unknown-id echo', async () => {
@@ -80,8 +90,8 @@ test('a huge query cannot stall the event loop', async () => {
 })
 
 test('category filters are forgiving and never report an empty catalog', async () => {
-  assert.equal((await guidance.list({ category: '' })).length, 193)
-  assert.equal((await guidance.list({ category: null })).length, 193)
+  assert.equal((await guidance.list({ category: '' })).length, 208)
+  assert.equal((await guidance.list({ category: null })).length, 208)
   assert.equal((await guidance.list({ category: ' CSS ' })).length, 18)
   assert.ok((await guidance.search('dialog', { category: 'UI-COMPONENTS' })).every((hit) => hit.category === 'ui-components'))
 })
@@ -91,7 +101,7 @@ test('list tool with an empty category still reports the whole catalog', async (
   apply(ctx)
   const list = tools.find((tool) => tool.name === 'web_guidance_list')
   const value = await list.execute({ category: '' }, {})
-  assert.equal(value.total, 193)
+  assert.equal(value.total, 208)
   assert.ok(value.categories.some((row) => row.category === 'css'))
 })
 
@@ -152,7 +162,7 @@ test('served guides never tell the agent to run the upstream CLI', async () => {
 })
 
 test('rewritten CLI references point at the bundled tool', async () => {
-  // passkeys.md is one of the 45 guides that carried the upstream command.
+  // passkeys.md is one of the 64 guides that carried the upstream command in v1.0.0.
   const { guides } = await guidance.retrieve('passkeys')
   assert.equal(guides.length, 1)
   assert.match(guides[0].content, /web_guidance_retrieve\(/)

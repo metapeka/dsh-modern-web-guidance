@@ -57,7 +57,7 @@ checks. What is missing is the repo itself.
       `dsh.client` (the sidebar panel), which is the combination the catalog wants.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
-- [x] Real working code: 3 tools, 2 skills, 193 guides, 66 tests (`npm test`, which runs
+- [x] Real working code: 3 tools, 2 skills, 208 guides, 68 tests (`npm test`, which runs
       `node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
       `npm pack --dry-run` on every push and PR, so it guards both the suite and the package contents.
@@ -75,7 +75,8 @@ checks. What is missing is the repo itself.
       `<profile>/storage/modern-web-guidance/stats.json`.
 - [x] 0.3.0's panel verified live in a throwaway Web instance: the rail entry appears with its localized
       label, the central panel opens, and Refresh rendered counters recorded by a real agent turn
-      (2 calls, 100% hit rate, full 17-category coverage table, 192 of 193 guides never retrieved).
+      (2 calls, 100% hit rate, full 17-category coverage table; all but one of the guides then in the
+      corpus were never retrieved).
 
 ## 1. Create the GitHub repo (done — created private, later flipped to public)
 
@@ -115,7 +116,7 @@ git add data/plugins/metapeka__dsh-modern-web-guidance.yml
 git commit -m "Add metapeka/dsh-modern-web-guidance"
 git push -u origin add-dsh-modern-web-guidance
 gh pr create --title "Add metapeka/dsh-modern-web-guidance" \
-  --body "Adds dsh-modern-web-guidance: 3 tools and 2 skills over Google Chrome's 193-guide Modern Web Guidance catalog, all offline."
+  --body "Adds dsh-modern-web-guidance: 3 tools and 2 skills over Google Chrome's 208-guide Modern Web Guidance catalog, all offline."
 ```
 
 Rules that apply to this submission, from the catalog's `contributing.md`:
@@ -129,7 +130,7 @@ Rules that apply to this submission, from the catalog's `contributing.md`:
   edited by hand — they are regenerated on `main` after merge.
 - **`description.en` is the only required field.** `zh` is optional; a maintainer fills it in.
   A description containing `": "` must be quoted, which the prepared file already does.
-- **The description is checked against the code.** "three tools", "193 guides", the two skill
+- **The description is checked against the code.** "three tools", "208 guides", the two skill
   names and the `modern-web-guidance` / `chrome-extensions` pair all exist as claimed. Do not
   add adjectives to it later — overstating is the one thing that gets a good plugin sent back.
 - **Category is `skill`.** The taxonomy is `agi ui usage theme model identity session memory
@@ -180,12 +181,12 @@ Constraints worth knowing:
 - Do not add an `npm:` key to the entry — the mapping is picked up from the registry, and a
   hand-written one is rejected by the validator.
 - `package.json` `files` ships the runtime (`index.js`, `client.js`, `lib/`, `data/`, `locale/`) plus the three READMEs,
-  `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI, the
-  TFJS model and upstream's Clearcut telemetry are deliberately not included; neither are `docs/`,
-  `audit/`, `test/`, `market/`, `AGENTS.md` or this file. 0.2.0 adds no dev files (its usage counters are
-  runtime state in the profile, not package content), and 0.3.0 adds one hand-written `client.js` with no
-  build step. `npm pack --dry-run` lists exactly what ships:
-  238 files, 699 KB packed / 1.9 MB unpacked at 0.3.0.
+  `LICENSE`, `NOTICE` and the icons — the guides are the payload by a wide margin. The upstream CLI
+  (including `legacy-scan`), its precomputed vector tables under `gen/` and upstream's Clearcut telemetry are
+  deliberately not included; neither are `docs/`, `audit/`, `test/`, `market/`, `AGENTS.md` or this file.
+  0.2.0 adds no dev files (its usage counters are runtime state in the profile, not package content), and
+  0.3.0 adds one hand-written `client.js` with no build step. `npm pack --dry-run` lists exactly what ships:
+  253 files, 842 kB packed / 2.4 MB unpacked at 0.4.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 
@@ -248,9 +249,9 @@ gh release create v0.1.0 dist/dsh-modern-web-guidance-0.1.0.tgz \
 
 ## 4. Keeping the corpus current
 
-The guides are a snapshot of upstream `modern-web-guidance@0.0.197` (corpus version
-`2026_10_30-58d055df`, `chrome-extensions` skill `2026_08_06-8570fe7c`). When upstream ships new
-guides, re-run the data refresh described in [README.md](README.md#updating-the-corpus), bump the
+The guides are a snapshot of upstream `modern-web-guidance@1.0.0` (corpus version
+`2026_11_09-5bcc021b`, `chrome-extensions` skill `2026_08_06-8570fe7c`). When upstream ships new
+guides, re-run the data refresh described in [README.md](README.md#updating-the-guide-corpus), bump the
 minor version, and note the upstream version in the release. The catalog has no mechanism to
 refresh a third-party entry automatically — stale snapshots are removed only if the repo goes
 dormant.

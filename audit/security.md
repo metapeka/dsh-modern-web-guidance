@@ -1,5 +1,9 @@
 # Security audit — `dsh-modern-web-guidance` 0.1.0
 
+> **Snapshot qualifier.** Numbers in this document describe the 2026-10-30 snapshot and the 0.1.0 code;
+> the corpus now ships 208 guides (upstream v1.0.0, 2026-11-09). Figures and repro assertions are left as
+> recorded, so a rerun against the current tree will differ by design.
+
 Target: `E:\0ai\dsh_mod_1\dsh-modern-web-guidance` (DSH / Cordis in-process plugin, zero dependencies).
 Scope: `index.js` (253 lines), `lib/guidance.js` (319 lines), `package.json`, `cordis.patch.yml`,
 install/publish surface, and the command-shaped strings inside the bundled corpus.

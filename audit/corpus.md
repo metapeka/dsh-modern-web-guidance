@@ -1,5 +1,9 @@
 # Corpus integrity & prompt-injection audit — `dsh-modern-web-guidance`
 
+> **Snapshot qualifier.** Numbers in this document describe the 2026-10-30 snapshot; the corpus now ships
+> 208 guides (upstream v1.0.0, 2026-11-09). Figures and repro assertions are left as recorded, so a rerun
+> against the current tree will differ by design.
+
 Audit date: 2026-11-08 · Auditor: `corpus-integrity` · Task: `task-2`
 Target: `E:\0ai\dsh_mod_1\dsh-modern-web-guidance` (supply-chain audit of the third-party content the plugin ships)
 Upstream reference: `E:\0ai\dsh_mod_1\.tmp-mwg\pkg\package` (extracted `modern-web-guidance@0.0.197` tarball)

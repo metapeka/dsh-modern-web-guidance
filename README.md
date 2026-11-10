@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  193 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · local counters only
+  208 Baseline-aware guides · 3 tools · 2 skills · zero dependencies · local counters only
 </p>
 
 <p align="center">
@@ -25,19 +25,19 @@
   <a href="#security-and-limits"><img alt="Telemetry" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
   <a href="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml"><img alt="tests" src="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml/badge.svg"></a>
   <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm" src="https://img.shields.io/npm/v/dsh-modern-web-guidance"></a>
-  <img alt="Guides" src="https://img.shields.io/badge/guides-193-2563eb">
+  <img alt="Guides" src="https://img.shields.io/badge/guides-208-2563eb">
   <img alt="DSH plugin" src="https://img.shields.io/badge/DSH-plugin-0d9488">
 </p>
 
 ---
 
-Coding models default to legacy web patterns because that is what their training data contains. This plugin puts 193
+Coding models default to legacy web patterns because that is what their training data contains. This plugin puts 208
 curated, token-efficient guides in front of the agent, plus an offline search tool, so it reaches for the current
 platform API (native `<dialog>`/popover, anchor positioning, container queries, view transitions, scroll-driven
 effects, `:has()`, passkeys, `fetchpriority`, …) instead of a JavaScript workaround or a library.
 
 Everything runs locally: the guides ship inside the package, search is computed in-process, and there are no network
-calls. Usage counters do exist in 0.2.0, but they never leave the machine — see [Usage stats](#usage-stats).
+calls. Usage counters have existed since 0.2.0, but they never leave the machine — see [Usage stats](#usage-stats).
 
 ## What you get
 
@@ -83,7 +83,7 @@ reach for it. There are three ways to work with it.
 
 ### 1. Just ask for web work (default)
 
-The skill's routing description is "search 193 use-case guides before writing HTML, CSS or client-side JavaScript", so
+The skill's routing description is "search 208 use-case guides before writing HTML, CSS or client-side JavaScript", so
 a normal request is enough — the agent searches, retrieves what it needs, and writes code against the current platform
 API instead of a workaround:
 
@@ -110,7 +110,7 @@ Use this when you want the guarantee, or when the agent skipped the lookup on a 
 `web_guidance_list` answers "what is even in here" without spending a retrieval:
 
 ```text
-web_guidance_list({})                          → 193 guides across 17 categories
+web_guidance_list({})                          → 208 guides across 17 categories
 web_guidance_list({"category": "css"})         → the 18 CSS guides by id and title
 web_guidance_search({"query": "view transition"}) → ranked shortlist before you retrieve
 ```
@@ -128,13 +128,13 @@ ones instead of an empty result.
 | Light/dark theme switching | `dark mode toggle` | `dark-mode-toggle` |
 | Sliding tab indicator without JavaScript | `anchor positioning` | `anchor-positioning-tab-underline` |
 | Inline validation that doesn't nag while typing | `form validation after interaction` | `validate-input-after-interaction` |
-| Passwordless sign-in | `passkey sign in` | `passkey-registration` |
+| Passwordless sign-in | `passkey registration` | `passkey-registration` |
 | Faster LCP | `prioritize hero image` | `fetchpriority` guides |
 | A Manifest V3 extension | (skill) `chrome-extensions` | extension skill references |
 
 ## How search works
 
-`lib/guidance.js` builds a BM25 index over the bundled corpus at first use (~1.5 MB of markdown, indexed in a few
+`lib/guidance.js` builds a BM25 index over the bundled corpus at first use (~1.9 MB of markdown, indexed in a few
 hundred milliseconds and cached): title, id, description, `featuresUsed`, headings and body, with stopword filtering,
 a small English stemmer, prefix expansion, and exact id/title containment bonuses. No embeddings, no bundled model, no
 TensorFlow.js — the package stays small and every result is explainable.
@@ -159,12 +159,12 @@ sides are bounded:
   has no dependencies and no lifecycle scripts, so nothing is fetched or run at install time. The only file it writes is
   its own counters file (see [Usage stats](#usage-stats)).
 - **Guides cannot smuggle commands.** Upstream's guide bodies cross-reference each other with
-  `npx -y modern-web-guidance@latest retrieve "…"` (121 occurrences in 45 guides). Those references are rewritten to
+  `npx -y modern-web-guidance@latest retrieve "…"` (197 occurrences in 64 guides). Those references are rewritten to
   `web_guidance_retrieve({"ids":["…"]})` when the index loads, so nothing a model reads from the catalog asks it to
   install and execute an unpinned remote package. The files on disk stay byte-identical to the pinned snapshot.
 - **`web_guidance_retrieve` is bounded**: at most 10 guides and 120 000 characters per call, duplicate ids collapse, the
   unknown-id echo stops at 10, and the renderer says explicitly what was not returned and to request it separately.
-  Retrieving all 193 guides used to hand back 1.5 MB (~450k tokens) in one result.
+  Retrieving all 208 guides would hand back 1.9 MB (~475k tokens) in one result.
 - **`web_guidance_search` is bounded**: the query is capped at 512 characters and 24 distinct terms before the lexical
   scan. A 137 KB query used to block the host's event loop for seconds; the same shape now costs milliseconds.
 - **The catalog cannot reach outside the package**: entry ids and categories must be slugs, and every resolved path is
@@ -178,8 +178,8 @@ while a defect is live.
 
 ## Usage stats
 
-0.2.0 records what the three tools are actually asked for. The counters are local: no endpoint, no analytics service, no
-third-party SDK, and nothing leaves the machine.
+Since 0.2.0 the plugin records what the three tools are actually asked for. The counters are local: no endpoint, no
+analytics service, no third-party SDK, and nothing leaves the machine.
 
 The report is a human slash command, not a tool the agent can call:
 
@@ -201,12 +201,12 @@ Turn it off: set `enabled: false` in the plugin config — no listener is regist
 
 ## Sidebar panel
 
-0.3.0 adds a client half: a guidance icon in the left rail opens **Guidance Insights** in the central area. It shows
-the same counters `/guidance-stats` prints, as a view:
+The plugin adds a client half: a guidance icon in the left rail opens **Guidance Insights** in the central area. It
+shows the same counters `/guidance-stats` prints, as a view:
 
 - total calls and hit rate for the last 7 days
 - the most frequent queries, with hit and miss counts
-- category coverage — retrieved guides against the 193 in the corpus
+- category coverage — retrieved guides against the 208 in the corpus
 - the queries that found nothing
 - how many guides were never retrieved
 
@@ -224,11 +224,14 @@ counters off (see [Usage stats](#usage-stats)).
 
 ## Updating the guide corpus
 
-The corpus is a pinned snapshot of upstream `modern-web-guidance@0.0.197`
-(skill version `2026_10_30-58d055df`). To refresh it:
+The corpus is a pinned snapshot of upstream `modern-web-guidance@1.0.0`
+(skill version `2026_11_09-5bcc021b`). To refresh it:
 
-1. Download the upstream npm tarball and extract `package/skills/modern-web-guidance/{guides.json,guides}` into
-   `data/`, and `package/skills/chrome-extensions` into `data/skills/`.
+1. Download the upstream npm tarball. The index lives in `gen/`, not at the package root: copy
+   `package/skills/modern-web-guidance/gen/guides.json` to `data/guides.json` and
+   `package/skills/modern-web-guidance/guides/` to `data/guides/`. Ship only the guides listed in that index
+   (208 of the 209 files; `built-in-ai/prompt-api.md` is a byte-identical duplicate of `language-model.md` and
+   is not indexed). Copy `package/skills/chrome-extensions` to `data/skills/`.
 2. Keep `data/skills/modern-web-guidance/SKILL.md` (this plugin's adapted version) — do not overwrite it with the
    upstream CLI-oriented file.
 3. Run `npm test` to confirm the corpus still loads and the smoke queries still rank correctly. The tests also fail if
@@ -241,7 +244,7 @@ The corpus is a pinned snapshot of upstream `modern-web-guidance@0.0.197`
 npm test
 ```
 
-66 tests across seven files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+68 tests across seven files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` covers tool and skill registration against a mocked Cordis context; `hardening.test.mjs` covers the
 audit findings and fails on the pre-hardening code; `telemetry.test.mjs`, `report.test.mjs`, `store.test.mjs` and
 `stats.test.mjs` cover the usage counters, their report, the durable store and the `/guidance-stats` wiring. In a
@@ -258,5 +261,6 @@ Apache-2.0. The guide corpus, the `chrome-extensions` skill, and the source of t
 [GoogleChrome/modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) (Copyright Google LLC,
 Apache-2.0). See [NOTICE](NOTICE) for exactly what was copied, adapted, or removed.
 
-This plugin is not an official Google product. It removes the upstream CLI, the bundled TensorFlow.js embedder and the
-Clearcut telemetry watchdog the upstream CLI ships.
+This plugin is not an official Google product. It removes the upstream CLI (`modern-web.mjs`, `search.mjs`,
+`legacy-scan.mjs`), the precomputed semantic-search tables under `gen/` and the Clearcut telemetry watchdog the
+upstream CLI ships (0.x packages bundled a TensorFlow.js MiniLM model instead of those tables).

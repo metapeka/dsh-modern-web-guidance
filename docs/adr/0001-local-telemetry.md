@@ -6,7 +6,7 @@
 ## Context
 
 The plugin advertises that it makes no network calls and contains no telemetry, and that
-promise is part of its listing copy. The cost is blindness: nobody can tell which of the 193
+promise is part of its listing copy. The cost is blindness: nobody can tell which of the
 guides agents actually retrieve, which queries return nothing, or which guides are dead weight.
 Corpus refreshes are therefore scheduled on guesswork, and guide descriptions are rewritten
 without knowing whether the wording failed the agent.

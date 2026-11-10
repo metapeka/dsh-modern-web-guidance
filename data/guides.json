@@ -4,7 +4,7 @@
     "description": "Actionable coding guidelines for building accessible web applications, covering semantic HTML, focus management, forms, media, and testing. Use this skill when auditing or implementing accessibility features, keyboard navigation, or ARIA.",
     "category": "accessibility",
     "featuresUsed": [],
-    "tokenCount": 14305
+    "tokenCount": 13341
   },
   {
     "id": "accessible-error-announcement",
@@ -13,7 +13,7 @@
     "featuresUsed": [
       ":user-valid and :user-invalid"
     ],
-    "tokenCount": 2105
+    "tokenCount": 3562
   },
   {
     "id": "accessible-generated-content",
@@ -23,7 +23,7 @@
       "Content",
       "Alt text for generated content"
     ],
-    "tokenCount": 645
+    "tokenCount": 605
   },
   {
     "id": "respect-os-text-scale",
@@ -32,7 +32,7 @@
     "featuresUsed": [
       "<meta name=\"text-scale\">"
     ],
-    "tokenCount": 1828
+    "tokenCount": 1684
   },
   {
     "id": "language-detection",
@@ -41,7 +41,13 @@
     "featuresUsed": [
       "Language detector"
     ],
-    "tokenCount": 950
+    "tokenCount": 849,
+    "volatileFeatures": [
+      {
+        "reason": "built-in-ai",
+        "id": "languagedetector"
+      }
+    ]
   },
   {
     "id": "language-model",
@@ -50,7 +56,13 @@
     "featuresUsed": [
       "LanguageModel"
     ],
-    "tokenCount": 4313
+    "tokenCount": 4563,
+    "volatileFeatures": [
+      {
+        "reason": "built-in-ai",
+        "id": "languagemodel"
+      }
+    ]
   },
   {
     "id": "summarizer",
@@ -59,7 +71,13 @@
     "featuresUsed": [
       "Summarizer"
     ],
-    "tokenCount": 1709
+    "tokenCount": 1554,
+    "volatileFeatures": [
+      {
+        "reason": "built-in-ai",
+        "id": "summarizer"
+      }
+    ]
   },
   {
     "id": "translator",
@@ -68,7 +86,13 @@
     "featuresUsed": [
       "Translator"
     ],
-    "tokenCount": 2034
+    "tokenCount": 1884,
+    "volatileFeatures": [
+      {
+        "reason": "built-in-ai",
+        "id": "translator"
+      }
+    ]
   },
   {
     "id": "animate-to-intrinsic-sizes",
@@ -78,7 +102,7 @@
       "calc-size()",
       "interpolate-size"
     ],
-    "tokenCount": 1544
+    "tokenCount": 1426
   },
   {
     "id": "atrule-support-conditionals",
@@ -87,7 +111,7 @@
     "featuresUsed": [
       "at-rule()"
     ],
-    "tokenCount": 1579
+    "tokenCount": 1457
   },
   {
     "id": "calculate-with-intrinsic-sizes",
@@ -97,7 +121,7 @@
       "calc-size()",
       "interpolate-size"
     ],
-    "tokenCount": 2693
+    "tokenCount": 2607
   },
   {
     "id": "child-state-based-styling",
@@ -107,7 +131,7 @@
       ":has()",
       ":not()"
     ],
-    "tokenCount": 1428
+    "tokenCount": 1307
   },
   {
     "id": "content-based-styling",
@@ -117,7 +141,7 @@
       ":has()",
       ":not()"
     ],
-    "tokenCount": 1478
+    "tokenCount": 1371
   },
   {
     "id": "css",
@@ -144,7 +168,7 @@
       "corner-shape",
       "border-radius"
     ],
-    "tokenCount": 3503
+    "tokenCount": 3221
   },
   {
     "id": "css-layout",
@@ -166,7 +190,7 @@
       "aspect-ratio",
       "Logical properties"
     ],
-    "tokenCount": 6110
+    "tokenCount": 5676
   },
   {
     "id": "design-token-reactivity",
@@ -175,7 +199,7 @@
     "featuresUsed": [
       "Container style queries"
     ],
-    "tokenCount": 1604
+    "tokenCount": 1468
   },
   {
     "id": "dynamic-sibling-styling",
@@ -185,7 +209,7 @@
       "sibling-count() and sibling-index()",
       "Trigonometric functions (CSS)"
     ],
-    "tokenCount": 1061
+    "tokenCount": 970
   },
   {
     "id": "fluid-scaling",
@@ -194,7 +218,7 @@
     "featuresUsed": [
       "Container queries (size)"
     ],
-    "tokenCount": 789
+    "tokenCount": 777
   },
   {
     "id": "individual-transform-properties",
@@ -203,7 +227,7 @@
     "featuresUsed": [
       "Individual transform properties"
     ],
-    "tokenCount": 887
+    "tokenCount": 817
   },
   {
     "id": "overflow-clipping-control",
@@ -213,7 +237,7 @@
       "overflow: clip",
       "overflow-clip-margin"
     ],
-    "tokenCount": 2162
+    "tokenCount": 1924
   },
   {
     "id": "reduce-style-repetition",
@@ -222,7 +246,7 @@
     "featuresUsed": [
       "@function"
     ],
-    "tokenCount": 1083
+    "tokenCount": 984
   },
   {
     "id": "responsive-design",
@@ -235,7 +259,7 @@
       "min(), max(), and clamp()",
       "Viewport units"
     ],
-    "tokenCount": 394
+    "tokenCount": 462
   },
   {
     "id": "selector-atrule-combinations",
@@ -244,7 +268,7 @@
     "featuresUsed": [
       "Container style queries"
     ],
-    "tokenCount": 973
+    "tokenCount": 928
   },
   {
     "id": "size-aware-styling",
@@ -253,7 +277,7 @@
     "featuresUsed": [
       "Container queries (size)"
     ],
-    "tokenCount": 738
+    "tokenCount": 691
   },
   {
     "id": "style-parent-with-has",
@@ -262,7 +286,7 @@
     "featuresUsed": [
       ":user-valid and :user-invalid"
     ],
-    "tokenCount": 1963
+    "tokenCount": 3782
   },
   {
     "id": "usage-aware-component-variations",
@@ -271,7 +295,7 @@
     "featuresUsed": [
       "Container style queries"
     ],
-    "tokenCount": 1230
+    "tokenCount": 1153
   },
   {
     "id": "animated-select-picker",
@@ -280,7 +304,7 @@
     "featuresUsed": [
       "Customizable <select>"
     ],
-    "tokenCount": 2436
+    "tokenCount": 2349
   },
   {
     "id": "autofill-address-form",
@@ -289,16 +313,17 @@
     "featuresUsed": [
       "<input>"
     ],
-    "tokenCount": 1236
+    "tokenCount": 1198
   },
   {
     "id": "autofill-highlight-inputs",
-    "description": "Use CSS to highlight form fields that have been autofilled by the browser and not edited by the user.",
+    "description": "Customize the styling of form fields that have been autofilled and not edited by the user",
     "category": "forms",
     "featuresUsed": [
-      ":autofill"
+      ":autofill",
+      "Text stroke and fill  (compatibility prefixes)"
     ],
-    "tokenCount": 596
+    "tokenCount": 903
   },
   {
     "id": "autofill-payment-form",
@@ -309,7 +334,7 @@
       "Email, telephone, and URL <input> types",
       "inputmode"
     ],
-    "tokenCount": 2539
+    "tokenCount": 2382
   },
   {
     "id": "autofill-sign-in-form",
@@ -320,7 +345,7 @@
       "Email, telephone, and URL <input> types",
       "inputmode"
     ],
-    "tokenCount": 2557
+    "tokenCount": 2426
   },
   {
     "id": "autofill-sign-up-form",
@@ -331,7 +356,7 @@
       "Email, telephone, and URL <input> types",
       "inputmode"
     ],
-    "tokenCount": 2825
+    "tokenCount": 2636
   },
   {
     "id": "brand-consistent-forms",
@@ -340,7 +365,7 @@
     "featuresUsed": [
       "accent-color"
     ],
-    "tokenCount": 2460
+    "tokenCount": 2258
   },
   {
     "id": "branded-select-styling",
@@ -349,7 +374,7 @@
     "featuresUsed": [
       "Customizable <select>"
     ],
-    "tokenCount": 1493
+    "tokenCount": 1351
   },
   {
     "id": "custom-select-picker-layouts",
@@ -358,7 +383,7 @@
     "featuresUsed": [
       "Customizable <select>"
     ],
-    "tokenCount": 2020
+    "tokenCount": 1916
   },
   {
     "id": "form-fields-automatically-fit-contents",
@@ -367,14 +392,14 @@
     "featuresUsed": [
       "field-sizing"
     ],
-    "tokenCount": 1560
+    "tokenCount": 1370
   },
   {
     "id": "forms",
     "description": "Best practices for building accessible, secure, and user-friendly web forms. Use this guide when creating or modifying forms, inputs, and submission flows.",
     "category": "forms",
     "featuresUsed": [],
-    "tokenCount": 4874
+    "tokenCount": 5618
   },
   {
     "id": "ime-safe-enter-submit",
@@ -383,7 +408,7 @@
     "featuresUsed": [
       "Keyboard events"
     ],
-    "tokenCount": 1744
+    "tokenCount": 1513
   },
   {
     "id": "required-field-feedback",
@@ -392,7 +417,7 @@
     "featuresUsed": [
       ":user-valid and :user-invalid"
     ],
-    "tokenCount": 2109
+    "tokenCount": 3755
   },
   {
     "id": "rich-media-picker",
@@ -401,7 +426,7 @@
     "featuresUsed": [
       "Customizable <select>"
     ],
-    "tokenCount": 1910
+    "tokenCount": 2732
   },
   {
     "id": "select-menu-interaction",
@@ -410,7 +435,7 @@
     "featuresUsed": [
       ":user-valid and :user-invalid"
     ],
-    "tokenCount": 1666
+    "tokenCount": 3492
   },
   {
     "id": "slider",
@@ -424,7 +449,7 @@
       "attr()",
       ":dir()"
     ],
-    "tokenCount": 2181
+    "tokenCount": 1948
   },
   {
     "id": "sms-otp-form",
@@ -436,7 +461,7 @@
       "AbortController and AbortSignal",
       "Permissions policy"
     ],
-    "tokenCount": 3686
+    "tokenCount": 3152
   },
   {
     "id": "switch",
@@ -446,7 +471,7 @@
       "<input type=\"checkbox\" switch>",
       "accent-color"
     ],
-    "tokenCount": 719
+    "tokenCount": 648
   },
   {
     "id": "validate-input-after-interaction",
@@ -455,7 +480,7 @@
     "featuresUsed": [
       ":user-valid and :user-invalid"
     ],
-    "tokenCount": 2556
+    "tokenCount": 4626
   },
   {
     "id": "accessible-web-components",
@@ -465,7 +490,7 @@
       "ARIA attribute reflection",
       "Shadow DOM"
     ],
-    "tokenCount": 1382
+    "tokenCount": 1215
   },
   {
     "id": "custom-elements",
@@ -474,7 +499,7 @@
     "featuresUsed": [
       "Autonomous custom elements"
     ],
-    "tokenCount": 2509
+    "tokenCount": 2192
   },
   {
     "id": "form-associated-custom-elements",
@@ -483,14 +508,14 @@
     "featuresUsed": [
       "Form-associated custom elements"
     ],
-    "tokenCount": 1138
+    "tokenCount": 1110
   },
   {
     "id": "html",
     "description": "Action-oriented guidelines for modern HTML architecture, semantics, native interactive APIs (Dialog, Popover, Details), focus management, and resource prioritization. Use this guide when structuring web documents, implementing native overlays, or optimizing resource loading order.",
     "category": "html",
     "featuresUsed": [],
-    "tokenCount": 5587
+    "tokenCount": 5828
   },
   {
     "id": "prerendering-custom-elements",
@@ -499,7 +524,7 @@
     "featuresUsed": [
       "Declarative shadow DOM"
     ],
-    "tokenCount": 1027
+    "tokenCount": 883
   },
   {
     "id": "shadow-dom",
@@ -509,7 +534,7 @@
       "Shadow DOM",
       "<slot>"
     ],
-    "tokenCount": 1093
+    "tokenCount": 954
   },
   {
     "id": "styling-web-components",
@@ -521,7 +546,7 @@
       "Cascade layers",
       "Container queries (size)"
     ],
-    "tokenCount": 2438
+    "tokenCount": 2276
   },
   {
     "id": "web-components",
@@ -532,7 +557,7 @@
       "Shadow DOM",
       "Declarative shadow DOM"
     ],
-    "tokenCount": 1708
+    "tokenCount": 1596
   },
   {
     "id": "calculate-event-differentials",
@@ -542,7 +567,7 @@
       "Temporal",
       "Intl.DurationFormat"
     ],
-    "tokenCount": 2579
+    "tokenCount": 2181
   },
   {
     "id": "capture-location-agnostic-data",
@@ -551,7 +576,7 @@
     "featuresUsed": [
       "Temporal"
     ],
-    "tokenCount": 2848
+    "tokenCount": 2443
   },
   {
     "id": "coordinate-global-events",
@@ -560,7 +585,7 @@
     "featuresUsed": [
       "Temporal"
     ],
-    "tokenCount": 1124
+    "tokenCount": 971
   },
   {
     "id": "sort-high-precision-timestamps",
@@ -569,7 +594,7 @@
     "featuresUsed": [
       "Temporal"
     ],
-    "tokenCount": 1991
+    "tokenCount": 1642
   },
   {
     "id": "support-global-calendar-systems",
@@ -578,7 +603,7 @@
     "featuresUsed": [
       "Temporal"
     ],
-    "tokenCount": 1550
+    "tokenCount": 1345
   },
   {
     "id": "batch-analytics-events",
@@ -588,16 +613,16 @@
       "fetchLater",
       "AbortController and AbortSignal"
     ],
-    "tokenCount": 1774
+    "tokenCount": 1462
   },
   {
     "id": "break-up-long-tasks",
-    "description": "Break up heavy synchronous processing (complex computations and/or long loops) or DOM updates, to let the browser handle user input and repaint the screen.",
+    "description": "Break up heavy synchronous processing (complex computations and/or long loops) or DOM updates to improve Interaction to Next Paint (INP) responsiveness and let the browser handle user input and repaint the screen.",
     "category": "performance",
     "featuresUsed": [
       "Scheduler API"
     ],
-    "tokenCount": 569
+    "tokenCount": 504
   },
   {
     "id": "calculate-total-foreground-time",
@@ -606,7 +631,7 @@
     "featuresUsed": [
       "Page visibility state performance entries"
     ],
-    "tokenCount": 701
+    "tokenCount": 607
   },
   {
     "id": "conditional-async-dependencies",
@@ -615,7 +640,7 @@
     "featuresUsed": [
       "Top-level await"
     ],
-    "tokenCount": 1456
+    "tokenCount": 1282
   },
   {
     "id": "defer-rendering-heavy-content",
@@ -624,7 +649,7 @@
     "featuresUsed": [
       "content-visibility"
     ],
-    "tokenCount": 1530
+    "tokenCount": 1447
   },
   {
     "id": "defer-work-until-scroll-ends",
@@ -633,7 +658,7 @@
     "featuresUsed": [
       "scrollend"
     ],
-    "tokenCount": 907
+    "tokenCount": 740
   },
   {
     "id": "deliver-optimized-decorative-images",
@@ -642,7 +667,7 @@
     "featuresUsed": [
       "image-set()"
     ],
-    "tokenCount": 863
+    "tokenCount": 760
   },
   {
     "id": "deprioritize-background-fetches",
@@ -652,7 +677,7 @@
       "Fetch priority",
       "Fetch"
     ],
-    "tokenCount": 485
+    "tokenCount": 440
   },
   {
     "id": "detect-initial-visibility-state",
@@ -662,7 +687,7 @@
       "Page visibility state performance entries",
       "Page visibility"
     ],
-    "tokenCount": 1079
+    "tokenCount": 895
   },
   {
     "id": "efficient-background-processing",
@@ -671,7 +696,7 @@
     "featuresUsed": [
       "content-visibility"
     ],
-    "tokenCount": 1231
+    "tokenCount": 1055
   },
   {
     "id": "faster-spa-view-transitions",
@@ -680,7 +705,7 @@
     "featuresUsed": [
       "content-visibility"
     ],
-    "tokenCount": 917
+    "tokenCount": 834
   },
   {
     "id": "flicker-free-client-side-ab-testing",
@@ -689,7 +714,7 @@
     "featuresUsed": [
       "blocking=\"render\""
     ],
-    "tokenCount": 2150
+    "tokenCount": 1971
   },
   {
     "id": "full-session-analytics",
@@ -699,7 +724,7 @@
       "fetchLater",
       "AbortController and AbortSignal"
     ],
-    "tokenCount": 1567
+    "tokenCount": 1300
   },
   {
     "id": "identify-heavy-scripts",
@@ -708,7 +733,7 @@
     "featuresUsed": [
       "Long animation frames performance entries"
     ],
-    "tokenCount": 1001
+    "tokenCount": 881
   },
   {
     "id": "identify-inp-causes",
@@ -719,7 +744,7 @@
       "long-animation-frames-style-layout",
       "Event timing performance entries"
     ],
-    "tokenCount": 2031
+    "tokenCount": 1618
   },
   {
     "id": "improve-next-page-load-performance",
@@ -728,7 +753,7 @@
     "featuresUsed": [
       "Speculation rules"
     ],
-    "tokenCount": 1818
+    "tokenCount": 1646
   },
   {
     "id": "interaction-paint-timing",
@@ -738,7 +763,7 @@
       "Interaction contentful paint performance entries",
       "Soft navigation performance entries"
     ],
-    "tokenCount": 3029
+    "tokenCount": 2330
   },
   {
     "id": "interactions-in-complex-layouts",
@@ -747,7 +772,7 @@
     "featuresUsed": [
       "content-visibility"
     ],
-    "tokenCount": 786
+    "tokenCount": 711
   },
   {
     "id": "lazy-load-video-and-audio",
@@ -759,7 +784,7 @@
       "<audio>",
       "Intersection observer"
     ],
-    "tokenCount": 2692
+    "tokenCount": 2347
   },
   {
     "id": "optimize-image-priority",
@@ -769,7 +794,7 @@
       "Fetch priority",
       "Lazy-loading images and iframes"
     ],
-    "tokenCount": 1292
+    "tokenCount": 1149
   },
   {
     "id": "optimize-preload-priority",
@@ -779,7 +804,7 @@
       "Fetch priority",
       "<link rel=\"preload\">"
     ],
-    "tokenCount": 942
+    "tokenCount": 802
   },
   {
     "id": "optimize-script-priority",
@@ -788,7 +813,7 @@
     "featuresUsed": [
       "Fetch priority"
     ],
-    "tokenCount": 747
+    "tokenCount": 635
   },
   {
     "id": "out-of-order-html-streaming",
@@ -800,14 +825,24 @@
       "HTML streaming setters",
       "HTML processing instructions"
     ],
-    "tokenCount": 2260
+    "tokenCount": 2878,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "html-setters"
+      },
+      {
+        "reason": "recent-single-engine",
+        "id": "html-streaming-setters"
+      }
+    ]
   },
   {
     "id": "performance",
     "description": "Actionable guidelines for optimizing modern web applications. Use this guide when auditing performance, optimizing loading metrics, fixing slow interactions and optimizing Core Web Vitals (LCP, INP, CLS)",
     "category": "performance",
     "featuresUsed": [],
-    "tokenCount": 5965
+    "tokenCount": 5220
   },
   {
     "id": "resolution-optimized-pseudo-elements",
@@ -816,7 +851,7 @@
     "featuresUsed": [
       "image-set()"
     ],
-    "tokenCount": 751
+    "tokenCount": 660
   },
   {
     "id": "schedule-tasks-by-priority",
@@ -825,7 +860,7 @@
     "featuresUsed": [
       "Scheduler API"
     ],
-    "tokenCount": 631
+    "tokenCount": 534
   },
   {
     "id": "privacy",
@@ -837,7 +872,19 @@
       "Federated credential management",
       "User agent client hints"
     ],
-    "tokenCount": 3108
+    "tokenCount": 2783
+  },
+  {
+    "id": "install-web-app",
+    "description": "Install web applications from a page using browser-controlled consent UI.",
+    "category": "pwa",
+    "featuresUsed": [
+      "<install>",
+      "navigator.install()",
+      "beforeinstallprompt",
+      "Web app manifest"
+    ],
+    "tokenCount": 3315
   },
   {
     "id": "migrate-web-app-origin",
@@ -846,7 +893,7 @@
     "featuresUsed": [
       "Web app origin migration"
     ],
-    "tokenCount": 993
+    "tokenCount": 938
   },
   {
     "id": "client-side-encryption",
@@ -856,7 +903,13 @@
       "webcrypto-modern-algos",
       "Web Cryptography"
     ],
-    "tokenCount": 5258
+    "tokenCount": 3815,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "tmp-webcrypto-modern-algos"
+      }
+    ]
   },
   {
     "id": "digital-signatures",
@@ -866,7 +919,13 @@
       "webcrypto-modern-algos",
       "Web Cryptography"
     ],
-    "tokenCount": 3307
+    "tokenCount": 2617,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "tmp-webcrypto-modern-algos"
+      }
+    ]
   },
   {
     "id": "local-network-access",
@@ -875,7 +934,7 @@
     "featuresUsed": [
       "Local network access"
     ],
-    "tokenCount": 3598
+    "tokenCount": 3078
   },
   {
     "id": "passkey-authentication",
@@ -885,7 +944,7 @@
       "Web authentication",
       "Web authentication signal methods"
     ],
-    "tokenCount": 2605
+    "tokenCount": 2420
   },
   {
     "id": "passkey-conditional-create",
@@ -895,7 +954,7 @@
       "Web authentication",
       "Web authentication signal methods"
     ],
-    "tokenCount": 1705
+    "tokenCount": 1651
   },
   {
     "id": "passkey-management",
@@ -905,16 +964,17 @@
       "Web authentication",
       "Web authentication signal methods"
     ],
-    "tokenCount": 3397
+    "tokenCount": 3839
   },
   {
     "id": "passkey-reauthentication",
     "description": "Verify a signed-in user's identity using their existing passkeys before a sensitive action.",
     "category": "security",
     "featuresUsed": [
-      "Web authentication"
+      "Web authentication",
+      "Web authentication signal methods"
     ],
-    "tokenCount": 1401
+    "tokenCount": 1370
   },
   {
     "id": "passkey-registration",
@@ -924,7 +984,7 @@
       "Web authentication",
       "Web authentication signal methods"
     ],
-    "tokenCount": 2505
+    "tokenCount": 2189
   },
   {
     "id": "passkeys",
@@ -933,7 +993,7 @@
     "featuresUsed": [
       "Web authentication"
     ],
-    "tokenCount": 1275
+    "tokenCount": 1096
   },
   {
     "id": "quick-sign-ins",
@@ -945,7 +1005,7 @@
       "Credential management",
       "Web authentication signal methods"
     ],
-    "tokenCount": 4449
+    "tokenCount": 3878
   },
   {
     "id": "restrict-outbound-connections",
@@ -954,7 +1014,13 @@
     "featuresUsed": [
       "Connection allowlists"
     ],
-    "tokenCount": 4218
+    "tokenCount": 3580,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "connection-allowlists"
+      }
+    ]
   },
   {
     "id": "sanitize-untrusted-html",
@@ -963,7 +1029,7 @@
     "featuresUsed": [
       "Sanitizer API"
     ],
-    "tokenCount": 1631
+    "tokenCount": 1314
   },
   {
     "id": "secure-external-subresources",
@@ -976,14 +1042,14 @@
       "Subresource integrity",
       "Referrer policy"
     ],
-    "tokenCount": 4960
+    "tokenCount": 3905
   },
   {
     "id": "security",
     "description": "Preventative security guidelines for web developers (XSS, CSP, Cookies, Cross-Origin Isolation). Use this skill to guide the process of auditing, testing, and deploying security policies safely.",
     "category": "security",
     "featuresUsed": [],
-    "tokenCount": 8178
+    "tokenCount": 7408
   },
   {
     "id": "trusted-types",
@@ -992,7 +1058,7 @@
     "featuresUsed": [
       "Trusted types"
     ],
-    "tokenCount": 2088
+    "tokenCount": 1795
   },
   {
     "id": "validate-origins",
@@ -1001,7 +1067,7 @@
     "featuresUsed": [
       "Origin"
     ],
-    "tokenCount": 3847
+    "tokenCount": 3243
   },
   {
     "id": "verify-email-ownership",
@@ -1010,7 +1076,7 @@
     "featuresUsed": [
       "email-verification"
     ],
-    "tokenCount": 4568,
+    "tokenCount": 3671,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5205725253074944",
@@ -1026,7 +1092,7 @@
       "Scroll-driven animations",
       "Scroll snap"
     ],
-    "tokenCount": 2108
+    "tokenCount": 2404
   },
   {
     "id": "component-specific-light-dark-theme",
@@ -1036,7 +1102,7 @@
       "color-scheme",
       "light-dark()"
     ],
-    "tokenCount": 2534
+    "tokenCount": 2501
   },
   {
     "id": "icons",
@@ -1049,7 +1115,7 @@
       "Container style queries",
       "Registered custom properties"
     ],
-    "tokenCount": 5220
+    "tokenCount": 4836
   },
   {
     "id": "position-aware-tooltips",
@@ -1059,7 +1125,7 @@
       "Anchor position container queries",
       "Popover"
     ],
-    "tokenCount": 1905
+    "tokenCount": 2032
   },
   {
     "id": "pull-to-reveal",
@@ -1069,7 +1135,7 @@
       "scroll-initial-target",
       "Scroll snap"
     ],
-    "tokenCount": 1205
+    "tokenCount": 1215
   },
   {
     "id": "responsive-table",
@@ -1079,7 +1145,7 @@
       "Sticky positioning",
       "Container queries (size)"
     ],
-    "tokenCount": 1144
+    "tokenCount": 1126
   },
   {
     "id": "scroll-position-aware-elements",
@@ -1088,7 +1154,7 @@
     "featuresUsed": [
       "Container scroll-state queries"
     ],
-    "tokenCount": 966
+    "tokenCount": 868
   },
   {
     "id": "scroll-progress-indicator",
@@ -1097,16 +1163,17 @@
     "featuresUsed": [
       "Scroll-driven animations"
     ],
-    "tokenCount": 1691
+    "tokenCount": 1547
   },
   {
     "id": "scrollability-affordance-hints",
-    "description": "Build scroll-shadow overlays, gradient fades, or directional arrow indicators that appear only when there's actually more content to scroll to in that direction.",
+    "description": "Build scroll shadows or fading edges that appear only when there's actually more content to scroll to in that direction.",
     "category": "ui-atoms",
     "featuresUsed": [
-      "Container scroll-state queries"
+      "Container scroll-state queries",
+      "Scroll-driven animations"
     ],
-    "tokenCount": 1040
+    "tokenCount": 3052
   },
   {
     "id": "shrinking-header-on-scroll",
@@ -1115,7 +1182,24 @@
     "featuresUsed": [
       "Scroll-driven animations"
     ],
-    "tokenCount": 1616
+    "tokenCount": 1615
+  },
+  {
+    "id": "single-line-overflow",
+    "description": "Show text that must stay on one line, such as a tab label, table cell, navigation item, or file name, in a space it may not fit, without breaking the layout or losing the text.",
+    "category": "ui-atoms",
+    "featuresUsed": [
+      "Text overflow",
+      "Container queries (size)",
+      "Scroll-driven animations",
+      "Container style queries",
+      "Masks",
+      "interpolate-size",
+      "Resize observer",
+      "Registered custom properties",
+      "Individual transform properties"
+    ],
+    "tokenCount": 4038
   },
   {
     "id": "state-aware-sticky-headers",
@@ -1124,7 +1208,7 @@
     "featuresUsed": [
       "Container scroll-state queries"
     ],
-    "tokenCount": 1674
+    "tokenCount": 1597
   },
   {
     "id": "viewport-aware-dropdowns",
@@ -1134,7 +1218,7 @@
       "Anchor positioning",
       "Popover"
     ],
-    "tokenCount": 1966
+    "tokenCount": 2518
   },
   {
     "id": "2d-panning",
@@ -1144,7 +1228,13 @@
       "scroll-axis-lock",
       "overscroll-behavior"
     ],
-    "tokenCount": 2385
+    "tokenCount": 2119,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "scroll-axis-lock"
+      }
+    ]
   },
   {
     "id": "anchor-positioning-tab-underline",
@@ -1154,7 +1244,7 @@
       "Anchor positioning",
       "prefers-reduced-motion media query"
     ],
-    "tokenCount": 828
+    "tokenCount": 804
   },
   {
     "id": "animate-element-entry-exit",
@@ -1164,7 +1254,7 @@
       "@starting-style",
       "transition-behavior"
     ],
-    "tokenCount": 2137
+    "tokenCount": 1904
   },
   {
     "id": "animate-to-from-top-layer",
@@ -1178,7 +1268,7 @@
       "@starting-style",
       "transition-behavior"
     ],
-    "tokenCount": 2905
+    "tokenCount": 2681
   },
   {
     "id": "carousel-snap-highlights",
@@ -1187,7 +1277,7 @@
     "featuresUsed": [
       "Container scroll-state queries"
     ],
-    "tokenCount": 1449
+    "tokenCount": 1732
   },
   {
     "id": "consistent-cross-document-transitions",
@@ -1198,7 +1288,7 @@
       "<link rel=\"expect\">",
       "Cross-document view transitions"
     ],
-    "tokenCount": 3637
+    "tokenCount": 3300
   },
   {
     "id": "cross-document-transitions",
@@ -1209,7 +1299,7 @@
       "Cross-document view transitions",
       "Navigation API"
     ],
-    "tokenCount": 1175
+    "tokenCount": 1083
   },
   {
     "id": "custom-button-actions",
@@ -1218,7 +1308,7 @@
     "featuresUsed": [
       "Invoker commands"
     ],
-    "tokenCount": 2302
+    "tokenCount": 2077
   },
   {
     "id": "declarative-dialog-popover-control",
@@ -1229,7 +1319,7 @@
       "Popover",
       "<dialog>"
     ],
-    "tokenCount": 3001
+    "tokenCount": 1849
   },
   {
     "id": "directional-navigation-transitions",
@@ -1239,7 +1329,7 @@
       "View transitions",
       "Active view transition"
     ],
-    "tokenCount": 1291
+    "tokenCount": 1212
   },
   {
     "id": "drag",
@@ -1250,7 +1340,19 @@
       "touch-action",
       "user-select"
     ],
-    "tokenCount": 1298
+    "tokenCount": 1616
+  },
+  {
+    "id": "drag-and-drop",
+    "description": "Support dragging to rearrange the children of a container along one axis (horizontal or vertical) while preserving their state and accessible order.",
+    "category": "ui-behaviors",
+    "featuresUsed": [
+      "moveBefore()",
+      "Pointer Events",
+      "user-select",
+      "reading-flow"
+    ],
+    "tokenCount": 3814
   },
   {
     "id": "dynamic-sibling-animations",
@@ -1259,17 +1361,28 @@
     "featuresUsed": [
       "sibling-count() and sibling-index()"
     ],
-    "tokenCount": 791
+    "tokenCount": 718
+  },
+  {
+    "id": "dynamic-sort",
+    "description": "Best practices for handling dynamic user-triggered reordering of a container's children (e.g. list items, table rows, or a card grid), with optional animated reordering that respects user preferences, good screen reader UX, and optimal performance for large lists.",
+    "category": "ui-behaviors",
+    "featuresUsed": [
+      "View transitions",
+      "Element-scoped view transitions",
+      "moveBefore()"
+    ],
+    "tokenCount": 1649
   },
   {
     "id": "group-element-transitions",
-    "description": "Transition a group of similar elements simultaneously using the same transition logic, such as removing a product from a shopping cart and having all the other products animate into their new positions.",
+    "description": "Smoothly rearrange and animate list items, cards, or grid elements into their new positions simultaneously when adding, removing, shuffling, or reordering—such as removing a product from a shopping cart.",
     "category": "ui-behaviors",
     "featuresUsed": [
       "View transitions",
       "view-transition-class"
     ],
-    "tokenCount": 1341
+    "tokenCount": 1500
   },
   {
     "id": "highlight-text-ranges",
@@ -1278,7 +1391,7 @@
     "featuresUsed": [
       "Custom highlights"
     ],
-    "tokenCount": 1499
+    "tokenCount": 1526
   },
   {
     "id": "interactive-content-reveal",
@@ -1288,7 +1401,7 @@
       "Masks",
       "Registered custom properties"
     ],
-    "tokenCount": 1369
+    "tokenCount": 1366
   },
   {
     "id": "interest-triggered-action-previews",
@@ -1297,7 +1410,7 @@
     "featuresUsed": [
       "Interest invokers"
     ],
-    "tokenCount": 1322
+    "tokenCount": 1170
   },
   {
     "id": "interest-triggered-tooltips",
@@ -1309,7 +1422,7 @@
       "popover=\"hint\"",
       "Anchor positioning"
     ],
-    "tokenCount": 2659
+    "tokenCount": 4994
   },
   {
     "id": "light-dismiss-a-dialog",
@@ -1318,7 +1431,7 @@
     "featuresUsed": [
       "<dialog closedby>"
     ],
-    "tokenCount": 1095
+    "tokenCount": 1058
   },
   {
     "id": "motion",
@@ -1339,7 +1452,7 @@
       "prefers-reduced-motion media query",
       "Nesting"
     ],
-    "tokenCount": 1377
+    "tokenCount": 1815
   },
   {
     "id": "move-dom-element-without-losing-state",
@@ -1348,7 +1461,7 @@
     "featuresUsed": [
       "moveBefore()"
     ],
-    "tokenCount": 717
+    "tokenCount": 796
   },
   {
     "id": "parallax-scroll-effects",
@@ -1357,7 +1470,7 @@
     "featuresUsed": [
       "Scroll-driven animations"
     ],
-    "tokenCount": 2406
+    "tokenCount": 2248
   },
   {
     "id": "persistent-top-layer-ui",
@@ -1366,7 +1479,7 @@
     "featuresUsed": [
       "moveBefore()"
     ],
-    "tokenCount": 698
+    "tokenCount": 526
   },
   {
     "id": "physics-based-easing",
@@ -1375,7 +1488,7 @@
     "featuresUsed": [
       "linear() easing"
     ],
-    "tokenCount": 1872
+    "tokenCount": 1713
   },
   {
     "id": "platform-controls-dismiss-dialog",
@@ -1384,7 +1497,7 @@
     "featuresUsed": [
       "<dialog closedby>"
     ],
-    "tokenCount": 728
+    "tokenCount": 640
   },
   {
     "id": "prevent-page-scroll-under-modal-dialog",
@@ -1396,7 +1509,7 @@
       "::backdrop",
       ":modal"
     ],
-    "tokenCount": 1290
+    "tokenCount": 1139
   },
   {
     "id": "same-document-transitions",
@@ -1405,7 +1518,7 @@
     "featuresUsed": [
       "View transitions"
     ],
-    "tokenCount": 2132
+    "tokenCount": 1927
   },
   {
     "id": "scoped-component-transitions",
@@ -1415,7 +1528,7 @@
       "Element-scoped view transitions",
       "View transitions"
     ],
-    "tokenCount": 3102
+    "tokenCount": 2781
   },
   {
     "id": "scroll-completion-effects",
@@ -1425,7 +1538,7 @@
       "Scroll method promises",
       "scrollIntoView()"
     ],
-    "tokenCount": 1773
+    "tokenCount": 1684
   },
   {
     "id": "scroll-entry-exit-effects",
@@ -1434,7 +1547,7 @@
     "featuresUsed": [
       "Scroll-driven animations"
     ],
-    "tokenCount": 1953
+    "tokenCount": 2321
   },
   {
     "id": "scroll-snap-realtime-feedback",
@@ -1444,7 +1557,7 @@
       "Scroll snap events",
       "Scroll snap"
     ],
-    "tokenCount": 1896
+    "tokenCount": 2426
   },
   {
     "id": "scroll-snap-state-sync",
@@ -1454,7 +1567,7 @@
       "Scroll snap events",
       "Scroll snap"
     ],
-    "tokenCount": 1059
+    "tokenCount": 1123
   },
   {
     "id": "scroll-target-on-load",
@@ -1464,7 +1577,7 @@
       "scroll-initial-target",
       "scrollIntoView()"
     ],
-    "tokenCount": 855
+    "tokenCount": 792
   },
   {
     "id": "scrollytelling",
@@ -1473,7 +1586,7 @@
     "featuresUsed": [
       "Scroll-driven animations"
     ],
-    "tokenCount": 2370
+    "tokenCount": 2267
   },
   {
     "id": "search-hidden-content",
@@ -1484,7 +1597,19 @@
       "Mutually exclusive <details> elements",
       "hidden=\"until-found\""
     ],
-    "tokenCount": 1858
+    "tokenCount": 1731
+  },
+  {
+    "id": "sortable-table",
+    "description": "Progressively enhance a data table with behaviors that allow users to sort rows by clicking on column headers.",
+    "category": "ui-behaviors",
+    "featuresUsed": [
+      "Invoker commands",
+      "View transitions",
+      "Element-scoped view transitions",
+      "moveBefore()"
+    ],
+    "tokenCount": 2094
   },
   {
     "id": "spatial-navigation",
@@ -1493,7 +1618,7 @@
     "featuresUsed": [
       "scrollIntoView()"
     ],
-    "tokenCount": 1380
+    "tokenCount": 1479
   },
   {
     "id": "swipe-to-remove",
@@ -1507,9 +1632,10 @@
       "Intersection observer",
       "MutationObserver",
       "Resize observer",
-      "Web animations"
+      "Web animations",
+      "prefers-reduced-motion media query"
     ],
-    "tokenCount": 7588
+    "tokenCount": 8283
   },
   {
     "id": "swipe-to-reveal",
@@ -1521,7 +1647,51 @@
       "Scroll snap",
       "scrollbar-width"
     ],
-    "tokenCount": 2958
+    "tokenCount": 3406
+  },
+  {
+    "id": "accordion",
+    "description": "Build an accordion component with animation, optional exclusive (one-open-at-a-time) behavior, and brand-consistent styling.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "hidden=\"until-found\"",
+      "interpolate-size",
+      "transition-behavior",
+      "Mutually exclusive <details> elements",
+      ":dir()",
+      "<details>",
+      "::details-content",
+      "Invoker commands"
+    ],
+    "tokenCount": 3853
+  },
+  {
+    "id": "app-menus",
+    "description": "Build an application menu bar where several top-level menus (such as File, Edit, and View) act as a single keyboard stop and switch between each other on hover or arrow keys.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "Popover",
+      "Invoker commands",
+      "Anchor positioning",
+      "focusgroup",
+      ":has()"
+    ],
+    "tokenCount": 4106
+  },
+  {
+    "id": "breadcrumbs",
+    "description": "Build a breadcrumb trail that shows the user's location within a site hierarchy and lets them navigate to ancestor pages.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "border-shape",
+      "corner-shape",
+      "sibling-count() and sibling-index()",
+      "Forced colors",
+      ":focus-visible",
+      "clip-path",
+      "Logical properties"
+    ],
+    "tokenCount": 3339
   },
   {
     "id": "card",
@@ -1532,7 +1702,21 @@
       "Container queries (size)",
       "Subgrid"
     ],
-    "tokenCount": 2204
+    "tokenCount": 2105
+  },
+  {
+    "id": "carousel",
+    "description": "Build a carousel component that displays a set of items in a horizontal or vertical layout.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "Scroll snap",
+      "scroll-behavior",
+      "scrollend",
+      "Scroll snap events",
+      "Scroll-driven animations",
+      "sibling-count() and sibling-index()"
+    ],
+    "tokenCount": 3598
   },
   {
     "id": "checkbox",
@@ -1544,7 +1728,22 @@
       "Individual transform properties",
       "Masks"
     ],
-    "tokenCount": 1610
+    "tokenCount": 1505
+  },
+  {
+    "id": "copy-button",
+    "description": "Build a copy button that copies text from arbitrary elements to the clipboard.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "Invoker commands",
+      "Async clipboard",
+      "Popover",
+      "prefers-reduced-motion media query",
+      "Logical properties",
+      ":focus-within",
+      "Interaction media queries"
+    ],
+    "tokenCount": 3769
   },
   {
     "id": "dark-mode-toggle",
@@ -1556,7 +1755,7 @@
       "light-dark()",
       ":has()"
     ],
-    "tokenCount": 2352
+    "tokenCount": 2245
   },
   {
     "id": "dialog",
@@ -1569,7 +1768,7 @@
       "Popover",
       "overscroll-behavior"
     ],
-    "tokenCount": 3794
+    "tokenCount": 3311
   },
   {
     "id": "hovercard",
@@ -1584,7 +1783,7 @@
       "blocking=\"render\"",
       "<link rel=\"expect\">"
     ],
-    "tokenCount": 3273
+    "tokenCount": 5286
   },
   {
     "id": "menu",
@@ -1594,15 +1793,37 @@
       "Popover",
       "Invoker commands",
       "Anchor positioning",
-      "focusgroup"
+      "focusgroup",
+      ":has()",
+      "abs() and sign()"
     ],
-    "tokenCount": 8282
+    "tokenCount": 8083
+  },
+  {
+    "id": "navbar",
+    "description": "Build a site navigation bar that adapts across screen sizes and indicates the current page.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "Popover",
+      "Nesting",
+      "Anchor positioning",
+      "Small, large, and dynamic viewport units",
+      "Logical properties",
+      ":focus-visible",
+      "Forced colors",
+      "@starting-style",
+      "transition-behavior",
+      "interpolate-size",
+      "content-visibility"
+    ],
+    "tokenCount": 4514
   },
   {
     "id": "navigation-drawer",
     "description": "Create a navigation drawer component that, when triggered from a menu button, slides in from the side overlaid on top of existing page content, and slides out when dismissed (by swiping away, tapping outside, or pressing escape).",
     "category": "ui-components",
     "featuresUsed": [
+      "<dialog>",
       "inert",
       "Intersection observer",
       "Popover",
@@ -1611,7 +1832,7 @@
       "scroll-initial-target",
       "Scroll snap"
     ],
-    "tokenCount": 4390
+    "tokenCount": 5119
   },
   {
     "id": "persistent-app-tours",
@@ -1621,7 +1842,7 @@
       "Popover",
       "Anchor positioning"
     ],
-    "tokenCount": 1600
+    "tokenCount": 2735
   },
   {
     "id": "persistent-toast-notifications",
@@ -1629,11 +1850,12 @@
     "category": "ui-components",
     "featuresUsed": [
       "Popover",
+      "ariaNotify()",
       "Anchor positioning",
       "sibling-count() and sibling-index()",
       "transition-behavior"
     ],
-    "tokenCount": 1049
+    "tokenCount": 3284
   },
   {
     "id": "progress",
@@ -1646,7 +1868,7 @@
       "Container queries (size)",
       "Individual transform properties"
     ],
-    "tokenCount": 2868
+    "tokenCount": 2648
   },
   {
     "id": "progress-ring",
@@ -1658,7 +1880,7 @@
       "Masks",
       "Registered custom properties"
     ],
-    "tokenCount": 1696
+    "tokenCount": 1769
   },
   {
     "id": "scrollspy",
@@ -1668,7 +1890,7 @@
       "Scroll marker target pseudo-classes",
       "scroll-target-group"
     ],
-    "tokenCount": 1629
+    "tokenCount": 1723
   },
   {
     "id": "spinner",
@@ -1679,7 +1901,7 @@
       "Conic gradients",
       "<progress>"
     ],
-    "tokenCount": 1508
+    "tokenCount": 1519
   },
   {
     "id": "stack-drill-down",
@@ -1692,7 +1914,38 @@
       "Scroll snap",
       "Scroll snap events"
     ],
-    "tokenCount": 9248
+    "tokenCount": 8821
+  },
+  {
+    "id": "tabs",
+    "description": "Build a responsive tabbed interface with good UX when not all tabs fit on screen.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "focusgroup",
+      "hidden=\"until-found\"",
+      "Scroll snap",
+      "Scroll-driven animations",
+      "interpolate-size"
+    ],
+    "tokenCount": 5597
+  },
+  {
+    "id": "toolbar",
+    "description": "Build a toolbar component that displays a set of controls for performing actions.",
+    "category": "ui-components",
+    "featuresUsed": [
+      "Popover",
+      "Interest invokers",
+      "popover=\"hint\"",
+      "Anchor positioning",
+      "Async clipboard",
+      "Forced colors",
+      ":focus-visible",
+      "prefers-reduced-motion media query",
+      "Logical properties",
+      "focusgroup"
+    ],
+    "tokenCount": 5524
   },
   {
     "id": "content-first-noise-reduction",
@@ -1704,7 +1957,34 @@
       "Invoker commands",
       "Container scroll-state queries"
     ],
-    "tokenCount": 2430
+    "tokenCount": 2157
+  },
+  {
+    "id": "form-factor-adaptation",
+    "description": "Adapt layouts, controls, and text to any device or container so touch targets stay usable, content fits its space, and nothing collides with system UI.",
+    "category": "user-experience",
+    "featuresUsed": [
+      "Container queries (size)",
+      "Safe area inset environment variables",
+      "text-wrap: balance",
+      "text-wrap: pretty",
+      "Interaction media queries",
+      ":has()"
+    ],
+    "tokenCount": 1660
+  },
+  {
+    "id": "natural-interactions",
+    "description": "Implement natural interactions with clear hover, focus, and press feedback, motion that opens from its trigger, swipeable content, and keyboard-reachable actions.",
+    "category": "user-experience",
+    "featuresUsed": [
+      ":focus-visible",
+      "linear() easing",
+      "Scroll snap",
+      "Popover",
+      "Anchor positioning"
+    ],
+    "tokenCount": 2573
   },
   {
     "id": "adapt-scrollbar-to-contrast-preferences",
@@ -1714,16 +1994,16 @@
       "scrollbar-color",
       "prefers-contrast media query"
     ],
-    "tokenCount": 937
+    "tokenCount": 840
   },
   {
     "id": "apply-webgl-shaders",
     "description": "Apply custom visual effects with WebGL shaders to HTML content.",
     "category": "visual-design",
     "featuresUsed": [
-      "HTML in canvas"
+      "HTML-in-canvas"
     ],
-    "tokenCount": 3798,
+    "tokenCount": 3105,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5172548013916160",
@@ -1752,7 +2032,7 @@
       ":has()",
       "::file-selector-button"
     ],
-    "tokenCount": 998
+    "tokenCount": 1052
   },
   {
     "id": "color",
@@ -1769,7 +2049,7 @@
       "Lab and LCH",
       "Relative colors"
     ],
-    "tokenCount": 956
+    "tokenCount": 1108
   },
   {
     "id": "complex-shapes",
@@ -1779,7 +2059,7 @@
       "Masks",
       "SVG"
     ],
-    "tokenCount": 1044
+    "tokenCount": 956
   },
   {
     "id": "contrast-color",
@@ -1788,7 +2068,7 @@
     "featuresUsed": [
       "contrast-color()"
     ],
-    "tokenCount": 2059
+    "tokenCount": 1965
   },
   {
     "id": "custom-text-decorations",
@@ -1804,7 +2084,13 @@
       "border-shape",
       "corner-shape"
     ],
-    "tokenCount": 4658
+    "tokenCount": 4361,
+    "volatileFeatures": [
+      {
+        "reason": "recent-single-engine",
+        "id": "text-decoration-skip-spaces"
+      }
+    ]
   },
   {
     "id": "customize-scrollbar-color-and-thickness",
@@ -1814,7 +2100,7 @@
       "scrollbar-color",
       "scrollbar-width"
     ],
-    "tokenCount": 681
+    "tokenCount": 668
   },
   {
     "id": "dark-mode",
@@ -1828,7 +2114,7 @@
       "image()",
       "accent-color"
     ],
-    "tokenCount": 4614
+    "tokenCount": 4381
   },
   {
     "id": "equal-width-text-lines",
@@ -1839,16 +2125,16 @@
       "text-wrap: balance",
       "text-box"
     ],
-    "tokenCount": 1790
+    "tokenCount": 1653
   },
   {
     "id": "export-html-media-from-canvas",
     "description": "Capture and export dynamic HTML content as images or video frames from within canvas.",
     "category": "visual-design",
     "featuresUsed": [
-      "HTML in canvas"
+      "HTML-in-canvas"
     ],
-    "tokenCount": 4869,
+    "tokenCount": 3976,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5172548013916160",
@@ -1861,9 +2147,9 @@
     "description": "Expose content rendered in a canvas to browser features like assistive technologies, translation, or reading mode.",
     "category": "visual-design",
     "featuresUsed": [
-      "HTML in canvas"
+      "HTML-in-canvas"
     ],
-    "tokenCount": 5798,
+    "tokenCount": 4684,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5172548013916160",
@@ -1879,16 +2165,16 @@
       "text-wrap: balance",
       "text-wrap: pretty"
     ],
-    "tokenCount": 1309
+    "tokenCount": 1225
   },
   {
     "id": "interactive-content-in-3d-scenes",
     "description": "Integrate interactive HTML elements into a 3D scene.",
     "category": "visual-design",
     "featuresUsed": [
-      "HTML in canvas"
+      "HTML-in-canvas"
     ],
-    "tokenCount": 5581,
+    "tokenCount": 4565,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5172548013916160",
@@ -1903,7 +2189,7 @@
     "featuresUsed": [
       "text-box"
     ],
-    "tokenCount": 1219
+    "tokenCount": 1140
   },
   {
     "id": "shaped-cutouts",
@@ -1912,7 +2198,7 @@
     "featuresUsed": [
       "Masks"
     ],
-    "tokenCount": 2317
+    "tokenCount": 2142
   },
   {
     "id": "soft-edge-content-fade",
@@ -1921,7 +2207,7 @@
     "featuresUsed": [
       "Masks"
     ],
-    "tokenCount": 677
+    "tokenCount": 644
   },
   {
     "id": "typography",
@@ -1937,9 +2223,12 @@
       "text-wrap: balance",
       "text-wrap: pretty",
       "min(), max(), and clamp()",
-      "Viewport units"
+      "Viewport units",
+      "Logical properties",
+      "Hyphenation",
+      "ch unit"
     ],
-    "tokenCount": 681
+    "tokenCount": 943
   },
   {
     "id": "visual-effects",
@@ -1960,7 +2249,7 @@
       "Custom properties",
       "aspect-ratio"
     ],
-    "tokenCount": 1114
+    "tokenCount": 1020
   },
   {
     "id": "visually-stable-font-fallbacks",
@@ -1969,7 +2258,7 @@
     "featuresUsed": [
       "font-size-adjust"
     ],
-    "tokenCount": 769
+    "tokenCount": 706
   },
   {
     "id": "visually-stable-mixed-fonts",
@@ -1978,7 +2267,7 @@
     "featuresUsed": [
       "font-size-adjust"
     ],
-    "tokenCount": 778
+    "tokenCount": 718
   },
   {
     "id": "visually-texture-content",
@@ -1987,7 +2276,7 @@
     "featuresUsed": [
       "Masks"
     ],
-    "tokenCount": 1109
+    "tokenCount": 984
   },
   {
     "id": "cpp-on-the-web",
@@ -1996,7 +2285,7 @@
     "featuresUsed": [
       "WebAssembly"
     ],
-    "tokenCount": 2419
+    "tokenCount": 1920
   },
   {
     "id": "agentic-forms",
@@ -2005,7 +2294,7 @@
     "featuresUsed": [
       "Form-associated WebMCP attributes"
     ],
-    "tokenCount": 1716,
+    "tokenCount": 1477,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5117755740913664",
@@ -2020,7 +2309,7 @@
     "featuresUsed": [
       "document.modelContext"
     ],
-    "tokenCount": 6177,
+    "tokenCount": 5228,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5117755740913664",
@@ -2036,7 +2325,7 @@
       "Form-associated WebMCP attributes",
       "document.modelContext"
     ],
-    "tokenCount": 1174,
+    "tokenCount": 1019,
     "originTrials": [
       {
         "chromestatus_url": "https://chromestatus.com/feature/5117755740913664",

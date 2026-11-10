@@ -1,5 +1,9 @@
 # Adversarial audit — `dsh-modern-web-guidance`
 
+> **Snapshot qualifier.** Numbers in this document describe the 2026-10-30 snapshot; the corpus now ships
+> 208 guides (upstream v1.0.0, 2026-11-09). Figures and repro assertions are left as recorded, so a rerun
+> against the current tree will differ by design.
+
 Date: 2026-11-08. Surface driven directly: `lib/guidance.js` (`createGuidance({dataDir})`) and
 the three tool objects built by `index.js`, using the mocked Cordis ctx from `test/plugin.test.mjs`.
 Baseline first: `node test/guidance.test.mjs` → 7/7 pass, `node test/plugin.test.mjs` → 4/4 pass.

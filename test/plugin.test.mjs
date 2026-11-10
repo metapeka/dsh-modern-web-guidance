@@ -72,12 +72,29 @@ test('retrieve tool returns guide markdown', async () => {
   assert.match(rendered[0].text, /--- Guide for dialog ---/)
 })
 
+test('experimental guides are flagged in search and open with a warning banner', async () => {
+  const { ctx, tools } = createContext()
+  apply(ctx)
+
+  const search = tools.find((tool) => tool.name === 'web_guidance_search')
+  const found = await search.execute({ query: 'webmcp' }, {})
+  assert.equal(found.results[0].id, 'webmcp')
+  assert.equal(found.results[0].experimental, true)
+  const renderedSearch = search.output.render({ query: 'webmcp' }, found)
+  assert.match(renderedSearch[0].text, /- webmcp \[experimental\] \(webmcp\):/)
+
+  const retrieve = tools.find((tool) => tool.name === 'web_guidance_retrieve')
+  const value = await retrieve.execute({ ids: ['webmcp'] }, {})
+  assert.equal(value.guides[0].experimental, true)
+  assert.match(value.guides[0].content, /^> \[!WARNING\]\n> Experimental: Origin Trial feature\(s\) `declarative-webmcp`, `document-modelcontext`\./)
+})
+
 test('list tool groups categories and lists one category', async () => {
   const { ctx, tools } = createContext()
   apply(ctx)
   const list = tools.find((tool) => tool.name === 'web_guidance_list')
   const grouped = await list.execute({}, {})
-  assert.equal(grouped.total, 193)
+  assert.equal(grouped.total, 208)
   assert.ok(grouped.categories.some((row) => row.category === 'css'))
   const oneCategory = await list.execute({ category: 'ui-atoms' }, {})
   assert.ok(oneCategory.guides.length > 0)
