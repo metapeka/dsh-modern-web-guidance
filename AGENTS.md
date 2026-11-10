@@ -25,10 +25,10 @@ workspace; everything else reads the bundled corpus.
 ## The legacy scanner
 
 `lib/scan.js` walks explicit relative paths and matches rules line by line; `lib/scan-rules.js` is the
-rule table (`ls-01` … `ls-30`, each with a `guideId`, a `confidence` and one imperative `message`).
-It is a marker scanner, not an AST analyzer: 30 rules over 30 of the 208 guides, no upstream parity,
-report-only — it never writes, spawns a process or reaches the network. The full interface is
-`docs/notes/legacy-scan-contract.md`.
+rule table (`ls-01` … `ls-33`, each with a `guideId`, a `confidence` and one imperative `message`).
+It is a marker scanner, not an AST analyzer: 33 rules over 33 of the 208 guides, with no parity claim
+for upstream's engine; report-only — it never writes, spawns a process or reaches the network. The
+full interface is `docs/notes/legacy-scan-contract.md`.
 
 - **A new rule goes into `lib/scan-rules.js`, never into the scanner**: a `guideId` that exists in
   `data/guides.json`, a `confidence`, a message naming the modern replacement, and a test in

@@ -68,9 +68,9 @@ calls. Usage counters have existed since 0.2.0, but they never leave the machine
 | Skill | `chrome-extensions` | Manifest V3 engineering and Chrome Web Store submission guidance |
 
 The scanner is report-only. `web_guidance_legacy_scan` takes `paths` (1–16 files or directories, no default target), an
-optional `rules` list of up to 30 rule ids, and `format: 'summary' | 'json'`; it reads at most 200 files, 512 kB per file
-and 8 MB per call, and returns at most 200 findings. It covers 30 of upstream's 35 rules; the
-[parity note](docs/notes/legacy-scan-parity.md) accounts for the rest and for the one real debt.
+optional `rules` list of up to 33 rule ids, and `format: 'summary' | 'json'`; it reads at most 200 files, 512 kB per file
+and 8 MB per call, and returns at most 200 findings. It carries 33 rules, 30 of them upstream's; the
+[parity note](docs/notes/legacy-scan-parity.md) accounts for what is still missing and for the one real debt.
 
 The catalog covers `css`, `ui-atoms`, `ui-components`, `ui-behaviors`, `forms`, `html`, `js`, `accessibility`,
 `visual-design`, `security`, `performance`, `built-in-ai`, `pwa`, `wasm`, `webmcp`, `privacy`, and `user-experience`.
@@ -188,11 +188,11 @@ and security budget. The honest split:
 | Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
 | Runtime dependencies | Node plus the CLI engines shipped in the package | none |
 | Network | `npx` fetches the package, then works locally | never — the corpus is inside the package |
-| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped in 0.5.0: a dependency-free regex scanner over 30 of upstream's 35 rules, explicit paths only, report only |
+| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped since 0.5.0: a dependency-free regex scanner over 33 rules, 30 of them upstream's, explicit paths only, report only |
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, `/guidance-stats`, and the sidebar panel |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 873 kB packed, 2.5 MB unpacked |
+| Size | — | 256 files, 874 kB packed, 2.5 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -398,8 +398,8 @@ dialog", "view transition", "container query"), not sentences. If a query still 
 is volatile in one engine — see [Experimental guides](#experimental-guides). The guide is still the
 right shape; feature-detect it before shipping.
 
-**What can the legacy scanner actually do?** It is a regex marker scan, not a parser: 30 rules matched
-line by line, covering 30 of the 208 guides (14.4 %), with no AST, no data-flow analysis and no autofix —
+**What can the legacy scanner actually do?** It is a regex marker scan, not a parser: 33 rules matched
+line by line, covering 33 of the 208 guides (15.9 %), with no AST, no data-flow analysis and no autofix —
 it reports and stops. It makes no parity claim with Chrome's own `legacy-scan`, a 4.99 MB engine with a
 bundled TypeScript compiler; this one is a dependency-free pass that can produce false positives and
 misses, so treat a finding as a lead to verify, not as a verdict.
@@ -424,6 +424,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.4.0 | shipped | the upstream v1.0.0 corpus (208 guides) plus experimental marking |
 | 0.4.1 | shipped | docs: navigation, the comparison, the catalog map |
 | 0.5.0 | shipped | `legacy-scan` as the fourth tool: 30 regex rules, explicit paths only, report only — `web_guidance_legacy_scan`, with a fourth counter and a findings total in the panel. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+| 0.6.0 | this release | three more rules (`:host-context()`, text balancing, `select:invalid`) take the table to 33 rules, 30 of them upstream's, and a guide-hash guard keeps a rule honest after a corpus refresh |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,

@@ -42,7 +42,7 @@ const SAMPLES = {
   'ls-19': ['noUiSlider.create(el, { start: 50, range: { min: 0, max: 100 } })', '<input type="range" min="0" max="100" value="50">'],
   'ls-20': ['tippy(el, { content: "Hi" })', '<button popovertarget="tip">…</button><div popover id="tip">Hi</div>'],
   'ls-21': ['AOS.init({ duration: 400 })', '.x { animation-timeline: view(); animation-range: entry, exit }'],
-  'ls-22': ["balanceText(el, { watch: true })", '.x { text-wrap: balance }'],
+  'ls-22': ['fitty(el, { minSize: 12 })', '.x { text-wrap: balance }'],
   'ls-23': ['<nav data-bs-spy="scroll" data-bs-target="#toc">', '<nav>{ scroll-target-group: auto }'],
   'ls-24': ['<style>.async-hide { opacity: 0 !important }</style>', '<script async blocking="render" src="ab.js"></script>'],
   'ls-25': ['<script src="https://cdn.jsdelivr.net/npm/lib@1/lib.js"></script>', '<script src="/vendor/lib@1/lib.js" integrity="sha384-…" crossorigin="anonymous"></script>'],
@@ -51,13 +51,16 @@ const SAMPLES = {
   'ls-28': ["el.style.height = el.scrollHeight + 'px'", '.grow { field-sizing: content }'],
   'ls-29': ["if (event.keyCode === 13) submit()", "if (event.key === 'Enter' && !event.isComposing) submit()"],
   'ls-30': ["document.registerElement('x-widget', { prototype })", "customElements.define('x-widget', Widget)"],
+  'ls-31': ['.legacy:host-context(.dark) { --surface: #111 }', ':host { --surface: #fff }'],
+  'ls-32': ['<Balancer>{title}</Balancer>', '.title { text-wrap: balance }'],
+  'ls-33': ['select:invalid { border-color: red }', 'select:user-invalid { border-color: red }'],
 }
 
-test('table holds exactly 30 ordered, unique rule ids', () => {
-  assert.equal(RULES.length, 30)
+test('table holds exactly 33 ordered, unique rule ids', () => {
+  assert.equal(RULES.length, 33)
   const ids = RULES.map((rule) => rule.id)
-  assert.equal(new Set(ids).size, 30)
-  assert.deepEqual(ids, Array.from({ length: 30 }, (_, index) => `ls-${String(index + 1).padStart(2, '0')}`))
+  assert.equal(new Set(ids).size, 33)
+  assert.deepEqual(ids, Array.from({ length: 33 }, (_, index) => `ls-${String(index + 1).padStart(2, '0')}`))
   assert.ok(Object.isFrozen(RULES))
 })
 
@@ -76,9 +79,10 @@ test('every guide pointer resolves in the shipped catalog', () => {
   assert.equal(withGuide, RULES.length)
 })
 
-test('the table covers at least 28 distinct guides', () => {
+test('the table covers exactly 33 distinct guides, one per rule', () => {
   const covered = new Set(RULES.map((rule) => rule.guideId))
-  assert.ok(covered.size >= 28, `only ${covered.size} distinct guides`)
+  assert.equal(covered.size, 33)
+  assert.equal(covered.size, RULES.length)
 })
 
 test('every source is a flag-free RegExp source that never matches an empty string', () => {
@@ -111,6 +115,37 @@ test('each rule fires on its legacy sample and stays quiet on the modern one', (
     assert.ok(new RegExp(rule.source).test(legacy), `${rule.id} missed its own sample`)
     assert.ok(!new RegExp(rule.source).test(modern), `${rule.id} fired on the modern counterpart`)
   }
+})
+
+test('one legacy line yields exactly one finding, never two rules on the same marker', () => {
+  for (const [id, [legacy]] of Object.entries(SAMPLES)) {
+    const matched = RULES.filter((rule) => new RegExp(rule.source).test(legacy)).map((rule) => rule.id)
+    assert.deepEqual(matched, [id], `${legacy} should fire only ${id}`)
+  }
+})
+
+test('ls-32 catches both the balanceText() call and the <Balancer> JSX element', () => {
+  const rule = RULES.find((entry) => entry.id === 'ls-32')
+  for (const line of ['balanceText(el, { watch: true })', 'const x = <Balancer>{title}</Balancer>', '<Balancer className="t" />']) {
+    assert.ok(new RegExp(rule.source).test(line), `ls-32 missed ${line}`)
+  }
+  // The JSX form has no call parenthesis: a `name(` pattern alone would have missed it.
+  assert.ok(!/balanceText\s*\(/.test('<Balancer>{title}</Balancer>'))
+})
+
+test('ls-08 leaves select:invalid alone and ls-22 leaves balancing markers alone', () => {
+  const byId = (id) => RULES.find((rule) => rule.id === id).source
+  // ls-33 owns the select reading; ls-08 must not steal it back.
+  assert.ok(!new RegExp(byId('ls-08')).test('select:invalid { border-color: red }'))
+  assert.ok(new RegExp(byId('ls-08')).test('input:invalid { border-color: red }'))
+  assert.ok(new RegExp(byId('ls-08')).test('textarea:invalid { border-color: red }'))
+  // ls-32 owns balancing; ls-22 keeps the fitty/fitText sizing markers.
+  for (const line of ['balanceText(el)', '<Balancer>{title}</Balancer>']) {
+    assert.ok(!new RegExp(byId('ls-22')).test(line), `ls-22 still claims ${line}`)
+    assert.ok(new RegExp(byId('ls-32')).test(line), `ls-32 misses ${line}`)
+  }
+  assert.ok(new RegExp(byId('ls-22')).test('fitty(el)'))
+  assert.ok(new RegExp(byId('ls-22')).test('fitText(el, 1.2)'))
 })
 
 test('speculation stays rare and always names a guide', () => {

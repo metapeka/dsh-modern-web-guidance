@@ -104,24 +104,24 @@ async function snapshot(root) {
   return rows
 }
 
-test('a directory scan reports several rules across two files, and the renderer summarises them', async () => {
+test('a directory scan reports several rules across three files, and the renderer summarises them', async () => {
   const args = { paths: [DIRTY] }
   const value = await runScan(args)
 
   assert.equal(value.error, undefined)
   assert.equal(value.format, 'summary')
   assert.equal(value.cwd, PACKAGE_DIR)
-  assert.equal(value.scanned.files, 2)
+  assert.equal(value.scanned.files, 3)
   assert.equal(value.scanned.skipped.length, 0)
   assert.equal(value.truncated, false)
 
   const paths = [...new Set(value.findings.map((finding) => finding.path))].sort()
-  assert.deepEqual(paths, [`${DIRTY}/page.html`, `${DIRTY}/styles.css`])
+  assert.deepEqual(paths, [`${DIRTY}/page.html`, `${DIRTY}/page.jsx`, `${DIRTY}/styles.css`])
 
-  // The fixtures deliberately carry five markers spanning five rules, in both files.
-  assert.equal(value.findings.length, 5)
+  // The fixtures deliberately carry eight markers spanning eight rules, across all three files.
+  assert.equal(value.findings.length, 8)
   const ruleIds = [...new Set(value.findings.map((finding) => finding.ruleId))].sort()
-  assert.deepEqual(ruleIds, ['ls-01', 'ls-12', 'ls-13', 'ls-14', 'ls-15'])
+  assert.deepEqual(ruleIds, ['ls-01', 'ls-12', 'ls-13', 'ls-14', 'ls-15', 'ls-31', 'ls-32', 'ls-33'])
   for (const finding of value.findings) {
     assert.ok(Number.isInteger(finding.line) && finding.line >= 1)
     assert.ok(Number.isInteger(finding.column) && finding.column >= 1)
@@ -139,9 +139,12 @@ test('a directory scan reports several rules across two files, and the renderer 
   }
 
   const text = render(args, value)
-  assert.match(text, /^Scanned 2 file\(s\) \(\d+ B\) — 5 finding\(s\)\./m)
-  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:2:17 ls-01 \(high\) /)
-  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:7:3 ls-12 \(high\) /)
+  assert.match(text, /^Scanned 3 file\(s\) \(\d+ B\) — 8 finding\(s\)\./m)
+  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:3:17 ls-01 \(high\) /)
+  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:8:3 ls-12 \(high\) /)
+  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:11:14 ls-31 \(high\) /)
+  assert.match(text, /- test\/fixtures\/scan\/dirty\/styles\.css:15:1 ls-33 \(high\) /)
+  assert.match(text, /- test\/fixtures\/scan\/dirty\/page\.jsx:3:10 ls-32 \(high\) /)
   assert.match(text, /- test\/fixtures\/scan\/dirty\/page\.html:1:10 ls-13 \(low\) /)
   assert.match(text, /Load with web_guidance_retrieve: /)
 })
@@ -286,7 +289,7 @@ test('maxFindings and maxFiles tighten through limits and mark the result trunca
   assert.equal(filesCapped.scanned.files, 1)
   assert.equal(filesCapped.scanned.truncated, true)
   assert.equal(filesCapped.truncated, true)
-  assert.deepEqual(filesCapped.scanned.skipped, [{ path: `${DIRTY}/styles.css`, reason: 'too-many' }])
+  assert.deepEqual(filesCapped.scanned.skipped, [{ path: `${DIRTY}/page.jsx`, reason: 'too-many' }])
 })
 
 test("rules: ['ls-01'] narrows the scan to that one rule", async () => {
@@ -297,7 +300,7 @@ test("rules: ['ls-01'] narrows the scan to that one rule", async () => {
   const [finding] = value.findings
   assert.equal(finding.ruleId, 'ls-01')
   assert.equal(finding.path, `${DIRTY}/styles.css`)
-  assert.equal(finding.line, 2)
+  assert.equal(finding.line, 3)
 
   const text = render(args, value)
   assert.match(text, /— 1 finding\(s\)/)
@@ -311,13 +314,13 @@ test('an unknown rule id is refused as unknown-rules without any filesystem work
 
   assert.equal(value.error, 'unknown-rules')
   assert.deepEqual(value.unknown, ['ls-99'])
-  assert.equal(value.rules.length, 30)
+  assert.equal(value.rules.length, 33)
   assert.equal(value.rules[0], 'ls-01')
-  assert.equal(value.rules.at(-1), 'ls-30')
+  assert.equal(value.rules.at(-1), 'ls-33')
 
   const text = render(args, value)
   assert.match(text, /^Error: unknown-rules — unknown rule id\(s\): ls-99\./)
-  assert.match(text, /Valid ids run ls-01 … ls-30\./)
+  assert.match(text, /Valid ids run ls-01 … ls-33\./)
 
   // Control: the same unusable cwd with a valid rule set is a path-missing, so the refusal above
   // happened before the workspace was resolved.
@@ -342,7 +345,7 @@ test('the tool never writes: the fixture tree is identical after a scan', async 
 
   const value = await runScan({ paths: [FIXTURES] })
   assert.ok(value.findings.length > 0)
-  assert.equal(value.scanned.files, 3)
+  assert.equal(value.scanned.files, 4)
 
   const after = await snapshot(root)
   assert.deepEqual(after, before)

@@ -65,7 +65,7 @@ test('the scanner registers with the name and argument schema from the contract'
     type: 'object',
     properties: {
       paths: { type: 'array', minItems: 1, maxItems: 16, items: { type: 'string', maxLength: 512 } },
-      rules: { type: 'array', maxItems: 30, items: { type: 'string', maxLength: 40 } },
+      rules: { type: 'array', maxItems: 33, items: { type: 'string', maxLength: 40 } },
       format: { type: 'string', enum: ['summary', 'json'] },
     },
     required: ['paths'],
@@ -84,9 +84,9 @@ test('an unknown rule id comes back as unknown-rules without scanning', async ()
     const value = await tool.execute({ paths: ['missing.css'], rules: ['ls-01', 'nope'] }, fakeExec(dir))
     assert.equal(value.error, 'unknown-rules')
     assert.deepEqual(value.unknown, ['nope'])
-    assert.equal(value.rules.length, 30)
+    assert.equal(value.rules.length, 33)
     assert.equal(value.rules[0], 'ls-01')
-    assert.equal(value.rules[29], 'ls-30')
+    assert.equal(value.rules[32], 'ls-33')
 
     const rendered = tool.output.render({}, value)
     assert.match(rendered[0].text, /^Error: unknown-rules — unknown rule id\(s\): nope\./)

@@ -1,0 +1,134 @@
+{
+  "ls-01": {
+    "guide": "customize-scrollbar-color-and-thickness",
+    "sha256": "c83c679e4aafe20f63dd0901b87e02bd3862c1863826ca345294d0104c9a8b57"
+  },
+  "ls-02": {
+    "guide": "deliver-optimized-decorative-images",
+    "sha256": "5537b241966ff8a8e9ce99232ed715d887aad8db72965ca77965a328ebc41ab1"
+  },
+  "ls-03": {
+    "guide": "soft-edge-content-fade",
+    "sha256": "f9a4607b1e34c271afe47085bea7d0d6fdc00a85fa7b93bb123cd4a99286b17b"
+  },
+  "ls-04": {
+    "guide": "custom-text-decorations",
+    "sha256": "8cbd1811e61cba144b013c7dc6197d2c518378996aab4595904ae7837c47e82c"
+  },
+  "ls-05": {
+    "guide": "dynamic-sibling-animations",
+    "sha256": "cbe8b5078c2b5450af5fb405ea037a733a8fa0e471c8e4fa4a4123e897cd19d8"
+  },
+  "ls-06": {
+    "guide": "icons",
+    "sha256": "2a2af02010b388de90e707b5ecf8f70fa78b5ea67e2c9c063183222515de0eee"
+  },
+  "ls-07": {
+    "guide": "checkbox",
+    "sha256": "fd04484f6aef1fd550488d6d6bc9473f09bfc29aa30a37ff10a809b4950c5a76"
+  },
+  "ls-08": {
+    "guide": "validate-input-after-interaction",
+    "sha256": "82a6c3f553225e8d4122ef7d2dba83f0254224943420722ec38032c13b19d6d7"
+  },
+  "ls-09": {
+    "guide": "animate-to-intrinsic-sizes",
+    "sha256": "aec9a5b2ef6dbd742d94f0d39c173c9586d25c87410d54d97217acfd218886c7"
+  },
+  "ls-10": {
+    "guide": "dark-mode",
+    "sha256": "6398deca0a4596e614ef73f463db4459921531e2869f1ee60010ad3e7a351ab4"
+  },
+  "ls-11": {
+    "guide": "dark-mode-toggle",
+    "sha256": "2a99ef825c4a67a75c2b48f8c1e364bdcc59e5ab2ef0345688a8515b44856211"
+  },
+  "ls-12": {
+    "guide": "css-layout",
+    "sha256": "c5c8cd89b7fa3a6030b0775bbc8c120efc07aa7a603dc850c73214cc8e8468fe"
+  },
+  "ls-13": {
+    "guide": "dialog",
+    "sha256": "f9d64f0e0f8788834a9bb1a0f674115b141b44f4f6b76d773d349199a972824b"
+  },
+  "ls-14": {
+    "guide": "declarative-dialog-popover-control",
+    "sha256": "80292b68811216186dd30312133249079006df8c8e3f9d676f38a7a62cde9fea"
+  },
+  "ls-15": {
+    "guide": "progress",
+    "sha256": "50e3067565662bd56f75b36704982c0c122d5759b00878e502334935a995fc54"
+  },
+  "ls-16": {
+    "guide": "sanitize-untrusted-html",
+    "sha256": "e5fe91dd410e4df88c7fb229b132e33407ef412ed26a05894b51cfcd8a4ae5ef"
+  },
+  "ls-17": {
+    "guide": "html",
+    "sha256": "dc036032af7cb0d3e9869722fa143708539b90893ff83efdbaff43541be652b4"
+  },
+  "ls-18": {
+    "guide": "copy-button",
+    "sha256": "e50baf93460ba3465cd40cbc9417e6528c8b61b41bd50485020203b34af726e9"
+  },
+  "ls-19": {
+    "guide": "slider",
+    "sha256": "1c27649b2088661ac67ba5206ac40b197160f2c19a20b714b78f1a9b68784b0b"
+  },
+  "ls-20": {
+    "guide": "interest-triggered-tooltips",
+    "sha256": "0cd448e40c24d18f2f396875bfd62d73b1a2cad46550273010cb9b23b84b81fc"
+  },
+  "ls-21": {
+    "guide": "scroll-entry-exit-effects",
+    "sha256": "b33f4197dd98525635e6ecb652a405415658db361001aa421743cea311a0cdb4"
+  },
+  "ls-22": {
+    "guide": "equal-width-text-lines",
+    "sha256": "fa9f42daf7fb423d51c8e957c41aab2f05805d219788788e313a24601a197539"
+  },
+  "ls-23": {
+    "guide": "scrollspy",
+    "sha256": "a83db4a958107003caf33d95ffb041e5003855560e7339215526f3120c7f2b19"
+  },
+  "ls-24": {
+    "guide": "flicker-free-client-side-ab-testing",
+    "sha256": "6b12c61733a35960a52c3a16e35d634f991e5ec1e9117f1d41bff8c2caf173db"
+  },
+  "ls-25": {
+    "guide": "secure-external-subresources",
+    "sha256": "fb62fe3352ee0bb72d73bb8c0e47f251d6d2e676ce359fa56a90212cedb99f71"
+  },
+  "ls-26": {
+    "guide": "calculate-event-differentials",
+    "sha256": "866733a5e75eb70bfbf57b3529c22f0b27c63bdd6f9a6f3a2b8714d139b61ec7"
+  },
+  "ls-27": {
+    "guide": "child-state-based-styling",
+    "sha256": "003e92ac56029dbf40925e5dc01a6b0362ebaaebae6996755d2c35a6b5dafd3e"
+  },
+  "ls-28": {
+    "guide": "form-fields-automatically-fit-contents",
+    "sha256": "34f5d124e79b3c438a3ae8541e9974186c628f03ece91a588d19506d1865b502"
+  },
+  "ls-29": {
+    "guide": "ime-safe-enter-submit",
+    "sha256": "aa23bca5b8217e00fe1033741d473e1548e140ba4863a5ae7ac7f2c02132430c"
+  },
+  "ls-30": {
+    "guide": "web-components",
+    "sha256": "461bda02f56ff44a855180aca8780869b82c3eb9d47cab3efd86a1c3bdfe015e"
+  },
+  "ls-31": {
+    "guide": "styling-web-components",
+    "sha256": "4f7091c06baafc5121bcc384e129a7dad9ba705f58c87ae2903dd769d555d8a7"
+  },
+  "ls-32": {
+    "guide": "improve-text-layout-and-legibility",
+    "sha256": "dbcab13d1498b7790694953939db201468034ce67bcb9826f9c9b6536d74a9ae"
+  },
+  "ls-33": {
+    "guide": "select-menu-interaction",
+    "sha256": "9a1ee8b7111daaf6dc17bec3c6e7c27397d3616e9c5309d64dcefd11c876e83a"
+  }
+}

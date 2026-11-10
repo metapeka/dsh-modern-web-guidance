@@ -11,7 +11,7 @@ the upstream analysis live in [legacy-scan-feasibility.md](legacy-scan-feasibili
 - Read-only. The tool never writes, never spawns a process, never touches the network.
 - Explicit paths only. The caller names files or directories; there is no default target, no "scan the
   repo", no glob expansion by us.
-- No upstream parity claims anywhere: this is a marker scanner over 30 rules, not an AST analyzer.
+- No upstream parity claims anywhere: this is a marker scanner, not an AST analyzer.
 - Host style: prose first, `/** … */` on exported API, no semicolons, two-space indent, single quotes.
 
 ## `lib/scan-rules.js`
@@ -19,7 +19,7 @@ the upstream analysis live in [legacy-scan-feasibility.md](legacy-scan-feasibili
 ```js
 /** @typedef {{ id: string, guideId: string | null, confidence: 'high' | 'medium' | 'low', message: string, source: string }} ScanRule */
 
-/** Ordered rule table. Ids are `ls-01` … `ls-30`. */
+/** Ordered rule table. Ids are `ls-01` … `ls-33`. */
 export const RULES: readonly ScanRule[]
 
 /** Query selectors, `['high', 'medium', 'low']` — for sorting and for the panel's confidence column. */
@@ -37,10 +37,10 @@ export function ruleById(id: string): ScanRule | undefined
 - `message` is one imperative sentence naming the modern replacement ("Use dialog.showModal() instead of
   the jQuery-style $.fn.modal helper."), not a restatement of the marker.
 - `guideId` must exist in `data/guides.json`; `test/scan-rules.test.mjs` asserts every non-null one does,
-  that ids are unique and ordered, that `RULES.length === 30`, that every `source` compiles and is not
+  that ids are unique and ordered, that `RULES.length === 33`, that every `source` compiles and is not
   null-matched on an empty string, and that every rule carries a non-empty `message`.
-- Coverage: the table covers at least 28 distinct guides. Confidence is `high` when the marker alone is
-  conclusive, `medium` when it is strong in context, `low` when a false positive is likely.
+- Coverage: the 33 rules point at 33 distinct guides, one rule per guide. Confidence is `high` when
+  the marker alone is conclusive, `medium` when it is strong in context, `low` when a false positive is likely.
 
 ## `lib/scan.js`
 

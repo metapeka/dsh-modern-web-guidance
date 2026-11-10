@@ -51,14 +51,22 @@ const LIST_DESCRIPTION = [
   'Use it when search phrasing did not match and you want to see what the catalog covers.',
 ].join(' ')
 
-const SCAN_DESCRIPTION = [
-  'Scan the files you name for legacy web-platform patterns (jQuery-era DOM helpers, execCommand, document.write,',
-  'deprecated APIs) and map every finding to the Modern Web Guidance guide that replaces it. Pass 1-16 relative paths',
-  'inside the session workspace: directories are walked, and the scan stops at 200 files, 512 kB per file and 8 MB',
-  'total. This is a line-based marker scanner over 30 rules, not an AST analyzer, so treat each finding as a lead and',
-  'load the guide with web_guidance_retrieve before changing code. Report-only: it never writes, never spawns a',
-  'process and never touches the network.',
-].join(' ')
+/**
+ * The scanner's model-facing description. The rule count is interpolated rather than written
+ * out: the table grows, and a hand-written number would quietly start lying about its width.
+ * @param {number} ruleCount how many rules the table carries.
+ * @returns {string} the description the tool registers with.
+ */
+function scanDescription(ruleCount) {
+  return [
+    'Scan the files you name for legacy web-platform patterns (jQuery-era DOM helpers, execCommand, document.write,',
+    'deprecated APIs) and map every finding to the Modern Web Guidance guide that replaces it. Pass 1-16 relative paths',
+    'inside the session workspace: directories are walked, and the scan stops at 200 files, 512 kB per file and 8 MB',
+    `total. This is a line-based marker scanner over ${ruleCount} rules, not an AST analyzer, so treat each finding as a lead and`,
+    'load the guide with web_guidance_retrieve before changing code. Report-only: it never writes, never spawns a',
+    'process and never touches the network.',
+  ].join(' ')
+}
 
 function textBlock(text) {
   return [{ type: 'text', text }]
@@ -146,13 +154,27 @@ function formatBytes(bytes) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function renderScan(_args, value) {
+/**
+ * The id range a report quotes as "valid ids run …". Derived from the tool's own rule list so a
+ * new rule cannot leave a stale span in the text.
+ * @param {readonly string[]} ids rule ids in table order.
+ * @returns {string} `ls-01 … ls-33`, or an empty string when the list is empty.
+ */
+function ruleSpan(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return ''
+  return `${ids[0]} … ${ids[ids.length - 1]}`
+}
+
+/** Fallback id list for a rendered refusal that arrived without one: the shipped table. */
+const ALL_RULE_IDS = RULES.map((rule) => rule.id)
+
+function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
   // A refusal is rendered as a result: the model needs the code and what to pass instead, not a stack.
   if (value?.error !== undefined) {
     if (value.error === 'unknown-rules') {
       const unknown = Array.isArray(value.unknown) ? value.unknown : []
-      const ids = Array.isArray(value.rules) ? value.rules : []
-      const span = ids.length > 0 ? `${ids[0]} … ${ids[ids.length - 1]}` : 'ls-01 … ls-30'
+      const ids = Array.isArray(value.rules) && value.rules.length > 0 ? value.rules : ruleIds
+      const span = ruleSpan(ids)
       return textBlock([
         `Error: unknown-rules — unknown rule id(s): ${unknown.join(', ')}.`,
         `Valid ids run ${span}. Omit "rules" to apply every rule.`,
@@ -316,7 +338,7 @@ function buildScanTool(scanner, ruleSet) {
   const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
   return {
     name: 'web_guidance_legacy_scan',
-    description: SCAN_DESCRIPTION,
+    description: scanDescription(allRuleIds.length),
     parameters: {
       type: 'object',
       properties: {
@@ -326,13 +348,13 @@ function buildScanTool(scanner, ruleSet) {
           maxItems: 16,
           items: { type: 'string', maxLength: 512 },
         },
-        rules: { type: 'array', maxItems: 30, items: { type: 'string', maxLength: 40 } },
+        rules: { type: 'array', maxItems: allRuleIds.length, items: { type: 'string', maxLength: 40 } },
         format: { type: 'string', enum: ['summary', 'json'] },
       },
       required: ['paths'],
       additionalProperties: false,
     },
-    output: { schema: { type: 'object' }, render: renderScan },
+    output: { schema: { type: 'object' }, render: (args, value) => renderScan(args, value, allRuleIds) },
     async execute(args, exec) {
       exec?.signal?.throwIfAborted?.()
       const cwd = exec?.agent?.session?.header?.cwd ?? process.cwd()

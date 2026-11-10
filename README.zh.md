@@ -68,7 +68,7 @@
 
 扫描器只读不写。`web_guidance_legacy_scan` 接受 `paths`（1–16 个文件或目录，没有默认目标）、可选的 `rules`（最多
 30 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，最多返回
-200 条发现。上游一共 35 条规则，这里实现了 30 条；剩下没做的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
+200 条发现。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
 
 目录覆盖 `css`、`ui-atoms`、`ui-components`、`ui-behaviors`、`forms`、`html`、`js`、`accessibility`、
 `visual-design`、`security`、`performance`、`built-in-ai`、`pwa`、`wasm`、`webmcp`、`privacy` 和
@@ -182,11 +182,11 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
 | 运行时依赖 | Node 加上包里附带的 CLI 引擎 | 无 |
 | 网络 | `npx` 先取包，之后本地运行 | 从不联网 —— 语料就在包里 |
-| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，覆盖上游 35 条规则中的 30 条，只接受显式路径，只输出报告 |
+| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，33 条规则（其中 30 条对应上游规则），只接受显式路径，只输出报告 |
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 和侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 873 kB，解包 2.5 MB |
+| 体积 | — | 256 个文件，打包 874 kB，解包 2.5 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -374,8 +374,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 **为什么结果里写着 `[experimental]`？** 指南讲的平台特性挂在 Origin Trial 后面，或者只在单一引擎里实现、仍
 不稳定 —— 见[实验性指南](#experimental-guides)。指南本身仍然是正确的方向；上线前先做特性检测。
 
-**legacy 扫描器到底能做什么？** 它是正则标记扫描，不是解析器：30 条规则逐行匹配，覆盖 208 篇指南中的 30 篇
-（14.4 %），没有 AST、没有数据流分析、也不自动修复 —— 它只报告，然后停下。它不声称与 Chrome 自己的
+**legacy 扫描器到底能做什么？** 它是正则标记扫描，不是解析器：33 条规则逐行匹配，覆盖 208 篇指南中的 33 篇
+（15.9%），没有 AST、没有数据流分析、也不自动修复 —— 它只报告，然后停下。它不声称与 Chrome 自己的
 `legacy-scan` 等价：那边是 4.99 MB、内置 TypeScript 编译器的引擎，这里是零依赖的扫描过程，既可能误报也可能漏报，
 所以把发现当成待核实的线索，而不是结论。
 
@@ -397,6 +397,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.4.0 | 已发布 | 上游 v1.0.0 语料（208 篇指南）加实验性标记 |
 | 0.4.1 | 已发布 | 文档：导航、对比表、目录地图 |
 | 0.5.0 | 已发布 | `legacy-scan` 作为第四个工具：30 条正则规则，只接受显式路径，只输出报告 —— `web_guidance_legacy_scan`，面板里多一个计数器和一个发现总数。设计与结论：[docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+| 0.6.0 | 本次发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。

@@ -43,7 +43,7 @@ shipped here; this plugin makes no parity claim.
 _Avoid_: analyzer, parser, static analysis
 
 **Rule**:
-One entry in `lib/scan-rules.js` — a stable id (`ls-01` … `ls-30`), the guide that fixes the pattern,
+One entry in `lib/scan-rules.js` — a stable id (`ls-01` … `ls-33`), the guide that fixes the pattern,
 a confidence, one imperative message naming the modern replacement, and the marker it matches.
 _Avoid_: check, pattern, detector
 
