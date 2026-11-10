@@ -422,7 +422,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | --- | --- | --- |
 | 0.4.0 | shipped | the upstream v1.0.0 corpus (208 guides) plus experimental marking |
 | 0.4.1 | shipped | docs: navigation, the comparison, the catalog map |
-| 0.5.0 | this release | `legacy-scan` as the fourth tool: 30 regex rules, explicit paths only, report only — `web_guidance_legacy_scan`, with a fourth counter and a findings total in the panel. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+| 0.5.0 | shipped | `legacy-scan` as the fourth tool: 30 regex rules, explicit paths only, report only — `web_guidance_legacy_scan`, with a fourth counter and a findings total in the panel. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
