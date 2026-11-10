@@ -218,6 +218,14 @@ Manual dispatch only, so nothing publishes by accident. It runs `npm test`, read
 `package.json`, skips npm when that exact version is already on the registry, publishes with
 `--provenance --access public`, then builds the tarball and attaches it to the `v<version>` release.
 
+**Release notes are curated, not generated.** `gh release create --generate-notes` only lists merged
+pull requests, and this repo commits straight to `main`, so a generated body is nothing but the
+compare link. Write the notes for the version being shipped into `docs/releases/v<version>.md`
+(Markdown, emoji fine, same voice as the README) and the workflow picks them up: it creates the
+release with `--notes-file`, or edits an existing one, and falls back to `--generate-notes` only when
+no file exists. `docs/` is outside the published `files` whitelist, so the notes never enter the
+tarball.
+
 It carries **no long-lived secret**: publishing authenticates through OIDC trusted publishing
 (`id-token: write`). One npm rule stands in the way, and it is not ours to fix:
 

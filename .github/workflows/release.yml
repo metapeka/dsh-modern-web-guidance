@@ -97,5 +97,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="v${{ steps.version.outputs.value }}"
-          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --generate-notes
+          notes="docs/releases/$tag.md"
+          if [ -f "$notes" ]; then
+            # Curated notes win: --generate-notes only lists merged PRs, so an unpulled
+            # release would show nothing but the compare link.
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release edit "$tag" --title "$tag" --notes-file "$notes"
+            else
+              gh release create "$tag" --title "$tag" --notes-file "$notes"
+            fi
+          else
+            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --generate-notes
+          fi
           gh release upload "$tag" dsh-modern-web-guidance.tgz --clobber
