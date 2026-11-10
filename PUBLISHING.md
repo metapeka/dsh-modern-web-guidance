@@ -60,10 +60,10 @@ directories that need a PR or an issue:
 
 | Channel | Mechanism | Status |
 |---|---|---|
-| GitHub topic `dsh-plugin` (+ `deepseek-harness`, `cordis`, `skills`, `web-platform`) and the `dsh-plugin` npm keyword | the broadcast: every auto-collecting site scans topics and npm keywords daily | **live** — both are set on the repo and in `package.json` |
+| GitHub topic `dsh-plugin` (+ `deepseek-harness`, `cordis`, `skills`, `web-platform`, added 2026-11-10) and the `dsh-plugin` npm keyword | the broadcast: every auto-collecting site scans topics and npm keywords daily | **live** — set on the repo and in `package.json` |
 | `awesome-dsh-plugin/awesome-dsh-plugin` → npm `dsh-plugin-catalog` → `cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json` | one YAML card, opened as a PR; the site then publishes the npm index package that ships as one of the default market sources | **PR [#13962](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13962)**, `check` + `Submission gate` green, awaiting review |
 | `dshopen.org` ([polang233/dsh-plugin-index](https://github.com/polang233/dsh-plugin-index), 215★) | issue form; needs public source, an installable npm release and a declared license | **issue [#409](https://github.com/polang233/dsh-plugin-index/issues/409)** |
-| `dsh.so` | own checker (`/submit`): fetches the tarball, runs a static security scan, files a registry entry + scan report for review | not submitted yet — needs the interactive checker flow |
+| `dsh.so` | own checker (`/submit`): fetches the tarball, runs a static security scan, files a registry entry + scan report for review | **submitted 2026-11-10** — format validation passed, security scan `0 critical / 0 warnings / 1 info` (the `process.env` read in `lib/store.js`), entry validates against their schema, listed as *Declared* (unverified) once merged |
 | `realoiyo.github.io/dsh-plugin-market` | auto-built from npm (`keywords:dsh-plugin` + `dsh.bundle`), no submission | **dead since 2026-11-06** (its README now points at awesome-dsh-plugin) |
 | `Aily-DSH/dsh-plugin-index` | niche index for one org's plugins | not applicable |
 | `dshai.org`, `dshhub.org`, `dsh-plugin.org`, `deepseek1024.com`, `dsh-store` and similar aggregators | daily topic/keyword scans, no submission | expected to pick the repo up on their own |
