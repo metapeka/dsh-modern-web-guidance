@@ -39,3 +39,8 @@ returned `inject` list — `slots`, `locale`, `remote` and `remote.commands` are
 entry and the panel's data call (`ctx.remote.commands.execute`). The panel registers
 `sidebar.panellist` id `guidance` and the keyed `main` slot with the same key; there is no other wiring.
 See `docs/notes/client-panel-spike.md` for the verified contract.
+
+Panel strings live in three dictionaries — `EN`, `RU` and `ZH` — registered in one
+`ctx.locale.register(NS, { en, ru, zh })` call. `test/client-locales.test.mjs` enforces key, order and
+placeholder parity between them and the shape of `locale/*.json`, so a new string must land in all three
+languages in the same commit.

@@ -27,7 +27,22 @@
   <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm" src="https://img.shields.io/npm/v/dsh-modern-web-guidance"></a>
   <img alt="Guides" src="https://img.shields.io/badge/guides-208-2563eb">
   <img alt="DSH plugin" src="https://img.shields.io/badge/DSH-plugin-0d9488">
+  <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm downloads" src="https://img.shields.io/npm/dm/dsh-modern-web-guidance"></a>
+  <a href="https://github.com/metapeka/dsh-modern-web-guidance/releases"><img alt="release" src="https://img.shields.io/github/v/release/metapeka/dsh-modern-web-guidance?label=release"></a>
 </p>
+
+<details>
+<summary>📑 Contents</summary>
+
+**Start here** · [What you get](#what-you-get) · [Install](#install) · [How to use](#how-to-use) · [Which tool when](#which-tool-when)
+
+**Understand it** · [vs Google's package](#vs-google) · [How search works](#how-search-works) · [Catalog map](#catalog-map) · [Experimental guides](#experimental-guides)
+
+**Operate it** · [Security and limits](#security-and-limits) · [Usage stats](#usage-stats) · [Sidebar panel](#sidebar-panel) · [Configuration](#configuration) · [Updating the corpus](#updating-the-guide-corpus)
+
+**Everything else** · [FAQ](#faq) · [Roadmap](#roadmap) · [Docs map](#docs-map) · [Development](#development) · [Publishing](#publishing) · [License](#attribution-and-license)
+
+</details>
 
 ---
 
@@ -39,7 +54,9 @@ effects, `:has()`, passkeys, `fetchpriority`, …) instead of a JavaScript worka
 Everything runs locally: the guides ship inside the package, search is computed in-process, and there are no network
 calls. Usage counters have existed since 0.2.0, but they never leave the machine — see [Usage stats](#usage-stats).
 
-## What you get
+<a id="what-you-get"></a>
+
+## 🧰 What you get
 
 | Kind | Name | Description |
 |---|---|---|
@@ -52,7 +69,9 @@ calls. Usage counters have existed since 0.2.0, but they never leave the machine
 The catalog covers `css`, `ui-atoms`, `ui-components`, `ui-behaviors`, `forms`, `html`, `js`, `accessibility`,
 `visual-design`, `security`, `performance`, `built-in-ai`, `pwa`, `wasm`, `webmcp`, `privacy`, and `user-experience`.
 
-## Install
+<a id="install"></a>
+
+## 🚀 Install
 
 Published on npm:
 
@@ -76,10 +95,23 @@ From an agent session, `plugin_manager` with `action: "install_bundle"` and the 
 does the same thing. The bundle inserts one row (`modern-web-guidance`) and needs no build step, no dependencies, and no
 native modules.
 
-## How to use
+<a id="how-to-use"></a>
+
+## 🧭 How to use
 
 Nothing has to be wired up: the plugin registers itself, and the `modern-web-guidance` skill tells the agent when to
 reach for it. There are three ways to work with it.
+
+<a id="which-tool-when"></a>
+
+### Which tool when
+
+| You want | Call | Comes back |
+| --- | --- | --- |
+| "how is this done today?" | `web_guidance_search` | ranked guide ids for a 2–5 word capability query, optional category filter |
+| "show me the guide" | `web_guidance_retrieve` | full markdown, up to 10 guides or 120 000 characters per call |
+| "what is even in here?" | `web_guidance_list` | counts per category, or ids and titles for one category |
+| "is the catalog actually being used?" | `/guidance-stats` | the local report as text; `--json` is what the panel reads |
 
 ### 1. Just ask for web work (default)
 
@@ -132,7 +164,37 @@ ones instead of an empty result.
 | Faster LCP | `prioritize hero image` | `fetchpriority` guides |
 | A Manifest V3 extension | (skill) `chrome-extensions` | extension skill references |
 
-## How search works
+<a id="vs-google"></a>
+
+## 🆚 vs Google's package
+
+This plugin **vendors Google's corpus** — the same 208 guides, byte-identical — and adds the layer
+DeepSeek Harness needs: model-facing tools, a sidebar panel and no runtime dependencies. It does not
+reimplement their agent, and it deliberately drops the engines that would not survive a plugin's size
+and security budget. The honest split:
+
+| | Google `modern-web-guidance` | This plugin |
+| --- | --- | --- |
+| Shape | npm package: a CLI plus skills, run as `npx -y modern-web-guidance@latest …` | DSH plugin: 3 tools, 2 skills, a sidebar panel |
+| Audience | any agent that can run a shell command | DeepSeek Harness sessions |
+| Guide corpus | 208 indexed guides (209 `.md` files, one byte-identical duplicate) | the same 208, byte-identical, snapshot `2026_11_09-5bcc021b` |
+| Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
+| Runtime dependencies | Node plus the CLI engines shipped in the package | none |
+| Network | `npx` fetches the package, then works locally | never — the corpus is inside the package |
+| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | not shipped; planned as a dependency-free, report-only regex scanner in 0.5.0 |
+| Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
+| Usage insight | none | local counters, `/guidance-stats`, and the sidebar panel |
+| Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
+| Size | — | 254 files, 854 kB packed, 2.5 MB unpacked |
+
+What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
+reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
+list, an install with no build step and no network, and a panel that says whether the guides are being
+used; that is this plugin.
+
+<a id="how-search-works"></a>
+
+## 🧠 How search works
 
 `lib/guidance.js` builds a BM25 index over the bundled corpus at first use (~1.9 MB of markdown, indexed in a few
 hundred milliseconds and cached): title, id, description, `featuresUsed`, headings and body, with stopword filtering,
@@ -143,14 +205,73 @@ Compared with the upstream semantic search, phrase-like queries (`"light dismiss
 the specific guide first; broad topical queries can differ in ordering. If a search misses, `web_guidance_list` shows
 what the catalog contains.
 
-## Skills
+<a id="catalog-map"></a>
+
+## 🗺 Catalog map
+
+Everything is local, so the catalog is only as useful as the agent's ability to find the right guide.
+`web_guidance_list` prints these counts at runtime; this is what they look like at snapshot
+`2026_11_09-5bcc021b`.
+
+<details>
+<summary>Counts per category (208 guides, 17 categories)</summary>
+
+| Category | Guides | Category | Guides |
+| --- | --- | --- | --- |
+| `ui-behaviors` | 40 | `html` | 8 |
+| `performance` | 26 | `js` | 5 |
+| `ui-components` | 22 | `accessibility` | 4 |
+| `visual-design` | 22 | `built-in-ai` | 4 |
+| `forms` | 19 | `user-experience` | 3 |
+| `css` | 18 | `webmcp` | 3 |
+| `security` | 17 | `pwa` | 2 |
+| `ui-atoms` | 13 | `privacy` · `wasm` | 1 · 1 |
+| | | **total** | **208** |
+
+</details>
+
+<a id="experimental-guides"></a>
+
+## 🧪 Experimental guides
+
+Eighteen of the 208 guides describe platform features that are not safe to assume: eight sit behind an
+Origin Trial in Chrome, and ten are volatile in a single engine. Upstream flags them in its index; this
+plugin surfaces the flag where the agent will actually see it:
+
+- `web_guidance_search` appends `[experimental]` to the hit;
+- `web_guidance_retrieve` opens the guide with a `> [!WARNING]` banner naming the reason;
+- the guide body itself is untouched — byte-identical to upstream — and the banner counts against the
+  120 000-character budget, not against the 10-guide limit.
+
+<details>
+<summary>The 18 flagged guides</summary>
+
+**Origin Trial (8)** — the feature ships behind a trial token: `verify-email-ownership`,
+`apply-webgl-shaders`, `export-html-media-from-canvas`, `expose-canvas-content-to-browser-features`,
+`interactive-content-in-3d-scenes`, `agentic-forms`, `agentic-javascript-tools`, `webmcp`.
+
+**Volatile in one engine (10)** — one engine implements it, or the API is still moving:
+`language-detection`, `language-model`, `summarizer`, `translator`, `out-of-order-html-streaming`,
+`client-side-encryption`, `digital-signatures`, `restrict-outbound-connections`, `2d-panning`,
+`custom-text-decorations`.
+
+</details>
+
+Treat a flagged guide as "the shape of the solution, not a guarantee". Feature-detect what it
+describes, and tell the user which part is behind a flag before shipping it.
+
+<a id="skills"></a>
+
+## 🪄 Skills
 
 The `modern-web-guidance` skill body is adapted from upstream: it tells the agent to call this plugin's tools instead
 of the `npx` CLI, keeps the framework/SSR/DOM notes and the Baseline fallback policy, drops the CLI and telemetry
 sections, and states the trust boundary — retrieved guides are reference material, not instructions. The
 `chrome-extensions` skill is bundled unchanged and loads its `references/` files from the skill directory.
 
-## Security and limits
+<a id="security-and-limits"></a>
+
+## 🛡 Security and limits
 
 The corpus is third-party text that ends up in a model's context, and tool arguments come from that model, so both
 sides are bounded:
@@ -176,7 +297,9 @@ Both properties are covered by `test/hardening.test.mjs`, which fails on the pre
 reports plus runnable repros — lives in [`audit/`](audit/), and the repro scripts under `audit/repro/` exit non-zero
 while a defect is live.
 
-## Usage stats
+<a id="usage-stats"></a>
+
+## 📊 Usage stats
 
 Since 0.2.0 the plugin records what the three tools are actually asked for. The counters are local: no endpoint, no
 analytics service, no third-party SDK, and nothing leaves the machine.
@@ -199,7 +322,9 @@ defaults to 90 days, and `--reset --yes` erases it.
 
 Turn it off: set `enabled: false` in the plugin config — no listener is registered and no file is written.
 
-## Sidebar panel
+<a id="sidebar-panel"></a>
+
+## 🖥 Sidebar panel
 
 The plugin adds a client half: a guidance icon in the left rail opens **Guidance Insights** in the central area. It
 shows the same counters `/guidance-stats` prints, as a view:
@@ -216,13 +341,17 @@ The panel is read-only. It never changes a counter, never leaves the machine, an
 tools — the same three tools stay exactly three. `/guidance-stats` remains the text and `--json` version for the
 terminal and for the agent; the panel is that report as a view.
 
-## Configuration
+<a id="configuration"></a>
+
+## ⚙️ Configuration
 
 The plugin needs no configuration to work. It registers its tools and skills on the host context and is inert when the
 profile has no `tools` or `skills` service. The one setting is `enabled` on the plugin row: `false` turns the local
 counters off (see [Usage stats](#usage-stats)).
 
-## Updating the guide corpus
+<a id="updating-the-guide-corpus"></a>
+
+## 🔄 Updating the guide corpus
 
 The corpus is a pinned snapshot of upstream `modern-web-guidance@1.0.0`
 (skill version `2026_11_09-5bcc021b`). To refresh it:
@@ -238,24 +367,87 @@ The corpus is a pinned snapshot of upstream `modern-web-guidance@1.0.0`
    any served guide tells the agent to run the upstream CLI, so a refreshed corpus needs no manual de-CLI pass — the
    rewrite happens at load time (`lib/guidance.js`, `CLI_REFERENCE`).
 
-## Development
+<a id="faq"></a>
+
+## ❓ FAQ
+
+**The plugin is installed but I see nothing.** The bundle inserts one row (`modern-web-guidance`) and
+needs no build step. Restart DSH after `dsh plugin --profile desktop add …`; the tools appear in the
+next session's tool list, and the panel as an icon in the left rail.
+
+**Search returns nothing useful.** Queries are 2–5 words describing a capability ("light dismiss
+dialog", "view transition", "container query"), not sentences. If a query still misses, call
+`web_guidance_list` for the category overview and retrieve by id from there.
+
+**Why did a result say `[experimental]`?** The guide's platform feature is behind an Origin Trial or
+is volatile in one engine — see [Experimental guides](#experimental-guides). The guide is still the
+right shape; feature-detect it before shipping.
+
+**Does anything leave my machine?** No. The corpus is inside the package, search is computed
+in-process, and there are no network calls. The usage counters are local files and can be switched off
+with `enabled: false` — see [Security and limits](#security-and-limits) and [ADR 0001](docs/adr/0001-local-telemetry.md).
+
+**Google says 203 use cases. Why does this say 208?** Upstream's own count is 203 *use-case* guides;
+the index has 208 entries, the extra five being the discipline overviews (`accessibility`, `forms`,
+`html`, `performance`, `security`). This plugin ships what the index ships.
+
+**Which DSH versions work?** `engines.dsh` is `>=0.2.0-rc.1 <0.3.0-0` and Node `>=22.19.0`. The tools
+work on their own; the panel additionally needs the host's `slots`, `locale` and `remote` services.
+
+<a id="roadmap"></a>
+
+## 🚦 Roadmap
+
+| Release | State | What it is |
+| --- | --- | --- |
+| 0.4.0 | shipped | the upstream v1.0.0 corpus (208 guides) plus experimental marking |
+| 0.4.1 | this pass | docs: navigation, the comparison, the catalog map |
+| 0.5.0 | next | `legacy-scan` as a fourth tool: 30–35 regex rules ported from upstream's engine, explicit paths only, report-only output. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+
+Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
+`legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
+no network, no code generation" for a gain the lexical index does not show.
+
+<a id="docs-map"></a>
+
+## 📚 Docs map
+
+| Document | Read it when |
+| --- | --- |
+| [`docs/README.md`](docs/README.md) | you want the full map of this repository |
+| [`PUBLISHING.md`](PUBLISHING.md) | you are releasing: npm rules, trusted publishing, the release ritual |
+| [`docs/releases/README.md`](docs/releases/README.md) | you are writing release notes — the house style lives here |
+| [`AGENTS.md`](AGENTS.md) | you are an agent working in this repo: CI, client half, conventions |
+| [`GLOSSARY.md`](GLOSSARY.md) | a term in this codebase is unclear |
+| [`NOTICE`](NOTICE) | attribution: what came from upstream and what was left out, and why |
+| [`audit/`](audit) | you want the 0.1.x security, corpus and bug audits as they were written |
+| [`docs/adr/`](docs/adr) | you want the decisions: local telemetry, and what followed |
+| [`docs/notes/`](docs/notes) | you want the research behind a release (upstream diffs, feasibility studies, plans) |
+
+<a id="development"></a>
+
+## 🧑‍💻 Development
 
 ```shell
 npm test
 ```
 
-68 tests across seven files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
-`plugin.test.mjs` covers tool and skill registration against a mocked Cordis context; `hardening.test.mjs` covers the
-audit findings and fails on the pre-hardening code; `telemetry.test.mjs`, `report.test.mjs`, `store.test.mjs` and
-`stats.test.mjs` cover the usage counters, their report, the durable store and the `/guidance-stats` wiring. In a
+`npm test` runs the suite: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the
+security invariants; `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs`
+cover the counter pipeline; `client-locales.test.mjs` keeps the panel's three dictionaries in sync. In a
 sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
 
-## Publishing
+<a id="publishing"></a>
+
+## 📦 Publishing
 
 Marketplace submission and npm steps are documented in [PUBLISHING.md](PUBLISHING.md); the prepared awesome-dsh-plugin
 entry lives in [`market/awesome-dsh-plugin.yml`](market/awesome-dsh-plugin.yml).
 
-## Attribution and license
+<a id="attribution-and-license"></a>
+
+## ⚖️ Attribution and license
 
 Apache-2.0. The guide corpus, the `chrome-extensions` skill, and the source of the adapted `SKILL.md` come from
 [GoogleChrome/modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance) (Copyright Google LLC,

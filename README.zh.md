@@ -22,12 +22,27 @@
 <p align="center">
   <a href="LICENSE"><img alt="许可证" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
   <a href="package.json"><img alt="依赖" src="https://img.shields.io/badge/dependencies-0-brightgreen"></a>
-  <a href="#安全与边界"><img alt="遥测" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
+  <a href="#security-and-limits"><img alt="遥测" src="https://img.shields.io/badge/telemetry-local--only-brightgreen"></a>
   <a href="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml"><img alt="测试" src="https://github.com/metapeka/dsh-modern-web-guidance/actions/workflows/test.yml/badge.svg"></a>
   <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm" src="https://img.shields.io/npm/v/dsh-modern-web-guidance"></a>
   <img alt="指南" src="https://img.shields.io/badge/guides-208-2563eb">
   <img alt="DSH 插件" src="https://img.shields.io/badge/DSH-plugin-0d9488">
+  <a href="https://www.npmjs.com/package/dsh-modern-web-guidance"><img alt="npm 下载量" src="https://img.shields.io/npm/dm/dsh-modern-web-guidance"></a>
+  <a href="https://github.com/metapeka/dsh-modern-web-guidance/releases"><img alt="版本" src="https://img.shields.io/github/v/release/metapeka/dsh-modern-web-guidance?label=release"></a>
 </p>
+
+<details>
+<summary>📑 目录</summary>
+
+**开始使用** · [你得到什么](#what-you-get) · [安装](#install) · [如何使用](#how-to-use) · [何时用哪个工具](#which-tool-when)
+
+**理解原理** · [与 Google 官方包的区别](#vs-google) · [检索如何工作](#how-search-works) · [目录地图](#catalog-map) · [实验性指南](#experimental-guides)
+
+**日常操作** · [安全与边界](#security-and-limits) · [使用统计](#usage-stats) · [侧边栏面板](#sidebar-panel) · [配置](#configuration) · [更新语料](#updating-the-guide-corpus)
+
+**其他** · [常见问题](#faq) · [路线图](#roadmap) · [文档地图](#docs-map) · [开发](#development) · [发布](#publishing) · [许可](#attribution-and-license)
+
+</details>
 
 ---
 
@@ -36,9 +51,11 @@
 过渡、滚动驱动效果、`:has()`、passkey、`fetchpriority` 等），而不是自己写 JavaScript 变通方案或引入库。
 
 一切都本地运行：指南随包分发，检索在进程内计算，没有网络请求。自 0.2.0 起就有使用统计，但它不离开这台机器 ——
-见[使用统计](#使用统计)。
+见[使用统计](#usage-stats)。
 
-## 你得到什么
+<a id="what-you-get"></a>
+
+## 🧰 你得到什么
 
 | 类型 | 名称 | 说明 |
 |---|---|---|
@@ -52,7 +69,9 @@
 `visual-design`、`security`、`performance`、`built-in-ai`、`pwa`、`wasm`、`webmcp`、`privacy` 和
 `user-experience`。
 
-## 安装
+<a id="install"></a>
+
+## 🚀 安装
 
 从已发布的包安装：
 
@@ -75,9 +94,22 @@ dsh plugin --profile desktop add file:E:/path/to/dsh-modern-web-guidance
 在智能体会话里，`plugin_manager` 的 `action: "install_bundle"` 加上包的绝对路径作为 `target`，效果相同。这个
 bundle 只插入一行（`modern-web-guidance`），不需要构建步骤、依赖或原生模块。
 
-## 如何使用
+<a id="how-to-use"></a>
+
+## 🧭 如何使用
 
 不需要任何配置：插件会自行注册，`modern-web-guidance` 技能会告诉智能体什么时候该用它。有三种使用方式。
+
+<a id="which-tool-when"></a>
+
+### 何时用哪个工具
+
+| 你想要 | 调用 | 返回 |
+| --- | --- | --- |
+| “现在该怎么做？” | `web_guidance_search` | 用 2–5 个词描述能力，返回排好序的指南 id，可按分类过滤 |
+| “把指南给我看” | `web_guidance_retrieve` | 完整 markdown，每次最多 10 篇或 120 000 字符 |
+| “这里到底有什么？” | `web_guidance_list` | 各分类数量，或某个分类下的 id 与标题 |
+| “目录真的有人在用吗？” | `/guidance-stats` | 文本形式的本地报告；`--json` 是面板读取的格式 |
 
 ### 1. 直接提出 Web 开发需求（默认方式）
 
@@ -128,7 +160,35 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 更快的 LCP | `prioritize hero image` | `fetchpriority` 相关指南 |
 | Manifest V3 扩展 | （技能）`chrome-extensions` | 扩展技能的参考文件 |
 
-## 检索如何工作
+<a id="vs-google"></a>
+
+## 🆚 与 Google 官方包的区别
+
+本插件**直接内置 Google 的语料** —— 同样的 208 篇指南，逐字节一致 —— 再补上 DeepSeek Harness 需要的那一层：
+面向模型的工具、一个侧边栏面板，以及零运行时依赖。它没有重新实现上游的智能体，也刻意去掉了那些撑不过插件
+体积与安全预算的引擎。老实说，差别是这样：
+
+| | Google `modern-web-guidance` | 本插件 |
+| --- | --- | --- |
+| 形态 | npm 包：一个 CLI 加技能，用 `npx -y modern-web-guidance@latest …` 运行 | DSH 插件：3 个工具、2 个技能、一个侧边栏面板 |
+| 受众 | 任何能执行 shell 命令的智能体 | DeepSeek Harness 会话 |
+| 指南语料 | 208 篇已索引的指南（209 个 `.md` 文件，其中一个是逐字节副本） | 同样的 208 篇，逐字节一致，快照 `2026_11_09-5bcc021b` |
+| 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
+| 运行时依赖 | Node 加上包里附带的 CLI 引擎 | 无 |
+| 网络 | `npx` 先取包，之后本地运行 | 从不联网 —— 语料就在包里 |
+| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 未内置；计划在 0.5.0 里做成零依赖、只输出报告的 regex 扫描器 |
+| 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
+| 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 和侧边栏面板 |
+| 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
+| 体积 | — | 254 个文件，打包 854 kB，解包 2.5 MB |
+
+实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
+里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
+面板；那就是本插件。
+
+<a id="how-search-works"></a>
+
+## 🧠 检索如何工作
 
 `lib/guidance.js` 在首次使用时为内置语料建立 BM25 索引（约 1.9 MB markdown，几百毫秒建好并缓存）：标题、id、
 描述、`featuresUsed`、各级标题与正文，配合停用词过滤、小型英文词干器、前缀扩展，以及精确 id/标题命中的加权。
@@ -137,18 +197,73 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 与上游的语义检索相比，短语式查询（`"light dismiss dialog"`、`"anchor positioning"`）会把对应的具体指南排在第一
 位；宽泛的主题查询排序可能不同。如果检索没命中，`web_guidance_list` 会告诉你目录里有什么。
 
-## 技能
+<a id="catalog-map"></a>
+
+## 🗺 目录地图
+
+一切都本地运行，所以目录好不好用，全看智能体能不能找到对的那篇指南。`web_guidance_list` 在运行时打印这些
+数量；下面是快照 `2026_11_09-5bcc021b` 的样子。
+
+<details>
+<summary>各分类数量（208 篇指南，17 个分类）</summary>
+
+| 分类 | 指南数 | 分类 | 指南数 |
+| --- | --- | --- | --- |
+| `ui-behaviors` | 40 | `html` | 8 |
+| `performance` | 26 | `js` | 5 |
+| `ui-components` | 22 | `accessibility` | 4 |
+| `visual-design` | 22 | `built-in-ai` | 4 |
+| `forms` | 19 | `user-experience` | 3 |
+| `css` | 18 | `webmcp` | 3 |
+| `security` | 17 | `pwa` | 2 |
+| `ui-atoms` | 13 | `privacy` · `wasm` | 1 · 1 |
+| | | **合计** | **208** |
+
+</details>
+
+<a id="experimental-guides"></a>
+
+## 🧪 实验性指南
+
+208 篇指南里有 18 篇讲的是不能默认可用的平台特性：其中 8 篇对应的功能在 Chrome 里还挂在 Origin Trial 后面，
+另外 10 篇只在单一引擎里实现、仍不稳定。上游在自己的索引里给它们打了标记；本插件把这个标记放到智能体真正
+看得到的地方：
+
+- `web_guidance_search` 在命中的结果后面追加 `[experimental]`；
+- `web_guidance_retrieve` 在指南开头放一段 `> [!WARNING]` 横幅，写明原因；
+- 指南正文本身没有改动 —— 与上游逐字节一致 —— 横幅计入 120 000 字符的预算，不占 10 篇的次数上限。
+
+<details>
+<summary>被标记的 18 篇指南</summary>
+
+**Origin Trial（8 篇）** —— 功能需要 trial token 才能开启：`verify-email-ownership`、`apply-webgl-shaders`、
+`export-html-media-from-canvas`、`expose-canvas-content-to-browser-features`、`interactive-content-in-3d-scenes`、
+`agentic-forms`、`agentic-javascript-tools`、`webmcp`。
+
+**单一引擎内仍不稳定（10 篇）** —— 只有一个引擎实现了它，或者 API 还在变：`language-detection`、`language-model`、
+`summarizer`、`translator`、`out-of-order-html-streaming`、`client-side-encryption`、`digital-signatures`、
+`restrict-outbound-connections`、`2d-panning`、`custom-text-decorations`。
+
+</details>
+
+把带标记的指南当作“方案的轮廓，而不是保证”。先对它描述的特性做检测，上线前告诉用户哪一部分还挂在开关后面。
+
+<a id="skills"></a>
+
+## 🪄 技能
 
 `modern-web-guidance` 技能正文改编自上游：它让智能体调用本插件的工具，而不是通过 `npx` 调 CLI；保留框架/SSR/DOM
 相关说明与 Baseline 降级策略；删掉 CLI 与遥测章节；并明确信任边界 —— 取回的指南是参考资料，不是指令。
 `chrome-extensions` 技能原样内置，并从技能目录的 `references/` 加载参考文件。
 
-## 安全与边界
+<a id="security-and-limits"></a>
+
+## 🛡 安全与边界
 
 语料是要进入模型上下文的第三方文本，而工具参数又来自该模型，所以两边都设了边界：
 
 - **无网络、无执行，只有一次本地写入。** 插件只导入本地的 `node:fs`、`node:path` 和 `node:url`；没有依赖，也没有
-  lifecycle 脚本，因此安装时不会下载或运行任何东西。它唯一写入的文件是自己的计数文件（见[使用统计](#使用统计)）。
+  lifecycle 脚本，因此安装时不会下载或运行任何东西。它唯一写入的文件是自己的计数文件（见[使用统计](#usage-stats)）。
 - **指南里夹带不了命令。** 上游指南正文之间用
   `npx -y modern-web-guidance@latest retrieve "…"` 互相引用（197 处，分布在 64 篇指南里）。建立索引时这些引用会被
   改写成 `web_guidance_retrieve({"ids":["…"]})`，所以模型从目录里读到的内容不会要求它安装并执行一个未锁定版本的
@@ -165,7 +280,9 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 这两类性质由 `test/hardening.test.mjs` 覆盖，该文件在加固前的代码上会失败。完整审计 —— 三份报告与可运行的复现
 脚本 —— 位于 [`audit/`](audit/)；只要缺陷仍然存在，`audit/repro/` 下的脚本就会以非零码退出。
 
-## 使用统计
+<a id="usage-stats"></a>
+
+## 📊 使用统计
 
 自 0.2.0 起，插件记录三个工具到底被问了什么。计数只在本地：没有上报端点、没有分析服务、没有第三方 SDK，任何东西都不离开这台
 机器。
@@ -187,7 +304,9 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 关闭方式：在插件配置里设 `enabled: false` —— 此时不注册监听，也不写文件。
 
-## 侧边栏面板
+<a id="sidebar-panel"></a>
+
+## 🖥 侧边栏面板
 
 插件增加了客户端部分：左侧栏的图标会在中央区域打开 **Guidance Insights** 面板。它展示的就是
 `/guidance-stats` 打印的那些计数，只是换成了界面：
@@ -203,12 +322,16 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 面板是只读的。它不改动计数、不离开这台机器，也不新增网络请求和工具 —— 三个工具仍然是三个。
 `/guidance-stats` 仍然是给终端和智能体用的文本版本（含 `--json`）；面板是同一份报告的界面版本。
 
-## 配置
+<a id="configuration"></a>
+
+## ⚙️ 配置
 
 插件不需要配置就能工作。它把工具与技能注册到宿主上下文；如果 profile 没有 `tools` 或 `skills` 服务，它就保持
-静默。唯一的设置是插件配置里的 `enabled`：设为 `false` 就关闭本地统计（见[使用统计](#使用统计)）。
+静默。唯一的设置是插件配置里的 `enabled`：设为 `false` 就关闭本地统计（见[使用统计](#usage-stats)）。
 
-## 更新指南语料
+<a id="updating-the-guide-corpus"></a>
+
+## 🔄 更新指南语料
 
 语料是上游 `modern-web-guidance@1.0.0` 的锁定快照（技能版本 `2026_11_09-5bcc021b`）。更新步骤：
 
@@ -222,23 +345,81 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
    测试同样会失败，所以刷新语料后不需要手工再清理一遍 npx —— 改写发生在加载时（`lib/guidance.js`，
    `CLI_REFERENCE`）。
 
-## 开发
+<a id="faq"></a>
+
+## ❓ 常见问题
+
+**插件装了却什么也看不到。** bundle 只插入一行（`modern-web-guidance`），不需要构建步骤。执行
+`dsh plugin --profile desktop add …` 之后重启 DSH；工具会出现在下一次会话的工具列表里，面板则以左侧栏图标
+的形式出现。
+
+**检索结果没什么用。** 查询是用 2–5 个词描述一项能力（“light dismiss dialog”、“view transition”、
+“container query”），不是整句。如果还是没命中，先调 `web_guidance_list` 看各分类总览，再按 id 取回。
+
+**为什么结果里写着 `[experimental]`？** 指南讲的平台特性挂在 Origin Trial 后面，或者只在单一引擎里实现、仍
+不稳定 —— 见[实验性指南](#experimental-guides)。指南本身仍然是正确的方向；上线前先做特性检测。
+
+**会有东西离开这台机器吗？** 不会。语料就在包里，检索在进程内计算，没有任何网络请求。使用计数是本地文件，
+可以用 `enabled: false` 关掉 —— 见[安全与边界](#security-and-limits)和 [ADR 0001](docs/adr/0001-local-telemetry.md)。
+
+**Google 说 203 个用例，这里为什么写 208？** 上游自己数的是 203 篇*用例*指南；索引里有 208 条，多出来的 5 篇
+是各领域总览（`accessibility`、`forms`、`html`、`performance`、`security`）。本插件跟着索引走。
+
+**支持哪些 DSH 版本？** `engines.dsh` 是 `>=0.2.0-rc.1 <0.3.0-0`，Node 是 `>=22.19.0`。工具本身可以独立工作；
+面板还需要宿主提供 `slots`、`locale` 和 `remote` 服务。
+
+<a id="roadmap"></a>
+
+## 🚦 路线图
+
+| 版本 | 状态 | 内容 |
+| --- | --- | --- |
+| 0.4.0 | 已发布 | 上游 v1.0.0 语料（208 篇指南）加实验性标记 |
+| 0.4.1 | 本次 | 文档：导航、对比表、目录地图 |
+| 0.5.0 | 下一步 | `legacy-scan` 作为第四个工具：从上游引擎移植的 30–35 条 regex 规则，只接受显式路径，只输出报告。设计与结论：[docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
+
+刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
+引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
+
+<a id="docs-map"></a>
+
+## 📚 文档地图
+
+| 文档 | 什么时候读 |
+| --- | --- |
+| [`docs/README.md`](docs/README.md) | 想看这个仓库的完整地图 |
+| [`PUBLISHING.md`](PUBLISHING.md) | 你要发版：npm 规则、trusted publishing、发布流程 |
+| [`docs/releases/README.md`](docs/releases/README.md) | 你要写发布说明 —— 团队的行文风格就在这里 |
+| [`AGENTS.md`](AGENTS.md) | 你是要在这个仓库里干活的智能体：CI、客户端部分、各项约定 |
+| [`GLOSSARY.md`](GLOSSARY.md) | 某个术语在这个代码库里说不清楚 |
+| [`NOTICE`](NOTICE) | 署名：哪些来自上游、哪些被去掉，以及为什么 |
+| [`audit/`](audit) | 想看 0.1.x 的安全、语料与缺陷审计原文 |
+| [`docs/adr/`](docs/adr) | 想看决策记录：本地遥测，以及之后的演变 |
+| [`docs/notes/`](docs/notes) | 想看某次发布背后的调研（上游 diff、可行性研究、计划） |
+
+<a id="development"></a>
+
+## 🧑‍💻 开发
 
 ```shell
 npm test
 ```
 
-七个文件共 66 个测试：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；`plugin.test.mjs` 用模拟的 Cordis
-上下文覆盖工具与技能注册；`hardening.test.mjs` 覆盖审计发现，并在加固前的代码上失败；`telemetry.test.mjs`、
-`report.test.mjs`、`store.test.mjs` 和 `stats.test.mjs` 覆盖使用统计、报告渲染、持久存储与
-`/guidance-stats` 接线。在禁止子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
+`npm test` 会跑整套测试：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；`plugin.test.mjs` 用模拟的 Cordis
+上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、`stats.test.mjs`、`store.test.mjs` 和
+`telemetry.test.mjs` 覆盖计数管线；`client-locales.test.mjs` 保证面板的三份词典保持同步。在禁止子进程的沙箱
+里，请直接运行文件（`node test/hardening.test.mjs`）。
 
-## 发布
+<a id="publishing"></a>
+
+## 📦 发布
 
 上架目录与 npm 发布步骤见 [PUBLISHING.md](PUBLISHING.md)；已准备好的 awesome-dsh-plugin 条目位于
 [`market/awesome-dsh-plugin.yml`](market/awesome-dsh-plugin.yml)。
 
-## 署名与许可
+<a id="attribution-and-license"></a>
+
+## ⚖️ 署名与许可
 
 Apache-2.0。指南语料、`chrome-extensions` 技能以及改编版 `SKILL.md` 的源文本来自
 [GoogleChrome/modern-web-guidance](https://github.com/GoogleChrome/modern-web-guidance)（Copyright Google LLC，

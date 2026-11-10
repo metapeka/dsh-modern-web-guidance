@@ -111,6 +111,50 @@ window.__ModuleLoader__.load({
       'error.hint': '/guidance-stats печатает тот же отчёт в терминале.',
     }
 
+    /**
+     * Simplified Chinese dictionary. Chinese has no plural inflection, so `call`, `hit` and `miss`
+     * define `.one`, `.few` and `.many` with the same text: `plural()` stays as it is and picks a
+     * form for every language.
+     */
+    const ZH = {
+      'title': '指引使用统计',
+      'subtitle': '本插件在本机记录的计数器，只读。',
+      'refresh': '刷新',
+      'loading': '正在读取计数器...',
+      'updated': '更新于 {time}',
+      'kpi.calls': '总调用次数',
+      'kpi.hitRate': '命中率',
+      'kpi.period': '统计周期',
+      'kpi.periodValue': '最近 {days} 天',
+      'kpi.corpus': '指引数量',
+      'section.queries': '热门查询',
+      'section.queries.empty': '暂无可排序的查询。',
+      'section.coverage': '分类覆盖率',
+      'section.misses': '没有结果的查询',
+      'section.misses.empty': '没有查询返回空结果。',
+      'section.dead': '未被读过的指引',
+      'dead.summary': '{total} 篇指引中有 {count} 篇从未被检索',
+      'dead.none': '每篇指引都至少被检索过一次。',
+      'coverage.value': '{retrieved} / {total}',
+      'call.one': '{count} 次调用',
+      'call.few': '{count} 次调用',
+      'call.many': '{count} 次调用',
+      'hit.one': '{count} 次命中',
+      'hit.few': '{count} 次命中',
+      'hit.many': '{count} 次命中',
+      'miss.one': '{count} 次未命中',
+      'miss.few': '{count} 次未命中',
+      'miss.many': '{count} 次未命中',
+      'empty.title': '最近 {days} 天没有调用',
+      'empty.body': '使用 web_guidance_search 获取指引，然后刷新本面板。/guidance-stats 会以文本形式输出同一份报告。',
+      'error.title': '使用计数器不可用',
+      'error.bridge': '面板桥接不可用',
+      'error.bridgeHint': '当前页面无法访问主机命令桥接。/guidance-stats --json 会输出同一份报告。',
+      'error.session': '没有可运行 /guidance-stats 的会话',
+      'error.sessionHint': '打开或开始一个对话，然后点击刷新。',
+      'error.hint': '/guidance-stats 会在终端输出同一份报告。',
+    }
+
     //#region helpers
 
     /** A finite number, or 0: the report is JSON, so a missing field must read as zero. */
@@ -732,7 +776,7 @@ window.__ModuleLoader__.load({
      */
     function apply(ctx) {
       const t = ctx.locale.bind(NS)
-      ctx.effect(() => ctx.locale.register(NS, { en: EN, ru: RU }), 'modern-web-guidance: client dictionaries')
+      ctx.effect(() => ctx.locale.register(NS, { en: EN, ru: RU, zh: ZH }), 'modern-web-guidance: client dictionaries')
 
       /**
        * The one bridge. `ctx.remote` is the typed Remote service; a page that does not mount it
