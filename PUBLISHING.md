@@ -51,6 +51,26 @@ checks. What is missing is the repo itself.
 > set. Before the flip, history was scanned for credentials: none, and the one planted-secret fixture
 > the security repro used is no longer tracked (see the "Untrack the repro's runtime fixtures" commit).
 
+## Where the plugin is listed
+
+There is **no DeepSeek-operated plugin store**. DSH itself only defines the market-index
+format; the catalogs are community projects, and DSH's Discover tab shows whatever index
+sources a user adds. Discovery therefore happens through one broadcast plus a few
+directories that need a PR or an issue:
+
+| Channel | Mechanism | Status |
+|---|---|---|
+| GitHub topic `dsh-plugin` (+ `deepseek-harness`, `cordis`, `skills`, `web-platform`) and the `dsh-plugin` npm keyword | the broadcast: every auto-collecting site scans topics and npm keywords daily | **live** — both are set on the repo and in `package.json` |
+| `awesome-dsh-plugin/awesome-dsh-plugin` → npm `dsh-plugin-catalog` → `cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json` | one YAML card, opened as a PR; the site then publishes the npm index package that ships as one of the default market sources | **PR [#13962](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13962)**, `check` + `Submission gate` green, awaiting review |
+| `dshopen.org` ([polang233/dsh-plugin-index](https://github.com/polang233/dsh-plugin-index), 215★) | issue form; needs public source, an installable npm release and a declared license | **issue [#409](https://github.com/polang233/dsh-plugin-index/issues/409)** |
+| `dsh.so` | own checker (`/submit`): fetches the tarball, runs a static security scan, files a registry entry + scan report for review | not submitted yet — needs the interactive checker flow |
+| `realoiyo.github.io/dsh-plugin-market` | auto-built from npm (`keywords:dsh-plugin` + `dsh.bundle`), no submission | **dead since 2026-11-06** (its README now points at awesome-dsh-plugin) |
+| `Aily-DSH/dsh-plugin-index` | niche index for one org's plugins | not applicable |
+| `dshai.org`, `dshhub.org`, `dsh-plugin.org`, `deepseek1024.com`, `dsh-store` and similar aggregators | daily topic/keyword scans, no submission | expected to pick the repo up on their own |
+
+The one-day repo-age rule that gated the catalog PR was satisfied on 2026-11-09; the PR
+was opened on 2026-11-10 with the 208-guide entry.
+
 ## 0. Pre-flight (already done in this tree)
 
 - [x] `package.json` declares `dsh.bundle.patch` — this is what makes the package installable
