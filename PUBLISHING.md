@@ -218,7 +218,8 @@ Manual dispatch only, so nothing publishes by accident. It runs `npm test`, read
 `package.json`, skips npm when that exact version is already on the registry, publishes with
 `--provenance --access public`, then builds the tarball and attaches it to the `v<version>` release.
 
-**Release notes are curated, not generated.** `gh release create --generate-notes` only lists merged
+**Release notes are curated, not generated** — house style and checklist:
+[`docs/releases/README.md`](docs/releases/README.md). `gh release create --generate-notes` only lists merged
 pull requests, and this repo commits straight to `main`, so a generated body is nothing but the
 compare link. Write the notes for the version being shipped into `docs/releases/v<version>.md`
 (Markdown, emoji fine, same voice as the README) and the workflow picks them up: it creates the

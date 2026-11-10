@@ -24,6 +24,12 @@ A change to the tests, the `test` script or `package.json` `files` must update t
 publishing), skips versions already on the registry, and attaches the tarball to the `v<version>`
 release. Never make it run on push.
 
+Release notes are written by hand before the dispatch, one file per release:
+`docs/releases/v<version>.md`. The workflow publishes that file as the release body (or edits an
+existing release) and only falls back to `--generate-notes` when it is missing. The house style —
+sections, emoji, the rules a note must satisfy — is `docs/releases/README.md`; follow it instead of
+inventing a layout per release.
+
 ## Client half
 
 `client.js` is browser code shipped as-is: one file, no bundler, no new dependencies. It registers a
