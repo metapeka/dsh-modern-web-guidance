@@ -397,7 +397,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.4.0 | 已发布 | 上游 v1.0.0 语料（208 篇指南）加实验性标记 |
 | 0.4.1 | 已发布 | 文档：导航、对比表、目录地图 |
 | 0.5.0 | 已发布 | `legacy-scan` 作为第四个工具：30 条正则规则，只接受显式路径，只输出报告 —— `web_guidance_legacy_scan`，面板里多一个计数器和一个发现总数。设计与结论：[docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
-| 0.6.0 | 本次发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
+| 0.6.0 | 已发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
