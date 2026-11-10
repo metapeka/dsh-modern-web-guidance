@@ -66,12 +66,15 @@
 | 技能 | `modern-web-guidance` | 工作流：检索 → 取回 → 实现 → 校验 → 说明降级方案 |
 | 技能 | `chrome-extensions` | Manifest V3 开发与 Chrome Web Store 上架要求 |
 
-扫描器只读不写。`web_guidance_legacy_scan` 接受 `paths`（1–16 个文件或目录，没有默认目标）、可选的 `rules`（最多
-33 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，最多返回
-200 条发现。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
+扫描器只读不写，而且只读代码。`web_guidance_legacy_scan` 接受 `paths`（1–16 个文件或目录，没有默认目标）、可选的
+`rules`（最多 33 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，
+最多返回 200 条发现。允许的扩展名是 18 个代码扩展名 —— `.js`、`.jsx`、`.ts`、`.css`、`.html`、`.vue`、`.svelte`、
+`.astro`、`.json` 等等 —— markdown 不在其中：`.md` 或 `.mdx` 文件记为跳过而不是读取，因为引用反模式的文档是文档，
+不是过时代码。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
 
 同一套扫描也给人留了一条命令：`/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`。它走同一个
-扫描器、同一套拒绝规则和上限，而且不给至少一个显式路径就不跑。面板上的扫描按钮就是这条操作，只是把 `.` 替你填好。
+扫描器、同一套拒绝规则和上限，而且不给至少一个显式路径就不跑。面板上的扫描按钮就是这条操作，只是把 `.` 替你填好：
+它会扫过会话工作区里所有代码文件，并跳过散文。
 
 目录覆盖 `css`、`ui-atoms`、`ui-components`、`ui-behaviors`、`forms`、`html`、`js`、`accessibility`、
 `visual-design`、`security`、`performance`、`built-in-ai`、`pwa`、`wasm`、`webmcp`、`privacy` 和
@@ -186,11 +189,11 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
 | 运行时依赖 | Node 加上包里附带的 CLI 引擎 | 无 |
 | 网络 | `npx` 先取包，之后本地运行 | 从不联网 —— 语料就在包里 |
-| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，33 条规则（其中 30 条对应上游规则），只接受显式路径，只输出报告；0.7.0 起还多了一条给人用的命令 `/guidance-scan` |
+| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，33 条规则（其中 30 条对应上游规则），只接受显式路径，只输出报告；0.7.0 起还多了一条给人用的命令 `/guidance-scan`，0.7.1 起它只读代码 |
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 893 kB，解包 2.6 MB |
+| 体积 | — | 256 个文件，打包 895 kB，解包 2.6 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -286,7 +289,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 - **扫描器只读它被明确给定的内容。** `web_guidance_legacy_scan` 没有默认目标：调用方要给出 1–16 个路径，每个路径
   都必须落在会话工作区内，指向区外的符号链接会被跳过而不是跟随。绝对路径、工作区外的路径和不存在路径会被拒绝
   （`path-absolute`、`path-outside`、`path-missing`），读取上限为 200 个文件、单文件 512 kB、每次 8 MB，并且它不写
-  任何一个字节。给人用的 `/guidance-scan` 走同一个扫描器，所以拒绝同样的路径、执行同样的上限；它也不接受空路径，
+  任何一个字节。它也只读代码：`.md` 与 `.mdx` 不在允许列表里，所以散文会以跳过返回，而不会变成发现。给人用的
+  `/guidance-scan` 走同一个扫描器，所以拒绝同样的路径、执行同样的上限；它也不接受空路径，
   因此没有任何命令会顺手把整个工作区扫一遍。
 - **目录无法越出包外**：条目 id 与分类必须是 slug，每个解析出的路径都会校验是否位于数据目录内。被篡改的
   `guides.json` 此前可以读取磁盘上任意 `*.md`。
@@ -337,7 +341,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 - **什么时候用的** —— 每日调用，一天一根柱子
 - **用什么、结果如何** —— 按工具和按结果的两列并列
 - **扫描器发现了什么** —— 最近一次完成的扫描、命中最多（最多 10 条）的规则，以及这些发现指向的指南；下面的按钮
-  扫描当前会话的工作区文件夹，并把这一次的结果就地显示出来
+  会扫过当前会话工作区里所有代码文件（markdown 记为跳过并显示出来），并把这一次的结果就地显示
 
 再往下是报告里的清单：热门查询及其各自的命中与未命中、对 208 篇指南的分类覆盖、没有结果的查询，以及从未被
 检索过的指南 —— 按 id 列出，最多 20 条。
@@ -388,7 +392,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 不稳定 —— 见[实验性指南](#experimental-guides)。指南本身仍然是正确的方向；上线前先做特性检测。
 
 **legacy 扫描器到底能做什么？** 它是正则标记扫描，不是解析器：33 条规则逐行匹配，覆盖 208 篇指南中的 33 篇
-（15.9%），没有 AST、没有数据流分析、也不自动修复 —— 它只报告，然后停下。它不声称与 Chrome 自己的
+（15.9%），没有 AST、没有数据流分析、也不自动修复 —— 它只报告，然后停下。它读代码而不是散文：18 个代码扩展名，
+`.md` 文件即使被显式点名也以 `extension` 为原因跳过，因为引用反模式的 README 属于文档。它不声称与 Chrome 自己的
 `legacy-scan` 等价：那边是 4.99 MB、内置 TypeScript 编译器的引擎，这里是零依赖的扫描过程，既可能误报也可能漏报，
 所以把发现当成待核实的线索，而不是结论。
 
@@ -412,6 +417,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.5.0 | 已发布 | `legacy-scan` 作为第四个工具：30 条正则规则，只接受显式路径，只输出报告 —— `web_guidance_legacy_scan`，面板里多一个计数器和一个发现总数。设计与结论：[docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
 | 0.6.0 | 已发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
 | 0.7.0 | 已发布 | 面板从计分板变成地图：时间窗口开关、每日调用、按工具与按结果、按 id 列出的未读指南、诚实的命中率、扫描器发现了什么，外加一个扫描按钮；同时加入 `/guidance-scan` 这条给人用的扫描命令，以及对话里的发现表格 |
+| 0.7.1 | 已发布 | 扫描器不再读文档：`.md` 与 `.mdx` 移出允许列表，改为记为跳过，因此只有散文有问题的项目会扫出干净结果 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -441,7 +447,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 205 个测试，分布在十四个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 207 个测试，分布在十四个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，

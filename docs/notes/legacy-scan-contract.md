@@ -4,6 +4,10 @@ Authoritative interface the four 0.5.0 workstreams code against. Written by the 
 split, so the modules can be written in parallel without guessing each other's shapes. Rationale and
 the upstream analysis live in [legacy-scan-feasibility.md](legacy-scan-feasibility.md).
 
+Revised in 0.7.1: `.md` and `.mdx` left the extension allowlist, so prose is now skipped rather than
+scanned — see the allowlist under `lib/scan.js` and the self-scan caveat below. Everything else below is
+unchanged.
+
 ## Non-negotiables
 
 - Zero runtime dependencies. `lib/scan.js` and `lib/scan-rules.js` import only Node built-ins
@@ -56,7 +60,7 @@ export const SCAN_LIMITS = Object.freeze({
   extensions: [
     '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts',
     '.css', '.scss', '.sass', '.less', '.html', '.htm', '.vue', '.svelte', '.astro',
-    '.json', '.md', '.mdx',
+    '.json',
   ],
   skipDirectories: [
     'node_modules', '.git', '.svn', '.hg', 'dist', 'build', 'out', 'coverage',
@@ -103,7 +107,11 @@ Rules of the road:
    hide a typo.
 5. Walking: files whose extension is not in `extensions` are skipped with `reason: 'extension'`;
    directories whose name is in `skipDirectories` are not entered at all. Symlinked directories are not
-   followed.
+   followed. **Markdown is prose, not code**: `.md` and `.mdx` are not in the allowlist (0.7.1), so every
+   Markdown file met while walking is skipped with `reason: 'extension'` and counted in `skippedTotal`,
+   and a `.md` path named **explicitly** gets that same skip instead of an error — the answer "this is
+   documentation, I did not read it" is the useful one, and a report on a project whose only defect is
+   its prose must come back empty rather than full of quoted anti-patterns.
 6. Per file: `stat` first; larger than `maxFileBytes` → `reason: 'large'`. Reading uses one `readFile`
    per file; a NUL byte inside the first 8000 bytes → `reason: 'binary'`. An unreadable file is skipped
    with `reason: 'unreadable'`, never fatal.
@@ -121,12 +129,27 @@ Rules of the road:
     `ScanError('cancelled')` is **not** used: throw the abort reason itself (`signal.throwIfAborted()`)
     so the host renders it as a cancellation.
 
+## What a self-scan looks like (measured on this tree, 0.7.1)
+
+This repository stores the rule table, so a scan of it reports the rule table's own markers as findings.
+`scan({ cwd, paths: ['.'] })` here returns **68 files scanned, 82 findings, 0 of them in Markdown,
+`truncated: false`**, with `skippedTotal: 277` (100 of those entries returned, which is the cap). That is
+expected, not a bug: 61 of the 82 are `lib/scan-rules.js` (18) and `test/scan-rules.test.mjs` (43), where
+every marker lives as data. Of the remaining 21: 9 are the fixtures under `test/fixtures/scan/`, 10 come
+from four other test files that assert on findings, 1 from `audit/repro/security/scan-containment.mjs`,
+and 1 from `data/guides.json`.
+
+The count went **up** in 0.7.1 — 73 findings to 82 — for a reason worth keeping in mind when reading any
+scan of this repo: while `.md` was allowlisted, the 200-file cap was consumed by `data/guides/*.md` (208
+files, 66 findings already), so the walk never reached `lib/` or `test/`. Removing prose from the
+allowlist did not make the code worse; it made the scan the size of the code.
+
 ## `index.js` — the fourth tool
 
 Registered exactly like the three existing tools (`ctx.tools.register(tool)` inside `ctx.effect`):
 
 - `name: 'web_guidance_legacy_scan'`
-- `parameters`: `{ type: 'object', properties: { paths: { type: 'array', minItems: 1, maxItems: 16, items: { type: 'string', maxLength: 512 } }, rules: { type: 'array', maxItems: 30, items: { type: 'string', maxLength: 40 } }, format: { type: 'string', enum: ['summary', 'json'] } }, required: ['paths'], additionalProperties: false }`
+- `parameters`: `{ type: 'object', properties: { paths: { type: 'array', minItems: 1, maxItems: 16, items: { type: 'string', maxLength: 512 } }, rules: { type: 'array', maxItems: allRuleIds.length, items: { type: 'string', maxLength: 40 } }, format: { type: 'string', enum: ['summary', 'json'] } }, required: ['paths'], additionalProperties: false }` — the `rules` cap is the rule table's own length (33 since 0.6.0), not a fixed number.
 - `output: { schema: { type: 'object' }, render: renderScan }`
 - `execute(args, exec)`: `signal` check, then
 

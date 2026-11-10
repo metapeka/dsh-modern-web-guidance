@@ -67,14 +67,18 @@ calls. Usage counters have existed since 0.2.0, but they never leave the machine
 | Skill | `modern-web-guidance` | The workflow: search → retrieve → implement → verify → disclose |
 | Skill | `chrome-extensions` | Manifest V3 engineering and Chrome Web Store submission guidance |
 
-The scanner is report-only. `web_guidance_legacy_scan` takes `paths` (1–16 files or directories, no default target), an
-optional `rules` list of up to 33 rule ids, and `format: 'summary' | 'json'`; it reads at most 200 files, 512 kB per file
-and 8 MB per call, and returns at most 200 findings. It carries 33 rules, 30 of them upstream's; the
+The scanner is report-only, and it reads code only. `web_guidance_legacy_scan` takes `paths` (1–16 files or
+directories, no default target), an optional `rules` list of up to 33 rule ids, and `format: 'summary' | 'json'`; it
+reads at most 200 files, 512 kB per file and 8 MB per call, and returns at most 200 findings. Its allowlist is 18 code
+extensions — `.js`, `.jsx`, `.ts`, `.css`, `.html`, `.vue`, `.svelte`, `.astro`, `.json` and their kin — and Markdown is
+not one of them: a `.md` or `.mdx` file is reported as skipped, never scanned, because a document that quotes an
+anti-pattern is documentation, not legacy code. It carries 33 rules, 30 of them upstream's; the
 [parity note](docs/notes/legacy-scan-parity.md) accounts for what is still missing and for the one real debt.
 
 The same scan is a human command, `/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`: it reuses the
 tool's scanner, its refusals and its caps, and refuses to run without at least one explicit path. The panel's scan
-button is the same operation with `.` already filled in.
+button is the same operation with `.` already filled in, so it covers every code file in the session workspace and
+skips the prose.
 
 The catalog covers `css`, `ui-atoms`, `ui-components`, `ui-behaviors`, `forms`, `html`, `js`, `accessibility`,
 `visual-design`, `security`, `performance`, `built-in-ai`, `pwa`, `wasm`, `webmcp`, `privacy`, and `user-experience`.
@@ -193,11 +197,11 @@ and security budget. The honest split:
 | Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
 | Runtime dependencies | Node plus the CLI engines shipped in the package | none |
 | Network | `npx` fetches the package, then works locally | never — the corpus is inside the package |
-| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped since 0.5.0: a dependency-free regex scanner over 33 rules, 30 of them upstream's, explicit paths only, report only — with `/guidance-scan` as its human command since 0.7.0 |
+| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped since 0.5.0: a dependency-free regex scanner over 33 rules, 30 of them upstream's, explicit paths only, report only — with `/guidance-scan` as its human command since 0.7.0, and code files only since 0.7.1 |
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 893 kB packed, 2.6 MB unpacked |
+| Size | — | 256 files, 895 kB packed, 2.6 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -303,9 +307,10 @@ sides are bounded:
 - **The scanner reads only what it is given.** `web_guidance_legacy_scan` has no default target: the caller names 1–16
   paths, each must resolve inside the session workspace, and a symlink that escapes it is skipped rather than followed.
   It refuses absolute paths, paths outside the workspace and missing paths (`path-absolute`, `path-outside`,
-  `path-missing`), caps the read at 200 files, 512 kB per file and 8 MB per call, and never writes a byte. The human
-  command `/guidance-scan` goes through the same scanner, so it refuses the same paths and applies the same caps; it
-  also refuses to run with no path at all, so nothing can walk the whole workspace by accident.
+  `path-missing`), caps the read at 200 files, 512 kB per file and 8 MB per call, and never writes a byte. It also
+  reads only code: `.md` and `.mdx` are outside the allowlist, so prose comes back as skipped instead of becoming a
+  finding. The human command `/guidance-scan` goes through the same scanner, so it refuses the same paths and applies
+  the same caps; it also refuses to run with no path at all, so nothing can walk the whole workspace by accident.
 - **The catalog cannot reach outside the package**: entry ids and categories must be slugs, and every resolved path is
   checked to stay inside the data directory. A tampered `guides.json` used to be able to read any `*.md` on disk.
 - **Failures retry and stay opaque**: a transient read error no longer poisons the tool for the session, and tool errors
@@ -357,7 +362,8 @@ draws the counters `/guidance-stats` prints as a map, and answers four questions
 - **when** — calls per day, one bar per day of the window
 - **with what, and how it ended** — calls by tool and by outcome, side by side
 - **what the scanner catches** — the last completed scan, the rules that matched most (up to 10) and the guides those
-  findings point at; the button below scans the session workspace folder and shows that run's result inline
+  findings point at; the button below runs the scanner over every code file in the session workspace (Markdown is
+  skipped and reported as skipped) and shows that run's result inline
 
 Below those, the report's lists: the most frequent queries with hit and miss counts, category coverage against the 208
 guides, the queries that found nothing, and the dead guides — listed by id, up to 20.
@@ -417,7 +423,9 @@ right shape; feature-detect it before shipping.
 
 **What can the legacy scanner actually do?** It is a regex marker scan, not a parser: 33 rules matched
 line by line, covering 33 of the 208 guides (15.9 %), with no AST, no data-flow analysis and no autofix —
-it reports and stops. It makes no parity claim with Chrome's own `legacy-scan`, a 4.99 MB engine with a
+it reports and stops. It reads code, not prose: 18 code extensions, and a `.md` file is skipped with reason
+`extension` even when it is named explicitly, because a README that quotes an anti-pattern is
+documentation. It makes no parity claim with Chrome's own `legacy-scan`, a 4.99 MB engine with a
 bundled TypeScript compiler; this one is a dependency-free pass that can produce false positives and
 misses, so treat a finding as a lead to verify, not as a verdict.
 
@@ -443,6 +451,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.5.0 | shipped | `legacy-scan` as the fourth tool: 30 regex rules, explicit paths only, report only — `web_guidance_legacy_scan`, with a fourth counter and a findings total in the panel. Design and verdict: [docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
 | 0.6.0 | shipped | three more rules (`:host-context()`, text balancing, `select:invalid`) take the table to 33 rules, 30 of them upstream's, and a guide-hash guard keeps a rule honest after a corpus refresh |
 | 0.7.0 | shipped | the panel becomes a map rather than a scoreboard — period switch, calls per day, per tool and per outcome, dead guides by id, an honest hit rate, what the scanner catches and a scan button — with `/guidance-scan` as the scanner's human command and a chat table for its findings |
+| 0.7.1 | shipped | the scanner stops reading documentation: `.md` and `.mdx` leave the allowlist and are reported as skipped, so a project whose only defect is its prose scans clean |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
@@ -473,7 +482,7 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 205 tests across fourteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 207 tests across fourteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its

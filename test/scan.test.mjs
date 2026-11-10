@@ -20,13 +20,14 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { apply } from '../index.js'
-import { ScanError, scan } from '../lib/scan.js'
+import { SCAN_LIMITS, ScanError, scan } from '../lib/scan.js'
 import { PACKAGE_DIR } from './paths.mjs'
 
 /** Fixture roots, named as cwd-relative paths: the report echoes them back verbatim. */
 const FIXTURES = 'test/fixtures/scan'
 const DIRTY = `${FIXTURES}/dirty`
 const CLEAN = `${FIXTURES}/clean`
+const PROSE = `${FIXTURES}/prose`
 
 let registered
 
@@ -258,6 +259,41 @@ test('a non-source extension is skipped as extension and NUL bytes as binary', a
   assert.match(render(args, value), /2 file\(s\) skipped/)
 })
 
+test('Markdown is prose, not code: the same marker inside it is skipped, not reported', async () => {
+  const args = { paths: [PROSE] }
+  const value = await runScan(args)
+
+  // Only the code file was read. The Markdown file was met during the walk and skipped the ordinary
+  // way: it is in `skipped` with the extension reason, and `skippedTotal` counts it.
+  assert.equal(value.scanned.files, 1)
+  assert.equal(value.scanned.skippedTotal, 1)
+  assert.deepEqual(value.scanned.skipped, [{ path: `${PROSE}/legacy.md`, reason: 'extension' }])
+  assert.deepEqual(
+    value.findings.map((finding) => [finding.path, finding.ruleId]),
+    [[`${PROSE}/legacy.js`, 'ls-17']],
+  )
+
+  const text = render(args, value)
+  assert.match(text, /^Scanned 1 file\(s\) .* — 1 finding\(s\); 1 file\(s\) skipped\./m)
+  // A skipped path is a count in the summary, never a finding line.
+  assert.ok(!text.includes('legacy.md'))
+
+  // Naming the Markdown file directly is the same answer, not an error: the allowlist decides.
+  const named = await runScan({ paths: [`${PROSE}/legacy.md`] })
+  assert.equal(named.scanned.files, 0)
+  assert.deepEqual(named.scanned.skipped, [{ path: `${PROSE}/legacy.md`, reason: 'extension' }])
+  assert.deepEqual(named.findings, [])
+})
+
+test('the exported extension allowlist has no prose extensions and keeps the code ones', () => {
+  for (const prose of ['.md', '.mdx']) {
+    assert.ok(!SCAN_LIMITS.extensions.includes(prose), `${prose} must not be scanned as code`)
+  }
+  for (const code of ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.css', '.scss', '.sass', '.less', '.html', '.htm', '.vue', '.svelte', '.astro', '.json']) {
+    assert.ok(SCAN_LIMITS.extensions.includes(code), `${code} must stay allowlisted`)
+  }
+})
+
 test('a file over the size cap is skipped as large, and the walk keeps going', async (t) => {
   const workspace = await tempDir(t)
   // 20 000 × 28 bytes ≈ 560 kB: over the 512 kB per-file cap, with no marker inside.
@@ -345,7 +381,13 @@ test('the tool never writes: the fixture tree is identical after a scan', async 
 
   const value = await runScan({ paths: [FIXTURES] })
   assert.ok(value.findings.length > 0)
-  assert.equal(value.scanned.files, 4)
+  // Five code files: the four in `dirty/` and `clean/` plus `prose/legacy.js`. `prose/legacy.md`
+  // carries the same marker and is skipped, which is the behaviour this fixture exists to pin.
+  assert.equal(value.scanned.files, 5)
+  assert.deepEqual(
+    value.scanned.skipped.map((entry) => [entry.path, entry.reason]),
+    [[`${PROSE}/legacy.md`, 'extension']],
+  )
 
   const after = await snapshot(root)
   assert.deepEqual(after, before)
