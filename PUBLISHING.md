@@ -11,7 +11,7 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.3.1` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.4.0` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
@@ -44,10 +44,12 @@ checks. What is missing is the repo itself.
 > marketplace icon (`raw.githubusercontent.com/…/main/icon.png`, `image/png`, 114 544 B) all return
 > 200 without credentials.
 >
-> What remains before the PR: the repo must be **at least one day old** — created 2026-11-08
-> 01:55 UTC, so the gate opens 2026-11-09 01:55 UTC. The `dsh-plugin` and `dsh` topics are set.
-> Before the flip, history was scanned for credentials: none, and the one planted-secret fixture the
-> security repro used is no longer tracked (see the "Untrack the repro's runtime fixtures" commit).
+> The one-day age gate (repo created 2026-11-08 01:55 UTC) was satisfied on 2026-11-09, and the
+> catalog PR was opened on 2026-11-10:
+> [awesome-dsh-plugin#13962](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13962)
+> from the fork branch `metapeka:add-dsh-modern-web-guidance`. The `dsh-plugin` and `dsh` topics are
+> set. Before the flip, history was scanned for credentials: none, and the one planted-secret fixture
+> the security repro used is no longer tracked (see the "Untrack the repro's runtime fixtures" commit).
 
 ## 0. Pre-flight (already done in this tree)
 

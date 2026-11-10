@@ -108,7 +108,10 @@ Upstream бросает `OriginTrialGateError`/`VolatileFeatureGateError` и т�
 - [x] Корпус заменён: 208 гайдов, `data/guides.json` байт-в-байт равен `gen/guides.json` из npm-пакета 1.0.0, `data/corpus.json` = `2026_11_09-5bcc021b` / 2026-11-09, `prompt-api.md` не шипим.
 - [x] `index.js` — «208» в двух описаниях; `package.json` — 0.4.0 и 208-guide.
 - [x] Смоук: `list` = 208 записей / 17 категорий; `search('tabs')` → `tabs`, `search('drag and drop')` → `drag-and-drop`, `search('sortable table')` → `sortable-table`; `retrieve(['language-model'])` отдаёт гайд.
-- [ ] `task-11` (агент `telemetry-core`): аннотация experimental, 8 ассерт-строк, инвариант лимита, S-6/S-7.
-- [ ] `task-12` (агент `docs-release`): README ×3, NOTICE, PUBLISHING, market, SKILL.md, квалификатор в audit.
-- [ ] `task-13` (агент `upstream-diff`): извлекаемость legacy-правил и дизайн 4-го инструмента для 0.5.0.
-- [ ] Приёмка 66/66 + `npm pack --dry-run`, релиз 0.4.0 через `workflow_dispatch`, затем PR в каталог.
+- [x] `task-11` (агент `telemetry-core`): аннотация experimental (18 гайдов), 8 ассерт-строк, инвариант лимита, S-6/S-7 → 68/68 тестов.
+- [x] `task-12` (агент `docs-release`): README ×3, NOTICE, PUBLISHING, market, SKILL.md, квалификатор в audit.
+- [x] `task-13` (агент `upstream-diff`): правила извлекаемы как данные (35 правил / 33 гайда), детекторы — код на встроенном TypeScript; вердикт «go с урезанным набором», см. [`legacy-scan-feasibility.md`](legacy-scan-feasibility.md).
+- [x] Приёмка: 68/68 пофайлово, `npm pack` = 253 файла / 842,2 kB packed / 2,4 MB unpacked.
+- [x] Релиз 0.4.0: `release.yml` → npm `latest` = 0.4.0 (OIDC + provenance), GitHub release `v0.4.0` с ассетом (841 947 B).
+- [x] Каталог: PR [awesome-dsh-plugin#13962](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13962) открыт 2026-11-10 с записью на 208 гайдов.
+- [ ] 0.5.0: `web_guidance_legacy_scan` — 30 правил regex, явные пути, report-only; оценка 1,5–2 дня; сначала согласовать новую границу безопасности.
