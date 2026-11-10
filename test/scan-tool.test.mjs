@@ -206,3 +206,32 @@ test('an aborted signal stops the call before any scanning starts', async () => 
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('the tool says why it skipped what it skipped, and how many of each', async (t) => {
+  const dir = await mkdtemp(join(scratch, 'scan-skip-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  await mkdir(join(dir, '.firecrawl'), { recursive: true })
+  await mkdir(join(dir, 'artifacts'), { recursive: true })
+  await writeFile(join(dir, 'app.js'), 'document.write("kept")\n', 'utf8')
+  await writeFile(join(dir, '.firecrawl/page.html'), 'document.write("scraped")\n', 'utf8')
+  await writeFile(join(dir, 'artifacts/report.html'), 'document.write("generated")\n', 'utf8')
+  await writeFile(join(dir, 'notes.md'), 'document.write("prose")\n', 'utf8')
+  await writeFile(join(dir, '.scanignore'), 'artifacts/\nbad/**/*.js\n', 'utf8')
+
+  const tool = scanTool()
+  const value = await tool.execute({ paths: ['.'] }, fakeExec(dir))
+  const [block] = tool.output.render({ paths: ['.'] }, value)
+
+  // One line, reasons in count order: the reader sees what the walk refused, not a mystery, and the
+  // counts are the totals rather than the capped sample.
+  assert.match(block.text, /^Scanned 1 file\(s\) .* — 1 finding\(s\)\.$/m)
+  assert.match(block.text, /^Skipped 4 path\(s\): 2 extension, 1 dot-directory, 1 scanignore$/m)
+  assert.match(block.text, /^- app\.js:1:1 ls-17 /m)
+  assert.match(block.text, /^Ignored 1 line in \.scanignore \(line 2: bad pattern\)$/m)
+
+  // `format: 'json'` is the same value, so the counts also reach a caller that parses instead of reads.
+  const json = await tool.execute({ paths: ['.'], format: 'json' }, fakeExec(dir))
+  assert.equal(json.format, 'json')
+  assert.deepEqual(json.scanned.skippedByReason, { extension: 2, 'dot-directory': 1, scanignore: 1 })
+  assert.deepEqual(json.scanned.ignoreProblems, [{ line: 2, reason: 'malformed' }])
+})

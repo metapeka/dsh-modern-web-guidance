@@ -198,7 +198,34 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
     ? Number(scanned.skippedTotal)
     : Array.isArray(scanned.skipped) ? scanned.skipped.length : 0
   const summary = `Scanned ${files} file(s) (${formatBytes(scanned.bytes)}) — ${findings.length} finding(s)`
-  const lines = [skipped > 0 ? `${summary}; ${skipped} file(s) skipped.` : `${summary}.`]
+  const lines = [`${summary}.`]
+
+  // Why the walk refused what it refused, counted per reason. `skipped` here is `skippedTotal`, not
+  // the capped sample, so the number is true even when the sample truncated. Ordering is count desc
+  // then name, so the same scan always renders the same line.
+  if (skipped > 0) {
+    const byReason = scanned.skippedByReason
+    const counted = byReason !== null && typeof byReason === 'object'
+      ? Object.entries(byReason)
+        .filter(([, count]) => Number.isFinite(count) && count > 0)
+        .sort((left, right) => right[1] - left[1] || (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0))
+      : []
+    lines.push(counted.length > 0
+      ? `Skipped ${skipped} path(s): ${counted.map(([reason, count]) => `${count} ${reason}`).join(', ')}`
+      : `Skipped ${skipped} path(s).`)
+  }
+
+  // `.scanignore` diagnostics are not file skips, so they are worded apart from the line above.
+  const ignoreProblems = Array.isArray(scanned.ignoreProblems) ? scanned.ignoreProblems : []
+  const badLines = ignoreProblems.filter((problem) => Number.isInteger(problem.line)).map((problem) => problem.line)
+  if (badLines.length > 0) {
+    const single = badLines.length === 1
+    const which = single ? `line ${badLines[0]}` : `lines ${badLines.join(', ')}`
+    lines.push(`Ignored ${badLines.length} ${single ? 'line' : 'lines'} in .scanignore (${which}: bad pattern)`)
+  }
+  if (ignoreProblems.some((problem) => !Number.isInteger(problem.line))) {
+    lines.push('Could not read .scanignore; the scan ran without ignore patterns.')
+  }
 
   if (findings.length === 0) {
     lines.push('No rule in the table matched. That is not proof of modern code: the scanner works line by line and sees markers, not behaviour.')

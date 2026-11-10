@@ -47,6 +47,13 @@ full interface is `docs/notes/legacy-scan-contract.md`.
   `index.js` calls the same `runScanRequest` and renders with the same `renderScan`, so a change to the
   scanner, its refusals or its text reaches both surfaces; `test/scan-command.test.mjs` fails if the
   two ever drift.
+- **Dot-directories are never walked, and `.scanignore` is the only way to exclude an artifacts
+  directory**: a directory whose name starts with `.` is skipped as `dot-directory` (one entry per
+  directory, even when a path names it explicitly), so `tmp-deploy/`, `report/` and friends are excluded
+  by a workspace-root `.scanignore` — never by a new entry in `SKIP_DIRECTORIES`, which is for names every
+  project shares. The ignore file is **not** a security boundary: the scanner is already confined to the
+  workspace, so it can only make a scan read less. Both rules are specified in
+  `docs/notes/legacy-scan-contract.md` and covered by `test/scan-ignore.test.mjs`.
 
 ## CI
 

@@ -72,8 +72,26 @@ directories, no default target), an optional `rules` list of up to 33 rule ids, 
 reads at most 200 files, 512 kB per file and 8 MB per call, and returns at most 200 findings. Its allowlist is 18 code
 extensions — `.js`, `.jsx`, `.ts`, `.css`, `.html`, `.vue`, `.svelte`, `.astro`, `.json` and their kin — and Markdown is
 not one of them: a `.md` or `.mdx` file is reported as skipped, never scanned, because a document that quotes an
-anti-pattern is documentation, not legacy code. It carries 33 rules, 30 of them upstream's; the
+anti-pattern is documentation, not legacy code. Dot-directories are never entered: the usual ones (`.git`, `.turbo`,
+`.next`, `.cache`) sit in the scanner's own skip list, and any other — `.github`, `.vscode` — comes back as one
+`dot-directory` skip instead of being read. It carries 33 rules, 30 of them upstream's; the
 [parity note](docs/notes/legacy-scan-parity.md) accounts for what is still missing and for the one real debt.
+
+A workspace can also say what it means by "here". `.scanignore` at its root lists paths a scan must leave out — one
+pattern per line, `#` for a comment, `report/` for every directory of that name, `src/app.js` for one file, `*` inside
+a single segment, and no negation, no `**`, no `?`. The file is read at the start of every scan; a malformed line is
+reported (`Ignored 1 line in .scanignore (line 7: bad pattern)`) and an unreadable one does not stop the scan. It is
+not a security boundary: the scanner is already confined to the workspace, so it can only make a scan read less.
+
+```text
+# .scanignore — leave the build output and the scraped dumps alone
+tmp-deploy/
+report/
+*.min.js
+```
+
+Either way the summary says what it skipped, and why: `Skipped 279 path(s): 277 extension, 2 dot-directory` on this
+repository — `path(s)`, not `file(s)`, because a skipped directory is one entry rather than one per file inside it.
 
 The same scan is a human command, `/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`: it reuses the
 tool's scanner, its refusals and its caps, and refuses to run without at least one explicit path. The panel's scan
@@ -201,7 +219,7 @@ and security budget. The honest split:
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 895 kB packed, 2.6 MB unpacked |
+| Size | — | 256 files, 901 kB packed, 2.6 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -452,6 +470,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.6.0 | shipped | three more rules (`:host-context()`, text balancing, `select:invalid`) take the table to 33 rules, 30 of them upstream's, and a guide-hash guard keeps a rule honest after a corpus refresh |
 | 0.7.0 | shipped | the panel becomes a map rather than a scoreboard — period switch, calls per day, per tool and per outcome, dead guides by id, an honest hit rate, what the scanner catches and a scan button — with `/guidance-scan` as the scanner's human command and a chat table for its findings |
 | 0.7.1 | shipped | the scanner stops reading documentation: `.md` and `.mdx` leave the allowlist and are reported as skipped, so a project whose only defect is its prose scans clean |
+| 0.7.2 | shipped | the scanner stops entering dot-directories and honours a workspace-root `.scanignore`, and the scan text now itemises what it skipped per reason — `Skipped 279 path(s): 277 extension, 2 dot-directory` |
 
 Deliberately **not** planned: shipping upstream's 9.16 MB embedding tables, or its 4.99 MB
 `legacy-scan` engine with a bundled TypeScript compiler. Both would break "zero runtime dependencies,
@@ -482,11 +501,12 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 207 tests across fourteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 221 tests across fifteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its
-rule table and the tool contract, `scan.test.mjs` is the end-to-end scan, and `scan-command.test.mjs` holds
+rule table and the tool contract, `scan.test.mjs` is the end-to-end scan, `scan-ignore.test.mjs` holds the
+`.scanignore` grammar and the dot-directory rule to their spec, and `scan-command.test.mjs` holds
 `/guidance-scan` to the same refusals and the same values; `scan-guides.test.mjs` checks the guide hashes the rule table
 points at, and `client-locales.test.mjs` keeps the panel's three dictionaries in sync. In a sandbox that forbids child
 processes, run the files directly (`node test/hardening.test.mjs`).

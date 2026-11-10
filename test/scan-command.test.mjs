@@ -431,3 +431,28 @@ test('with the counters off a command scan writes nothing', async (t) => {
   await settle()
   await assert.rejects(readFile(countersFile(home), 'utf8'), { code: 'ENOENT' })
 })
+
+test('the command prints the same skip and ignore lines as the tool, from one renderer', async (t) => {
+  const workspace = await tempWorkspace(t)
+  await mkdir(join(workspace, '.firecrawl'), { recursive: true })
+  await mkdir(join(workspace, 'artifacts'), { recursive: true })
+  await writeFile(join(workspace, 'app.js'), 'document.write("kept")\n', 'utf8')
+  await writeFile(join(workspace, '.firecrawl/page.html'), 'document.write("scraped")\n', 'utf8')
+  await writeFile(join(workspace, 'artifacts/report.html'), 'document.write("generated")\n', 'utf8')
+  await writeFile(join(workspace, 'notes.md'), 'document.write("prose")\n', 'utf8')
+  await writeFile(join(workspace, '.scanignore'), 'artifacts/\nbad/**/*.js\n', 'utf8')
+
+  const registered = setup()
+  const result = await scanCommand(registered).handler(invocation('.', workspace))
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /^Scanned 1 file\(s\) .* — 1 finding\(s\)\.$/m)
+  assert.match(result.text, /^Skipped 4 path\(s\): 2 extension, 1 dot-directory, 1 scanignore$/m)
+  assert.match(result.text, /^Ignored 1 line in \.scanignore \(line 2: bad pattern\)$/m)
+
+  // The same scan through the tool: both surfaces share `renderScan`, so the text is equal rather
+  // than merely similar. A second renderer would show up right here.
+  const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+  assert.ok(tool !== undefined, 'apply() must register web_guidance_legacy_scan')
+  const value = await tool.execute({ paths: ['.'] }, invocation('.', workspace))
+  assert.equal(result.text, tool.output.render({ paths: ['.'] }, value)[0].text)
+})

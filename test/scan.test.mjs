@@ -14,7 +14,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -28,6 +28,8 @@ const FIXTURES = 'test/fixtures/scan'
 const DIRTY = `${FIXTURES}/dirty`
 const CLEAN = `${FIXTURES}/clean`
 const PROSE = `${FIXTURES}/prose`
+const DOT_ROOT = `${FIXTURES}/dot-root`
+const IGNORE_ROOT = `${FIXTURES}/ignore-root`
 
 let registered
 
@@ -256,7 +258,8 @@ test('a non-source extension is skipped as extension and NUL bytes as binary', a
   assert.equal(reasons.get('photo.png'), 'extension')
   assert.equal(reasons.get('broken.js'), 'binary')
   assert.deepEqual(value.findings.map((finding) => finding.path), ['real.js'])
-  assert.match(render(args, value), /2 file\(s\) skipped/)
+  assert.deepEqual(value.scanned.skippedByReason, { binary: 1, extension: 1 })
+  assert.match(render(args, value), /^Skipped 2 path\(s\): 1 binary, 1 extension$/m)
 })
 
 test('Markdown is prose, not code: the same marker inside it is skipped, not reported', async () => {
@@ -274,7 +277,8 @@ test('Markdown is prose, not code: the same marker inside it is skipped, not rep
   )
 
   const text = render(args, value)
-  assert.match(text, /^Scanned 1 file\(s\) .* — 1 finding\(s\); 1 file\(s\) skipped\./m)
+  assert.match(text, /^Scanned 1 file\(s\) .* — 1 finding\(s\)\.$/m)
+  assert.match(text, /^Skipped 1 path\(s\): 1 extension$/m)
   // A skipped path is a count in the summary, never a finding line.
   assert.ok(!text.includes('legacy.md'))
 
@@ -284,6 +288,132 @@ test('Markdown is prose, not code: the same marker inside it is skipped, not rep
   assert.deepEqual(named.scanned.skipped, [{ path: `${PROSE}/legacy.md`, reason: 'extension' }])
   assert.deepEqual(named.findings, [])
 })
+
+test('a dot-directory is never walked, and naming one says the same thing', async () => {
+  // `.hidden/marker.html` carries a marker and is still never read. One skip entry for the
+  // directory, not one per file inside it: the count stays about directories, not their contents.
+  const walked = await runScan({ paths: [DOT_ROOT] })
+  assert.equal(walked.scanned.files, 0)
+  assert.deepEqual(walked.scanned.skipped, [{ path: `${DOT_ROOT}/.hidden`, reason: 'dot-directory' }])
+  assert.deepEqual(walked.scanned.skippedByReason, { 'dot-directory': 1 })
+  assert.deepEqual(walked.findings, [])
+  assert.match(render({ paths: [DOT_ROOT] }, walked), /^Skipped 1 path\(s\): 1 dot-directory$/m)
+
+  // Naming the directory, or a file inside it, is the same refusal rather than an error: the caller
+  // asked for something the scanner never reads, and is told so once.
+  for (const named of [`${DOT_ROOT}/.hidden`, `${DOT_ROOT}/.hidden/marker.html`]) {
+    const value = await runScan({ paths: [named] })
+    assert.equal(value.error, undefined)
+    assert.equal(value.scanned.files, 0)
+    assert.deepEqual(value.scanned.skipped, [{ path: named, reason: 'dot-directory' }])
+    assert.deepEqual(value.findings, [])
+  }
+})
+
+test('.scanignore excludes a directory subtree, and the same page is scanned without it', async (t) => {
+  const workspace = join(PACKAGE_DIR, IGNORE_ROOT)
+  const ignored = await scan({ cwd: workspace, paths: ['.'] })
+
+  assert.equal(ignored.scanned.files, 0)
+  assert.deepEqual(ignored.findings, [])
+  const reasons = new Map(ignored.scanned.skipped.map((entry) => [entry.path, entry.reason]))
+  assert.equal(reasons.get('artifacts'), 'scanignore')
+  // `.scanignore` itself is a dot *file*: it is walked, and the allowlist is what skips it.
+  assert.equal(reasons.get('.scanignore'), 'extension')
+  assert.deepEqual(ignored.scanned.skippedByReason, { extension: 1, scanignore: 1 })
+  assert.deepEqual(ignored.scanned.ignoreProblems, [])
+
+  // The same refusal covers a path named from inside the ignored subtree, so an explicit path cannot
+  // read behind the ignore file's back.
+  const named = await scan({ cwd: workspace, paths: ['artifacts/page.html'] })
+  assert.equal(named.scanned.files, 0)
+  assert.deepEqual(named.scanned.skipped, [{ path: 'artifacts/page.html', reason: 'scanignore' }])
+
+  // The same bytes in a workspace with no ignore file: the page is scannable, so the skip above is
+  // the pattern's doing and not the file's.
+  const free = await tempDir(t)
+  await writeFile(join(free, 'page.html'), await readFile(join(workspace, 'artifacts', 'page.html')))
+  const found = await scan({ cwd: free, paths: ['.'] })
+  assert.equal(found.scanned.files, 1)
+  assert.deepEqual(found.findings.map((finding) => [finding.path, finding.ruleId]), [['page.html', 'ls-17']])
+})
+
+test('every skip is counted per reason, and the counts add up to skippedTotal', async (t) => {
+  const workspace = await tempDir(t)
+  await writeFile(join(workspace, '.scanignore'), 'artifacts/\n*.min.js\n!nope.js\n', 'utf8')
+  await mkdir(join(workspace, '.hidden'), { recursive: true })
+  await mkdir(join(workspace, 'artifacts'), { recursive: true })
+  await writeFile(join(workspace, '.hidden/marker.html'), 'document.write("hidden")\n', 'utf8')
+  await writeFile(join(workspace, 'artifacts/page.html'), 'document.write("artifact")\n', 'utf8')
+  await writeFile(join(workspace, 'app.min.js'), 'document.write("minified")\n', 'utf8')
+  await writeFile(join(workspace, 'notes.md'), 'document.write("prose")\n', 'utf8')
+  await writeFile(join(workspace, 'app.js'), 'document.write("real")\n', 'utf8')
+
+  const args = { paths: ['.'] }
+  const value = await runScan(args, workspace)
+
+  assert.equal(value.scanned.files, 1)
+  assert.deepEqual(value.findings.map((finding) => finding.path), ['app.js'])
+  assert.deepEqual(value.scanned.skippedByReason, {
+    'dot-directory': 1,
+    extension: 2,
+    scanignore: 2,
+  })
+  const counted = Object.values(value.scanned.skippedByReason).reduce((sum, count) => sum + count, 0)
+  assert.equal(counted, value.scanned.skippedTotal)
+  // The sample is capped, so its length is only comparable while the total is under `maxSkipped`.
+  assert.equal(value.scanned.skipped.length, value.scanned.skippedTotal)
+
+  // A malformed line is a diagnostic, not a skip: it is visible, and it moves no counter.
+  assert.deepEqual(value.scanned.ignoreProblems, [{ line: 3, reason: 'malformed' }])
+
+  const text = render(args, value)
+  assert.match(text, /^Skipped 5 path\(s\): 2 extension, 2 scanignore, 1 dot-directory$/m)
+  assert.match(text, /^Ignored 1 line in \.scanignore \(line 3: bad pattern\)$/m)
+})
+
+test('an unreadable .scanignore is reported and never fails the scan', async (t) => {
+  const workspace = await tempDir(t)
+  // A directory of that name: reading it fails on every platform, which is the case a caller cannot
+  // fix from the outside. The scan must still run, with no patterns.
+  await mkdir(join(workspace, '.scanignore'), { recursive: true })
+  await writeFile(join(workspace, 'app.js'), 'document.write("kept")\n', 'utf8')
+
+  const args = { paths: ['.'] }
+  const value = await runScan(args, workspace)
+
+  assert.equal(value.scanned.files, 1)
+  assert.deepEqual(value.findings.map((finding) => finding.path), ['app.js'])
+  assert.deepEqual(value.scanned.ignoreProblems, [{ line: null, reason: 'unreadable' }])
+  // The directory named `.scanignore` is still a dot-directory to the walk; diagnostics stay apart.
+  assert.deepEqual(value.scanned.skippedByReason, { 'dot-directory': 1 })
+  const text = render(args, value)
+  assert.match(text, /^Could not read \.scanignore; the scan ran without ignore patterns\.$/m)
+})
+
+test('the hygiene rules did not move any cap', () => {
+  assert.deepEqual(
+    {
+      maxPaths: SCAN_LIMITS.maxPaths,
+      maxFiles: SCAN_LIMITS.maxFiles,
+      maxFileBytes: SCAN_LIMITS.maxFileBytes,
+      maxTotalBytes: SCAN_LIMITS.maxTotalBytes,
+      maxFindings: SCAN_LIMITS.maxFindings,
+      maxSkipped: SCAN_LIMITS.maxSkipped,
+      maxSnippetChars: SCAN_LIMITS.maxSnippetChars,
+    },
+    {
+      maxPaths: 16,
+      maxFiles: 200,
+      maxFileBytes: 512 * 1024,
+      maxTotalBytes: 8 * 1024 * 1024,
+      maxFindings: 200,
+      maxSkipped: 100,
+      maxSnippetChars: 160,
+    },
+  )
+})
+
 
 test('the exported extension allowlist has no prose extensions and keeps the code ones', () => {
   for (const prose of ['.md', '.mdx']) {
@@ -307,7 +437,7 @@ test('a file over the size cap is skipped as large, and the walk keeps going', a
   assert.equal(value.scanned.files, 1)
   assert.deepEqual(value.scanned.skipped, [{ path: 'huge.js', reason: 'large' }])
   assert.deepEqual(value.findings.map((finding) => finding.path), ['small.js'])
-  assert.match(render(args, value), /1 file\(s\) skipped/)
+  assert.match(render(args, value), /^Skipped 1 path\(s\): 1 large$/m)
 })
 
 test('maxFindings and maxFiles tighten through limits and mark the result truncated', async () => {
@@ -381,13 +511,18 @@ test('the tool never writes: the fixture tree is identical after a scan', async 
 
   const value = await runScan({ paths: [FIXTURES] })
   assert.ok(value.findings.length > 0)
-  // Five code files: the four in `dirty/` and `clean/` plus `prose/legacy.js`. `prose/legacy.md`
-  // carries the same marker and is skipped, which is the behaviour this fixture exists to pin.
-  assert.equal(value.scanned.files, 5)
+  // Six code files: `dirty/` three, `clean/` one, `prose/legacy.js`, and `ignore-root/artifacts/page.html`.
+  // The Markdown and the dot-directory are both skipped, which is what their fixtures exist to pin.
+  assert.equal(value.scanned.files, 6)
   assert.deepEqual(
     value.scanned.skipped.map((entry) => [entry.path, entry.reason]),
-    [[`${PROSE}/legacy.md`, 'extension']],
+    [
+      [`${DOT_ROOT}/.hidden`, 'dot-directory'],
+      [`${IGNORE_ROOT}/.scanignore`, 'extension'],
+      [`${PROSE}/legacy.md`, 'extension'],
+    ],
   )
+  assert.deepEqual(value.scanned.skippedByReason, { 'dot-directory': 1, extension: 2 })
 
   const after = await snapshot(root)
   assert.deepEqual(after, before)

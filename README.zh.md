@@ -70,7 +70,24 @@
 `rules`（最多 33 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，
 最多返回 200 条发现。允许的扩展名是 18 个代码扩展名 —— `.js`、`.jsx`、`.ts`、`.css`、`.html`、`.vue`、`.svelte`、
 `.astro`、`.json` 等等 —— markdown 不在其中：`.md` 或 `.mdx` 文件记为跳过而不是读取，因为引用反模式的文档是文档，
-不是过时代码。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
+不是过时代码。以点开头的目录它也不进：常见的那几个（`.git`、`.turbo`、`.next`、`.cache`）在扫描器自己的跳过
+名单里，其余任何一个 —— `.github`、`.vscode` —— 会以一条 `dot-directory` 跳过返回，而不是被读取。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
+
+工作区也可以自己说清楚「这里」指的是什么：根目录的 `.scanignore` 列出扫描不该碰的路径 —— 一行一个模式，`#` 是
+注释，`report/` 匹配任意深度的同名目录，`src/app.js` 只匹配那一个文件，`*` 只在一个路径段内匹配，没有取反、没有
+`**`、没有 `?`。文件在每次扫描开始时读取；写坏的一行会出现在报告里（`Ignored 1 line in .scanignore (line 7: bad
+pattern)`），读不到则不会中断扫描。它不是安全边界：扫描器本来就被限制在工作区内，这份文件只能让它读得更少。
+
+```text
+# .scanignore —— 不碰构建产物和抓取下来的数据
+tmp-deploy/
+report/
+*.min.js
+```
+
+无论走哪条路，摘要都会说明跳过了什么、为什么：本仓库上就是
+`Skipped 279 path(s): 277 extension, 2 dot-directory` —— 用 `path(s)` 而不是 `file(s)`，因为被跳过的目录算一条，
+而不是里面每个文件各算一条。
 
 同一套扫描也给人留了一条命令：`/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`。它走同一个
 扫描器、同一套拒绝规则和上限，而且不给至少一个显式路径就不跑。面板上的扫描按钮就是这条操作，只是把 `.` 替你填好：
@@ -193,7 +210,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 895 kB，解包 2.6 MB |
+| 体积 | — | 256 个文件，打包 901 kB，解包 2.6 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -418,6 +435,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.6.0 | 已发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
 | 0.7.0 | 已发布 | 面板从计分板变成地图：时间窗口开关、每日调用、按工具与按结果、按 id 列出的未读指南、诚实的命中率、扫描器发现了什么，外加一个扫描按钮；同时加入 `/guidance-scan` 这条给人用的扫描命令，以及对话里的发现表格 |
 | 0.7.1 | 已发布 | 扫描器不再读文档：`.md` 与 `.mdx` 移出允许列表，改为记为跳过，因此只有散文有问题的项目会扫出干净结果 |
+| 0.7.2 | 已发布 | 扫描器不再进入以点开头的目录，并读取工作区根目录的 `.scanignore`；扫描文本按原因列出跳过项 —— `Skipped 279 path(s): 277 extension, 2 dot-directory` |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -447,11 +465,12 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 207 个测试，分布在十四个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 221 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，
-`scan.test.mjs` 是端到端扫描，`scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
+`scan.test.mjs` 是端到端扫描，`scan-ignore.test.mjs` 按规范校验 `.scanignore` 的语法和点目录规则，
+`scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
 `scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步。在禁止
 子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 

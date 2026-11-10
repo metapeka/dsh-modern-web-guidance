@@ -57,6 +57,15 @@ How conclusive a rule's marker is on its own — `high` when the marker alone is
 when it is strong only in context, `low` when a false positive is likely.
 _Avoid_: severity, priority
 
+**`.scanignore`**:
+An optional file at the workspace root listing paths one scan must not read: one pattern per line
+(`report/` for every directory of that name, `src/app.js` for one file, `*.min.js` for a name shape),
+`#` for a comment, `*` inside one path segment and never across `/`. It is read at the start of every
+scan; a malformed line is reported in the result and never fails the scan. It is **not** a security
+boundary — the scanner is already confined to `realpath(cwd)`, so the file can only make a scan read
+less than it is allowed to, never more.
+_Avoid_: .gitignore, allowlist, blocklist, sandbox rule
+
 ## Telemetry
 
 **Call**:

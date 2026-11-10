@@ -1,0 +1,6 @@
+# A workspace fixture for the `.scanignore` tests: `artifacts/` is a directory pattern, so the
+# whole subtree is skipped before anything inside it is read.
+
+artifacts/
+*.min.js
+not/a/real/path.js

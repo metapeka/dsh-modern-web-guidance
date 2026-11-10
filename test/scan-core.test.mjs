@@ -77,7 +77,15 @@ test('a relative directory is walked and findings carry the contract shape', asy
   await withWorkspace({ 'src/app.js': line }, async (cwd) => {
     const result = await scan({ cwd, paths: ['src'], rules: [RULE_MODAL] })
 
-    assert.deepEqual(result.scanned, { files: 1, bytes: Buffer.byteLength(line), skipped: [], skippedTotal: 0, truncated: false })
+    assert.deepEqual(result.scanned, {
+      files: 1,
+      bytes: Buffer.byteLength(line),
+      skipped: [],
+      skippedTotal: 0,
+      skippedByReason: {},
+      ignoreProblems: [],
+      truncated: false,
+    })
     assert.equal(result.truncated, false)
     assert.deepEqual(result.guides, [{ id: 'dialog', findings: 1 }])
     assert.equal(result.findings.length, 1)
