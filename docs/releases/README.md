@@ -64,7 +64,8 @@ is the whole release in one line; a reader who stops there is still correct.
    a Chinese product and most of the audience reads Chinese first. Each digest is five to seven
    bullets in the same order as the English sections, sits inside `<details>` just before the Install
    footer, and Russian comes before Chinese. Keep identifiers, file names and commands in Latin; localise
-   the prose, not the code.
+   the prose, not the code. The flag emoji degrade to the letter pairs `RU` / `CN` on Windows, which is
+   fine — do not swap them for emoji that render as boxes.
 3. **Numbers are measured and bolded.** `**208 guides**`, `**842 kB packed**`. Never estimate, never
    copy a number out of an older note without re-checking it.
 4. **The unit is the user's gain, not the commit.** "`retrieve` now opens with a warning banner" beats
