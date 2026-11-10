@@ -268,3 +268,331 @@ test('flush persists what a later instance can read back', async () => {
   assert.equal(snapshot.totals.calls, 1)
   assert.deepEqual(snapshot.coverage.map((row) => row.retrieved), [1, 0])
 })
+
+// --- Scan debt: which rules and guides the findings belong to -------------------------------
+
+/** One finding as the scan tool reports it: ids only, never a path or a snippet. */
+const finding = (ruleId, guideId = null) => ({ ruleId, guideId })
+
+/** A scan call classified exactly the way `index.js` classifies a real tool result. */
+function scanEntry(findings, files = 1) {
+  return classifyCall({ tool: 'web_guidance_legacy_scan', value: { scanned: { files }, findings } })
+}
+
+test('a scan classifies which rules and guides fired, deduped and sorted', () => {
+  const entry = scanEntry([
+    finding('ls-13', 'customize-scrollbar'),
+    finding('ls-13', 'customize-scrollbar'),
+    finding('ls-02', 'dialog'),
+    finding('ls-02'),
+  ])
+
+  assert.equal(entry.outcome, 'findings')
+  assert.equal(entry.findings, 4)
+  assert.deepEqual(entry.rules, ['ls-02', 'ls-13'])
+  assert.deepEqual(entry.guides, ['customize-scrollbar', 'dialog'])
+  assert.deepEqual(entry.ruleCounts, { 'ls-02': 2, 'ls-13': 2 })
+  assert.deepEqual(entry.guideCounts, { 'customize-scrollbar': 2, dialog: 1 })
+
+  const clean = scanEntry([], 3)
+  assert.equal(clean.outcome, 'clean')
+  assert.deepEqual(clean.rules, [])
+  assert.deepEqual(clean.guides, [])
+
+  const failed = classifyCall({ tool: 'web_guidance_legacy_scan', isError: true })
+  assert.equal(failed.outcome, 'error')
+  assert.deepEqual(failed.rules, [])
+  assert.deepEqual(failed.guides, [])
+})
+
+test('one scan counts findings while the id list names each rule once', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([
+      finding('ls-13', 'customize-scrollbar'),
+      finding('ls-13', 'customize-scrollbar'),
+      finding('ls-13', 'customize-scrollbar'),
+    ]),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 3 }])
+  assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'customize-scrollbar', count: 3 }])
+  // The last-scan summary lists presence once, even though the counter saw three findings.
+  assert.deepEqual(snapshot.lastScan, {
+    at: new Date(NOW).toISOString(),
+    files: 1,
+    findings: 3,
+    rules: ['ls-13'],
+  })
+
+  await telemetry.flush()
+  assert.equal(store.state.scanRules['ls-13'], 3)
+  assert.equal(store.state.scanGuides['customize-scrollbar'], 3)
+  assert.deepEqual(store.state.lastScan.rules, ['ls-13'])
+})
+
+test('the same rule accumulates across scans while the last scan is replaced', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW - 2000,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'customize-scrollbar'), finding('ls-13', 'customize-scrollbar'), finding('ls-02', 'dialog')], 5),
+  })
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-13', 'customize-scrollbar')], 2) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 3 }, { ruleId: 'ls-02', count: 1 }])
+  assert.deepEqual(snapshot.topScanGuides, [
+    { guideId: 'customize-scrollbar', count: 3 },
+    { guideId: 'dialog', count: 1 },
+  ])
+  assert.deepEqual(snapshot.lastScan, { at: new Date(NOW).toISOString(), files: 2, findings: 1, rules: ['ls-13'] })
+})
+
+test('the top lists rank by findings and break ties by id', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([
+      finding('ls-20', 'guide-b'),
+      finding('ls-20', 'guide-b'),
+      finding('ls-10', 'guide-a'),
+      finding('ls-10', 'guide-a'),
+      finding('ls-30', 'guide-c'),
+    ]),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [
+    { ruleId: 'ls-10', count: 2 },
+    { ruleId: 'ls-20', count: 2 },
+    { ruleId: 'ls-30', count: 1 },
+  ])
+  assert.deepEqual(snapshot.topScanGuides, [
+    { guideId: 'guide-a', count: 2 },
+    { guideId: 'guide-b', count: 2 },
+    { guideId: 'guide-c', count: 1 },
+  ])
+})
+
+test('the top lists show ten rows no matter how many rules fired', async () => {
+  const findings = []
+  for (let index = 1; index <= 12; index += 1) {
+    for (let repetition = 0; repetition < 13 - index; repetition += 1) {
+      findings.push(finding(`ls-${String(index).padStart(2, '0')}`, `guide-${String(index).padStart(2, '0')}`))
+    }
+  }
+
+  const { telemetry } = telemetryWith()
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry(findings) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.equal(snapshot.topRules.length, 10)
+  assert.equal(snapshot.topScanGuides.length, 10)
+  assert.deepEqual(
+    snapshot.topRules,
+    Array.from({ length: 10 }, (_, index) => ({
+      ruleId: `ls-${String(index + 1).padStart(2, '0')}`,
+      count: 12 - index,
+    })),
+  )
+  assert.deepEqual(
+    snapshot.topScanGuides.map((row) => row.count),
+    [12, 11, 10, 9, 8, 7, 6, 5, 4, 3],
+  )
+})
+
+test('the per-scan id lists cap at forty while the counters keep every rule', async () => {
+  const findings = []
+  for (let index = 1; index <= 45; index += 1) {
+    const id = String(index).padStart(2, '0')
+    findings.push(finding(`ls-${id}`, `guide-${id}`))
+  }
+
+  const entry = scanEntry(findings)
+  assert.equal(entry.rules.length, 40)
+  assert.equal(entry.rules[0], 'ls-01')
+  assert.equal(entry.rules.at(-1), 'ls-40')
+  assert.equal(entry.guides.length, 40)
+
+  const { telemetry, store } = telemetryWith()
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...entry })
+  const snapshot = await telemetry.snapshot()
+  assert.equal(snapshot.lastScan.rules.length, 40)
+
+  await telemetry.flush()
+  assert.equal(Object.keys(store.state.scanRules).length, 45)
+  assert.equal(store.state.scanRules['ls-45'], 1)
+  assert.equal(Object.keys(store.state.scanGuides).length, 45)
+})
+
+test('a scan with no findings keeps the counters and records an empty rule list', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW - 1000,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'customize-scrollbar'), finding('ls-02', 'dialog')], 4),
+  })
+  // No `at` on purpose: the stored summary falls back to the injected clock.
+  await telemetry.record({ tool: 'legacy-scan', ...scanEntry([], 2) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [
+    { ruleId: 'ls-02', count: 1 },
+    { ruleId: 'ls-13', count: 1 },
+  ])
+  assert.deepEqual(snapshot.lastScan, { at: new Date(NOW).toISOString(), files: 2, findings: 0, rules: [] })
+})
+
+test('a document written before the scan counters loads and starts its blocks empty', async () => {
+  const seed = {
+    version: 1,
+    since: NOW - 10 * DAY,
+    calls: 2,
+    byDay: {},
+    byTool: { search: 2 },
+    byOutcome: { hit: 2 },
+    byCategory: {},
+    retrieved: {},
+    recent: [],
+  }
+  const { telemetry } = telemetryWith({ store: memoryStore(seed) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [])
+  assert.deepEqual(snapshot.topScanGuides, [])
+  assert.equal(snapshot.lastScan, null)
+
+  // The old counters still load, and the first scan counted after the upgrade lands in the new maps.
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-13', 'customize-scrollbar')]) })
+  const after = await telemetry.snapshot()
+  assert.equal(after.totals.byTool['legacy-scan'], 1)
+  assert.deepEqual(after.topRules, [{ ruleId: 'ls-13', count: 1 }])
+})
+
+test('a last scan older than the window is dropped while the lifetime counters stay', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW - 200 * DAY,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'customize-scrollbar'), finding('ls-13', 'customize-scrollbar')]),
+  })
+
+  const stale = await telemetry.snapshot()
+  assert.equal(stale.lastScan, null)
+  assert.deepEqual(stale.topRules, [{ ruleId: 'ls-13', count: 2 }])
+
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-02', 'dialog')], 3) })
+  const fresh = await telemetry.snapshot()
+  assert.deepEqual(fresh.lastScan, { at: new Date(NOW).toISOString(), files: 3, findings: 1, rules: ['ls-02'] })
+  assert.deepEqual(fresh.topRules, [
+    { ruleId: 'ls-13', count: 2 },
+    { ruleId: 'ls-02', count: 1 },
+  ])
+})
+
+test('the stored scan block is rebuilt defensively from a hand-edited document', async () => {
+  const seed = {
+    version: 1,
+    since: NOW,
+    calls: 0,
+    byDay: {},
+    byTool: {},
+    byOutcome: {},
+    byCategory: {},
+    retrieved: {},
+    scanRules: { 'ls-13': 'seven', 'ls-02': 2, '': 9 },
+    scanGuides: { dialog: 1 },
+    lastScan: { at: NOW - 1000, files: 'lots', findings: -3, rules: ['ls-b', 7, '', 'ls-a', 'ls-a'] },
+    recent: [],
+  }
+  const { telemetry } = telemetryWith({ store: memoryStore(seed) })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-02', count: 2 }])
+  assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'dialog', count: 1 }])
+  assert.deepEqual(snapshot.lastScan, {
+    at: new Date(NOW - 1000).toISOString(),
+    files: 0,
+    findings: 0,
+    rules: ['ls-a', 'ls-b'],
+  })
+
+  const unreadable = telemetryWith({ store: memoryStore({ version: 1, since: NOW, calls: 0, byDay: {}, recent: [], lastScan: { at: 'not a date' } }) })
+  assert.equal((await unreadable.telemetry.snapshot()).lastScan, null)
+
+  const wrongShape = telemetryWith({ store: memoryStore({ version: 1, since: NOW, calls: 0, byDay: {}, recent: [], lastScan: 'recently' }) })
+  assert.equal((await wrongShape.telemetry.snapshot()).lastScan, null)
+})
+
+test('aggregation ignores a garbage scan entry instead of throwing', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    outcome: 'findings',
+    rules: 'nope',
+    guides: [null, 7, 'ok-guide'],
+    ruleCounts: { 'ls-13': 2, '': 5, bogus: 'x' },
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 2 }])
+  assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'ok-guide', count: 1 }])
+  assert.deepEqual(snapshot.lastScan.rules, [])
+})
+
+test('a failed scan is counted but does not become the last scan', async () => {
+  const { telemetry } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW - 1000,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'customize-scrollbar')], 3),
+  })
+  // A refusal is a value, not a thrown error: `index.js` still classifies it as a failed call.
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...classifyCall({
+      tool: 'web_guidance_legacy_scan',
+      value: { error: 'path-absolute', subject: '/etc/passwd', message: 'Use paths relative to the workspace.' },
+    }),
+  })
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.lastScan, {
+    at: new Date(NOW - 1000).toISOString(),
+    files: 3,
+    findings: 1,
+    rules: ['ls-13'],
+  })
+  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 1 }])
+  assert.equal(snapshot.totals.byTool['legacy-scan'], 2)
+})
+
+test('reset clears the rule and guide counters and the last scan', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-13', 'customize-scrollbar')]) })
+  await telemetry.reset()
+
+  const snapshot = await telemetry.snapshot()
+  assert.deepEqual(snapshot.topRules, [])
+  assert.deepEqual(snapshot.topScanGuides, [])
+  assert.equal(snapshot.lastScan, null)
+  assert.deepEqual(store.state.scanRules, {})
+  assert.deepEqual(store.state.scanGuides, {})
+  assert.equal(store.state.lastScan, null)
+})
+

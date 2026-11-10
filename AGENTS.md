@@ -18,7 +18,7 @@ Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. Se
 
 Four model-facing tools: `web_guidance_search`, `web_guidance_retrieve` and `web_guidance_list`
 (`lib/guidance.js`), plus `web_guidance_legacy_scan` (`lib/scan.js`). Two skills
-(`modern-web-guidance`, `chrome-extensions`), one human command (`/guidance-stats`) and one panel.
+(`modern-web-guidance`, `chrome-extensions`), two human commands (`/guidance-stats`, `/guidance-scan`) and one panel.
 The scanner is the only tool that reads caller-named files, and it is confined to the session
 workspace; everything else reads the bundled corpus.
 
@@ -40,8 +40,13 @@ full interface is `docs/notes/legacy-scan-contract.md`.
   named path is `realpath`-checked against the session cwd, and a symlink met while walking that
   leaves the workspace is skipped rather than followed.
 - **A rule upstream has and we do not ship has a reason, not a to-do**: the absent and half-covered
-  rules, and the one real debt (no guide-hash invalidation), are recorded in
+  rules, and the one caveat that survived the 0.6.0 guard (a guide hash proves the guide changed, not
+  that a rule's message still describes its replacement), are recorded in
   `docs/notes/legacy-scan-parity.md`; read it before adding a rule to "close the gap".
+- **The command is the tool's second entry point, so there is one of everything**: `/guidance-scan` in
+  `index.js` calls the same `runScanRequest` and renders with the same `renderScan`, so a change to the
+  scanner, its refusals or its text reaches both surfaces; `test/scan-command.test.mjs` fails if the
+  two ever drift.
 
 ## CI
 
@@ -66,7 +71,11 @@ lazy factory through `window.__ModuleLoader__.load({ id: <package name>, factory
 React from `require('react')` and nothing else from the host, and declares its Cordis services in the
 returned `inject` list — `slots`, `locale`, `remote` and `remote.commands` are all required for the rail
 entry and the panel's data call (`ctx.remote.commands.execute`). The panel registers
-`sidebar.panellist` id `guidance` and the keyed `main` slot with the same key; there is no other wiring.
+`sidebar.panellist` id `guidance` and the keyed `main` slot with the same key; a third registration owns
+the chat side — the keyed `tool.call.toolview` slot under `web_guidance_legacy_scan`, which renders one
+scan call as a table (rule, place, confidence, guide) and leaves the generic card on every other tool.
+The panel is read-only apart from one button: it asks the host to run `/guidance-scan . --format json`,
+so a scan started from the panel is the command, not a second implementation.
 See `docs/notes/client-panel-spike.md` for the verified contract.
 
 Panel strings live in three dictionaries — `EN`, `RU` and `ZH` — registered in one

@@ -67,6 +67,92 @@ const WITH_SCAN = {
   series: [{ day: '2026-11-10', calls: 10 }],
 }
 
+/**
+ * A snapshot from a 0.6.0 state file: the scan totals plus per-rule counters, the top scan guides
+ * and the last scan. The rules arrive unordered and longer than the five the text report shows, so
+ * the tests prove the ranking and the cap instead of the fixture's own order.
+ */
+const RICH = {
+  ...WITH_SCAN,
+  topRules: [
+    { ruleId: 'ls-08', count: 2 },
+    { ruleId: 'ls-13', count: 4 },
+    { ruleId: 'ls-21', count: 2 },
+    { ruleId: 'ls-05', count: 1 },
+    { ruleId: 'ls-17', count: 1 },
+    { ruleId: 'ls-33', count: 1 },
+  ],
+  topScanGuides: [
+    { guideId: 'dialog', count: 2 },
+    { guideId: 'css-anchor', count: 3 },
+  ],
+  lastScan: {
+    at: '2026-11-10T09:42:11.000Z',
+    files: 12,
+    findings: 4,
+    rules: ['ls-05', 'ls-08', 'ls-13', 'ls-17', 'ls-21', 'ls-33'],
+  },
+}
+
+/**
+ * The exact text 0.6.0 produced for `SMALL`, captured before the scan detail lines were added. The
+ * fixture has no scan counters at all, so nothing new may appear: not a line, not a blank line.
+ */
+const SMALL_GOLDEN = [
+  'Guidance usage: 128 calls, 83% hit rate',
+  'Calls by tool: web_guidance_search 96, web_guidance_retrieve 27, web_guidance_list 5',
+  'Calls by outcome: hit 80, miss 13, list 5, unknown 3, error 1',
+  '',
+  'Queries that returned nothing:',
+  '  1. scroll linked animation - 4 calls, last 2026-11-07',
+  '  2. browser support for view transitions - 2 calls, last 2026-11-06',
+  '',
+  'Top queries:',
+  '  1. light dismiss dialog - 9 calls, 9 hits, 0 misses, last 2026-11-08',
+  '  2. responsive data table - 4 calls, 4 hits, 0 misses, last 2026-11-07',
+  '',
+  'Category coverage:',
+  '  1. css: 12 of 58 retrieved',
+  '  2. ui-components: 3 of 14 retrieved',
+  '',
+  'Dead guides: 171 of 193 guides have never been retrieved.',
+  '  anchor-positioning-tab-underline',
+  '  scroll-linked-effects',
+  '  and 169 more',
+  '',
+  'Corpus: version 2026_10_30-58d055df, snapshot 2026-10-30, 193 guides',
+  'Period: last 30 days (generated 2026-11-08T13:20:00.000Z)',
+].join('\n')
+
+/**
+ * The same capture for `WITH_SCAN`, a 0.5.0-style state file: it has scan totals but no per-rule
+ * detail, so it also must render exactly as it did before the detail lines existed.
+ */
+const WITH_SCAN_GOLDEN = [
+  'Guidance usage: 10 calls, 60% hit rate',
+  'Calls by tool: search 6, retrieve 2, legacy-scan 1, list 1',
+  'Calls by outcome: hit 6, clean 1, list 1, miss 1, unknown-id 1',
+  'Legacy scans: 1 call, 24 files scanned, 3 findings',
+  '',
+  'Queries that returned nothing:',
+  '  1. scroll linked animation - 1 call, last 2026-11-10',
+  '',
+  'Top queries:',
+  '  1. light dismiss dialog - 3 calls, 3 hits, 0 misses, last 2026-11-10',
+  '  2. responsive data table - 2 calls, 2 hits, 0 misses, last 2026-11-10',
+  '',
+  'Category coverage:',
+  '  1. css: 2 of 58 retrieved',
+  '  2. ui-components: 1 of 14 retrieved',
+  '',
+  'Dead guides: 205 of 208 guides have never been retrieved.',
+  '  anchor-positioning-tab-underline',
+  '  and 204 more',
+  '',
+  'Corpus: version 2026_11_09-5bcc021b, snapshot 2026-11-09, 208 guides',
+  'Period: last 7 days (generated 2026-11-10T12:00:00.000Z)',
+].join('\n')
+
 test('renders every section in the documented order', () => {
   const text = renderReport(SMALL)
   const markers = [
@@ -215,6 +301,9 @@ test('renderJson passes the snapshot through unchanged', () => {
     coverage: SMALL.coverage,
     deadGuides: SMALL.deadGuides,
     series: SMALL.series,
+    topRules: [],
+    topScanGuides: [],
+    lastScan: null,
   })
   assert.equal('generatedAt' in json, false)
   assert.equal(json.totals.hitRate, 0.8281)
@@ -244,6 +333,9 @@ test('renderJson of an empty report still carries the shape', () => {
     coverage: [],
     deadGuides: empty.deadGuides,
     series: [],
+    topRules: [],
+    topScanGuides: [],
+    lastScan: null,
   })
 })
 
@@ -277,11 +369,13 @@ test('a sparse snapshot degrades instead of throwing', () => {
 })
 
 test('rendering never mutates the snapshot', () => {
-  const snapshot = structuredClone(SMALL)
-  const before = structuredClone(snapshot)
-  renderReport(snapshot)
-  renderJson(snapshot)
-  assert.deepEqual(snapshot, before)
+  for (const fixture of [SMALL, RICH]) {
+    const snapshot = structuredClone(fixture)
+    const before = structuredClone(snapshot)
+    renderReport(snapshot)
+    renderJson(snapshot)
+    assert.deepEqual(snapshot, before)
+  }
 })
 
 test('a counted legacy scan adds one KPI line with files and findings', () => {
@@ -349,4 +443,120 @@ test('the empty state stays scan-free even when totals are sparse', () => {
   assert.match(text, /No calls recorded in the last 7 days/)
   assert.doesNotMatch(text, /Legacy scans/)
   assert.equal('tools' in renderJson({ ...WITH_SCAN, totals: { calls: 0, byTool: {} } }), false)
+})
+
+test('a no-scan snapshot renders byte-identically to 0.6.0', () => {
+  assert.equal(renderReport(SMALL), SMALL_GOLDEN)
+})
+
+test('a 0.5.0 snapshot with scan totals but no detail adds no lines', () => {
+  assert.equal(renderReport(WITH_SCAN), WITH_SCAN_GOLDEN)
+  assert.doesNotMatch(renderReport(WITH_SCAN), /Most matched rules|Last scan:/)
+})
+
+test('scan detail lines follow the scan KPI and precede the lists', () => {
+  const text = renderReport(RICH)
+  const rulesAt = text.indexOf('Most matched rules:')
+  const lastAt = text.indexOf('Last scan:')
+  assert.ok(rulesAt > text.indexOf('Legacy scans:'))
+  assert.ok(lastAt > rulesAt)
+  assert.ok(lastAt < text.indexOf('Queries that returned nothing:'))
+  assert.match(text, /^Most matched rules: ls-13 4, ls-08 2, ls-21 2, ls-05 1, ls-17 1$/m)
+  assert.match(
+    text,
+    /^Last scan: 2026-11-10, 12 files, 4 findings \(rules: ls-05, ls-08, ls-13, ls-17, ls-21\)$/m,
+  )
+})
+
+test('the rules line stops at five, ranked by count then rule id', () => {
+  // Six rules were recorded; the sixth is not named in the text.
+  assert.doesNotMatch(renderReport(RICH), /ls-33/)
+
+  const rules = renderReport({
+    ...RICH,
+    topRules: [
+      { ruleId: 'ls-33', count: 1 },
+      { ruleId: 'ls-09', count: 5 },
+      { ruleId: 'ls-02', count: 3 },
+      { ruleId: 'ls-07', count: 3 },
+      { ruleId: 'ls-11', count: 2 },
+      { ruleId: 'ls-14', count: 2 },
+      { ruleId: 'ls-19', count: 2 },
+    ],
+  })
+  assert.match(rules, /^Most matched rules: ls-09 5, ls-02 3, ls-07 3, ls-11 2, ls-14 2$/m)
+})
+
+test('lastScan: null keeps the rules line and omits only the last scan line', () => {
+  const text = renderReport({ ...RICH, lastScan: null })
+  assert.match(text, /^Most matched rules: /m)
+  assert.doesNotMatch(text, /Last scan:/)
+  assert.match(text, /Legacy scans: 1 call, 24 files scanned, 3 findings/)
+})
+
+test('the last scan date uses the date shape of the other timestamps', () => {
+  const line = renderReport(RICH).split('\n').find((entry) => entry.startsWith('Last scan:'))
+  assert.match(line, /^Last scan: 2026-11-10, /)
+  assert.doesNotMatch(line, /T09:42/)
+  // A date-only value renders the same way.
+  const plain = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, at: '2026-11-10' } })
+  assert.match(plain, /^Last scan: 2026-11-10, /m)
+})
+
+test('the last scan appends rule ids only when present, at most five', () => {
+  const none = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, rules: [] } })
+  assert.match(none, /^Last scan: 2026-11-10, 12 files, 4 findings$/m)
+  assert.doesNotMatch(none, /\(rules:/)
+
+  const capped = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, rules: ['ls-01', 'ls-02', 'ls-03', 'ls-04', 'ls-05', 'ls-06'] },
+  })
+  assert.match(capped, /\(rules: ls-01, ls-02, ls-03, ls-04, ls-05\)$/m)
+  assert.doesNotMatch(capped, /ls-06/)
+})
+
+test('renderJson defaults the scan detail for a state that has none', () => {
+  const json = renderJson(SMALL)
+  assert.deepEqual(json.topRules, [])
+  assert.deepEqual(json.topScanGuides, [])
+  assert.equal(json.lastScan, null)
+
+  // A 0.5.0 state has scan totals and still no per-rule detail.
+  const older = renderJson(WITH_SCAN)
+  assert.deepEqual(older.topRules, [])
+  assert.deepEqual(older.topScanGuides, [])
+  assert.equal(older.lastScan, null)
+
+  // A last scan without a usable timestamp is not invented.
+  assert.equal(renderJson({ ...RICH, lastScan: { files: 3, findings: 1 } }).lastScan, null)
+})
+
+test('renderJson passes the scan detail through under the snapshot names', () => {
+  const json = renderJson(RICH)
+  assert.deepEqual(json.topRules, RICH.topRules)
+  assert.deepEqual(json.topScanGuides, RICH.topScanGuides)
+  assert.deepEqual(json.lastScan, RICH.lastScan)
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules'])
+  assert.equal(json.findings, 3)
+})
+
+test('scan counters never leak paths or snippets into the report', () => {
+  const leaky = {
+    ...RICH,
+    lastScan: {
+      ...RICH.lastScan,
+      path: 'C:/private/app/src/legacy.js',
+      snippet: 'el.addEventListener("click", handler)',
+    },
+  }
+  const text = renderReport(leaky)
+  assert.doesNotMatch(text, /legacy\.js/)
+  assert.doesNotMatch(text, /C:\/private/)
+  assert.doesNotMatch(text, /addEventListener/)
+
+  const json = renderJson(leaky)
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules'])
+  assert.equal('path' in json.lastScan, false)
+  assert.equal('snippet' in json.lastScan, false)
 })

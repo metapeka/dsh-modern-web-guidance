@@ -67,8 +67,11 @@
 | 技能 | `chrome-extensions` | Manifest V3 开发与 Chrome Web Store 上架要求 |
 
 扫描器只读不写。`web_guidance_legacy_scan` 接受 `paths`（1–16 个文件或目录，没有默认目标）、可选的 `rules`（最多
-30 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，最多返回
+33 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，最多返回
 200 条发现。表里一共 33 条规则，覆盖上游 35 条中的 30 条；剩下没覆盖的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
+
+同一套扫描也给人留了一条命令：`/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`。它走同一个
+扫描器、同一套拒绝规则和上限，而且不给至少一个显式路径就不跑。面板上的扫描按钮就是这条操作，只是把 `.` 替你填好。
 
 目录覆盖 `css`、`ui-atoms`、`ui-components`、`ui-behaviors`、`forms`、`html`、`js`、`accessibility`、
 `visual-design`、`security`、`performance`、`built-in-ai`、`pwa`、`wasm`、`webmcp`、`privacy` 和
@@ -116,6 +119,7 @@ bundle 只插入一行（`modern-web-guidance`），不需要构建步骤、依�
 | “这里到底有什么？” | `web_guidance_list` | 各分类数量，或某个分类下的 id 与标题 |
 | “目录真的有人在用吗？” | `/guidance-stats` | 文本形式的本地报告；`--json` 是面板读取的格式 |
 | “我正要写或要审的代码会不会用上过时写法？” | `web_guidance_legacy_scan` | 对显式列出的路径给出发现，每次最多 200 条 |
+| “想自己在终端里跑一遍” | `/guidance-scan src/` | 同样的发现，文本形式；`--format json` 给出机器可读的原始值，`--rules ls-01,ls-13` 收窄规则表 |
 
 ### 1. 直接提出 Web 开发需求（默认方式）
 
@@ -176,17 +180,17 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 | | Google `modern-web-guidance` | 本插件 |
 | --- | --- | --- |
-| 形态 | npm 包：一个 CLI 加技能，用 `npx -y modern-web-guidance@latest …` 运行 | DSH 插件：4 个工具、2 个技能、一个侧边栏面板 |
+| 形态 | npm 包：一个 CLI 加技能，用 `npx -y modern-web-guidance@latest …` 运行 | DSH 插件：4 个工具、2 个技能、2 条给人用的命令、一个侧边栏面板 |
 | 受众 | 任何能执行 shell 命令的智能体 | DeepSeek Harness 会话 |
 | 指南语料 | 208 篇已索引的指南（209 个 `.md` 文件，其中一个是逐字节副本） | 同样的 208 篇，逐字节一致，快照 `2026_11_09-5bcc021b` |
 | 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
 | 运行时依赖 | Node 加上包里附带的 CLI 引擎 | 无 |
 | 网络 | `npx` 先取包，之后本地运行 | 从不联网 —— 语料就在包里 |
-| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，33 条规则（其中 30 条对应上游规则），只接受显式路径，只输出报告 |
+| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，33 条规则（其中 30 条对应上游规则），只接受显式路径，只输出报告；0.7.0 起还多了一条给人用的命令 `/guidance-scan` |
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
-| 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 和侧边栏面板 |
+| 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 874 kB，解包 2.5 MB |
+| 体积 | — | 256 个文件，打包 893 kB，解包 2.6 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -282,7 +286,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 - **扫描器只读它被明确给定的内容。** `web_guidance_legacy_scan` 没有默认目标：调用方要给出 1–16 个路径，每个路径
   都必须落在会话工作区内，指向区外的符号链接会被跳过而不是跟随。绝对路径、工作区外的路径和不存在路径会被拒绝
   （`path-absolute`、`path-outside`、`path-missing`），读取上限为 200 个文件、单文件 512 kB、每次 8 MB，并且它不写
-  任何一个字节。
+  任何一个字节。给人用的 `/guidance-scan` 走同一个扫描器，所以拒绝同样的路径、执行同样的上限；它也不接受空路径，
+  因此没有任何命令会顺手把整个工作区扫一遍。
 - **目录无法越出包外**：条目 id 与分类必须是 slug，每个解析出的路径都会校验是否位于数据目录内。被篡改的
   `guides.json` 此前可以读取磁盘上任意 `*.md`。
 - **失败会重试，且不泄露信息**：一次临时的读取错误不再让工具在本次会话中永久失效，错误信息也不再暴露安装的
@@ -312,7 +317,9 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 命中次数、各指南被取回次数，以及最近 1000 次调用携带的查询文本和返回的 id。未命中的查询才是重点 —— 无法复现的
 未命中就无法修复。
 
-0.5.0 在同一份报告里加了第四行（`legacy-scan`）和一个发现总数。
+0.5.0 在同一份报告里加了第四行（`legacy-scan`）和一个发现总数。0.7.0 把扫描的细节也留在报告里：命中过哪些规则和
+指南，以及最近一次完成的扫描（时间、读了几个文件、多少条发现）—— 报告里就是 `Most matched rules: …` 与
+`Last scan: …` 两行。只有 id 和数字，没有路径，也没有代码片段。
 
 存放位置：profile 的持久存储，也就是本来就存会话日志的那层信任边界。默认保留 90 天，`--reset --yes` 会立即清空。
 
@@ -322,27 +329,33 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 ## 🖥 侧边栏面板
 
-插件增加了客户端部分：左侧栏的图标会在中央区域打开 **Guidance Insights** 面板。它展示的就是
-`/guidance-stats` 打印的那些计数（四个工具加发现总数），只是换成了界面：
+插件增加了客户端部分：左侧栏的图标会在中央区域打开 **Guidance Insights** 面板。它把 `/guidance-stats` 打印的计数
+画成一张地图，按顺序回答四个问题：
 
-- 最近 7 天的调用次数与命中率
-- 最常出现的查询，以及各自的命中与未命中次数
-- 分类覆盖情况 —— 已取回的指南对 208 篇语料
-- 什么都没找到的查询
-- 有多少篇指南从未被取回过
-- 同一时间窗口内扫描器的发现总数
+- **用了多少、准不准** —— 总调用次数，以及按“本来可能命中”的调用算出的命中率（检索命中、检索未命中、未知 id）；
+  报告里那个“按全部调用算”的比例放在图块的提示里。`7 天` / `30 天` 开关重新读取时间窗口
+- **什么时候用的** —— 每日调用，一天一根柱子
+- **用什么、结果如何** —— 按工具和按结果的两列并列
+- **扫描器发现了什么** —— 最近一次完成的扫描、命中最多（最多 10 条）的规则，以及这些发现指向的指南；下面的按钮
+  扫描当前会话的工作区文件夹，并把这一次的结果就地显示出来
 
-操作只有一个刷新：重新读取一次计数。
+再往下是报告里的清单：热门查询及其各自的命中与未命中、对 208 篇指南的分类覆盖、没有结果的查询，以及从未被
+检索过的指南 —— 按 id 列出，最多 20 条。
 
-面板是只读的。它不改动计数、不离开这台机器，也不新增网络请求和工具 —— 四个工具仍然是四个。
-`/guidance-stats` 仍然是给终端和智能体用的文本版本（含 `--json`）；面板是同一份报告的界面版本。
+刷新会重新读取计数，`7 天` / `30 天` 开关则把 `/guidance-stats --json --days N` 发给宿主。对话里，扫描结果渲染成
+表格 —— 规则、位置、置信度、指南 —— 最多 16 行，多出来的显示“另有 N 条”，不管调用要的是哪种格式。
+
+面板除了扫描按钮之外只读：它不改计数、不离开这台机器，也不新增网络请求和工具 —— 四个工具仍然是四个。由它发起的
+扫描和别的扫描一样计数。面板里刻意不显示路径和代码片段：面板给的是计数，不是证据；文件和行号在对话的那条工具
+调用里。`/guidance-stats` 仍然是给终端和智能体用的文本版本（含 `--json`），而 `/guidance-scan` 是按钮的文本版本。
 
 <a id="configuration"></a>
 
 ## ⚙️ 配置
 
 插件不需要配置就能工作。它把工具与技能注册到宿主上下文；如果 profile 没有 `tools` 或 `skills` 服务，它就保持
-静默。唯一的设置是插件配置里的 `enabled`：设为 `false` 就关闭本地统计（见[使用统计](#usage-stats)）。
+静默。唯一的设置是插件配置里的 `enabled`：设为 `false` 就关闭本地统计，`/guidance-stats` 也随之消失；`/guidance-scan`
+照常可用，因为扫描不是计数（见[使用统计](#usage-stats)）。
 
 <a id="updating-the-guide-corpus"></a>
 
@@ -398,6 +411,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.4.1 | 已发布 | 文档：导航、对比表、目录地图 |
 | 0.5.0 | 已发布 | `legacy-scan` 作为第四个工具：30 条正则规则，只接受显式路径，只输出报告 —— `web_guidance_legacy_scan`，面板里多一个计数器和一个发现总数。设计与结论：[docs/notes/legacy-scan-feasibility.md](docs/notes/legacy-scan-feasibility.md) |
 | 0.6.0 | 已发布 | 再多三条规则（`:host-context()`、文本平衡、`select:invalid`），规则表增至 33 条，其中 30 条对应上游规则；另加指南哈希校验，语料更新后规则不会悄悄过期 |
+| 0.7.0 | 已发布 | 面板从计分板变成地图：时间窗口开关、每日调用、按工具与按结果、按 id 列出的未读指南、诚实的命中率、扫描器发现了什么，外加一个扫描按钮；同时加入 `/guidance-scan` 这条给人用的扫描命令，以及对话里的发现表格 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -427,11 +441,13 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 150 个测试，分布在十二个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 205 个测试，分布在十四个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
-`stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线；`scan-core.test.mjs`、`scan-rules.test.mjs`
-和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，`scan.test.mjs` 是端到端扫描；`client-locales.test.mjs`
-保证面板的三份词典保持同步。在禁止子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
+`stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
+`scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，
+`scan.test.mjs` 是端到端扫描，`scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
+`scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步。在禁止
+子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 
 <a id="publishing"></a>
 

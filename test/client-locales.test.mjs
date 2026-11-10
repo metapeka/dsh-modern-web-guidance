@@ -119,7 +119,7 @@ test('every Chinese value keeps the placeholders of its English source', () => {
 })
 
 test('the Chinese dictionary defines all three plural forms with the same text', () => {
-  for (const base of ['call', 'hit', 'miss']) {
+  for (const base of ['call', 'hit', 'miss', 'file', 'finding']) {
     const forms = ['one', 'few', 'many'].map((form) => ZH.get(`${base}.${form}`))
     assert.ok(forms.every((form) => typeof form === 'string'), `${base} is missing a plural form`)
     assert.equal(new Set(forms).size, 1, `${base} plural forms differ, but Chinese has no plural`)
@@ -179,6 +179,152 @@ test('the panel renders the fourth tool and survives a report without its counte
   // field rather than formatting `undefined` into the row as `NaN`.
   assert.match(CLIENT_SOURCE, /legacyScan: firstCount\(/, 'the fourth tool count is not read tolerantly')
   assert.match(CLIENT_SOURCE, /findings: firstCount\(/, 'the findings total is not read tolerantly')
+})
+
+/** The strings panel v2 added: the window switch, the daily bars and the tool/outcome breakdown. */
+const PANEL_V2_KEYS = [
+  'period.short',
+  'hitRate.raw',
+  'section.series',
+  'series.bar',
+  'section.breakdown',
+  'breakdown.byTool',
+  'breakdown.byOutcome',
+  'breakdown.empty',
+]
+
+test('every panel-v2 string exists in all three dictionaries and is rendered', () => {
+  for (const key of PANEL_V2_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    // A string that no `t('…')` call reads is dead weight in three dictionaries at once.
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+  }
+  for (const key of PANEL_V2_KEYS) {
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+  }
+})
+
+test('the window switch owns the period and the command line follows it', () => {
+  assert.match(CLIENT_SOURCE, /const PERIODS = \[7, 30\]/, 'the header switch no longer offers 7 and 30 days')
+  // The panel never hard-codes the window into the command line: it appends `--days` from state, so
+  // Refresh re-runs the window that is on screen instead of always asking for the default one.
+  assert.ok(CLIENT_SOURCE.includes('--days ${asCount(days)}'), 'the report line is not built from the selected window')
+  assert.ok(CLIENT_SOURCE.includes('useState(PERIODS[0])'), 'the selected window has no component state')
+})
+
+test('the panel derives its own hit rate from the outcome counters', () => {
+  // `totals.hitRate` counts `list` and `error` as misses; the tile shows hits over real attempts and
+  // keeps the report's number in the tooltip, so the difference stays visible.
+  assert.match(CLIENT_SOURCE, /hitRateHonest:\s*attempts > 0/, 'client.js no longer derives an honest hit rate')
+  assert.match(CLIENT_SOURCE, /percent\(report\.hitRateHonest\)/, 'the hit-rate tile does not use the derived rate')
+  assert.match(CLIENT_SOURCE, /percent\(report\.hitRate\)/, 'the report hit rate is not shown next to it')
+})
+
+/** The strings layers two and three added: the scanner section, the scan facts and the chat row. */
+const SCANNER_KEYS = [
+  'section.scanner',
+  'scanner.none',
+  'scanner.last',
+  'scanner.rules',
+  'scanner.guides',
+  'scanner.scan',
+  'scanner.scanning',
+  'scanner.failed',
+  'scan.summary',
+  'scan.clean',
+  'scan.truncated',
+  'row.title',
+  'row.preparing',
+  'row.running',
+  'row.stopped',
+  'row.failed',
+  'row.paths',
+  'row.more',
+  'row.rule',
+  'row.confidence',
+  'row.location',
+  'row.guide',
+]
+
+test('every scanner string exists in all three dictionaries and is rendered', () => {
+  for (const key of SCANNER_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    // A string no `t('…')` call reads would be dead weight in three dictionaries at once.
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+  }
+  // The two counts the scan sections print go through the plural helper, which needs both bases.
+  for (const base of ['file', 'finding']) {
+    assert.ok(CLIENT_SOURCE.includes(`plural(t, '${base}'`), `client.js never pluralizes ${base}`)
+    assert.ok(EN.has(`${base}.many`), `EN has no ${base} plural forms`)
+  }
+})
+
+test('the scanner section is fed by the report and can start a scan', () => {
+  assert.ok(CLIENT_SOURCE.includes("const SCAN_LINE = '/guidance-scan . --format json'"), 'the scan command line changed')
+  // The three report fields the section reads, each kept rather than dropped.
+  assert.match(CLIENT_SOURCE, /topRules: rankedIds\(/, 'the report top rules are no longer read')
+  assert.match(CLIENT_SOURCE, /topScanGuides: rankedIds\(/, 'the report scan guides are no longer read')
+  assert.match(CLIENT_SOURCE, /lastScan: readLastScan\(/, 'the report last scan is no longer read')
+  // The answer to the button is parsed defensively, and a refusal is a state, not a throw.
+  assert.match(CLIENT_SOURCE, /value: readScanEnvelope\(envelope\)/, 'the scan reply is not parsed into the section')
+  assert.ok(CLIENT_SOURCE.includes("panelError('scan'"), 'a broken scan reply is not tagged as a scan failure')
+  // A capped scan says so, in both places that render it.
+  const truncated = CLIENT_SOURCE.match(/t\('scan\.truncated'/g) ?? []
+  assert.ok(truncated.length >= 2, 'the truncation notice is missing from the panel or the chat row')
+  // The section renders in the empty state too: its button is the only way to scan from the panel.
+  assert.match(CLIENT_SOURCE, /renderEmpty\(t, report\)[\s\S]{0,160}renderScanner\(t, report, scan, busy, runScan\)/)
+})
+
+test('the chat row registers into the keyed tool-view slot under the scan wire name', () => {
+  assert.ok(CLIENT_SOURCE.includes("const SCAN_TOOL_NAME = 'web_guidance_legacy_scan'"), 'the wire name changed')
+  // Keyed registration only: an unkeyed `tool.call.toolview` entry would replace the renderer for
+  // every tool in the transcript instead of adding one row.
+  const registrations = CLIENT_SOURCE.match(/name: 'tool\.call\.toolview'/g) ?? []
+  assert.equal(registrations.length, 1, 'client.js registers the tool view more than once')
+  assert.match(
+    CLIENT_SOURCE,
+    /name: 'tool\.call\.toolview',\s*key: SCAN_TOOL_NAME,\s*locale: NS,/,
+    'the tool view is not registered additively under the scan wire name',
+  )
+})
+
+test('the chat row reads the documented tool-call props instead of guessing', () => {
+  // `phase` and `block` are the documented `ToolCallOwnerProps`; `block.argsRaw` is the start-stage
+  // argument reader, and a settled block carries `kind`, `content`, `error` and `isError`.
+  assert.match(CLIENT_SOURCE, /const phase = props\.phase/, 'the row does not read the phase prop')
+  assert.match(CLIENT_SOURCE, /const block = props\.block/, 'the row does not read the block prop')
+  assert.match(CLIENT_SOURCE, /const raw = asText\(block_\.argsRaw\)/, 'the started arguments are not read from argsRaw')
+  assert.ok(CLIENT_SOURCE.includes("'kind' in block"), 'a settled result block is not detected by its kind')
+  assert.match(CLIENT_SOURCE, /for \(const item of content\)/, 'the result content array is not read')
+  assert.match(CLIENT_SOURCE, /block\.isError === true/, 'the failure flag is not read')
+  assert.ok(CLIENT_SOURCE.includes("=== 'interrupted'"), 'an interrupted scan is not recognised')
+  // The row is capped: sixteen findings and one line for the rest.
+  assert.ok(CLIENT_SOURCE.includes('const MAX_TOOL_ROWS = 16'), 'the row no longer caps its findings')
+  assert.match(CLIENT_SOURCE, /t\('row\.more', \{ count: rest \}\)/, 'the rest of the findings are not summarised')
+})
+
+test('the panel counts and the chat row locates', () => {
+  // Counters are not evidence: the panel renders a rule id with its count, and `path:line` appears
+  // only in the chat row, where it belongs to a call the session already made.
+  assert.ok(
+    (CLIENT_SOURCE.match(/scanRuleLine\(/g) ?? []).length >= 3,
+    'the panel sections no longer render rule counts',
+  )
+  assert.ok(!CLIENT_SOURCE.includes('scanRuleLine(finding'), 'the panel renders a finding instead of a rule count')
+  assert.match(
+    CLIENT_SOURCE,
+    /const place = finding\.path === '' \? '' : `\$\{finding\.path\}:\$\{finding\.line\}`/,
+    'the chat row no longer locates a finding',
+  )
 })
 
 test('the plugin-list locale card mirrors locale/en.json in every language', () => {

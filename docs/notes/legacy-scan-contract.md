@@ -151,6 +151,44 @@ Registered exactly like the three existing tools (`ctx.tools.register(tool)` ins
   `tools['legacy-scan']`, with `scanned` files as the entry's `files` number and the finding count
   reported in the panel as a new column.
 
+## `index.js` — the `/guidance-scan` command (0.7.0)
+
+The human twin of the tool. It exists because the panel can execute commands and nothing else, and it is
+not a second scanner: it calls the same `runScanRequest` and renders with the same `renderScan`, joined
+into one string.
+
+```text
+/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]
+```
+
+- **Paths are positional**, comma- or space-separated. No path at all is a usage mistake, not a scan of
+  the workspace: the command answers one sentence with an example (`Pass at least one relative path, for
+  example /guidance-scan src/app.js, because the command never scans the whole workspace on its own.`)
+  and never falls back to `.`. That answer is not counted as a call.
+- Both flags accept `--flag value` and `--flag=value`. A flag left without a value is dropped rather
+  than read as a path, so `--rules` alone cannot turn into a `path-absolute` refusal.
+- `--rules` is a comma-separated id list resolved by `selectRules`; `--format` only picks the rendering
+  and defaults to `summary`.
+- **The command validates nothing itself.** Absolute, escaping and missing paths are refused by
+  `lib/scan.js` with the same codes the tool returns — `path-absolute`, `path-outside`, `path-missing` —
+  and unknown rule ids are refused with `unknown-rules` plus the valid span, rendered by `renderScan`
+  exactly as the tool renders them. The command's result kind is `error` for a usage mistake or a refused
+  scan, and `success` otherwise.
+- **JSON contract**: with `--format json` the command prints `JSON.stringify(value, null, 2)` of the
+  value `runScanRequest` returned — `{ format: 'json', cwd, scanned, findings, guides, truncated }` —
+  i.e. the tool's own value, not a re-serialisation of it. A refusal is rendered as text even when
+  `--format json` is passed, because `renderScan` answers the `error` branch before the `format` branch:
+  a refused scan never masquerades as a scan that found nothing.
+- **Registration**: the command is registered beside the tools, not with the counters, so it exists
+  whether or not telemetry is on. `enabled: false` keeps `/guidance-scan` and it still scans and still
+  prints; `/guidance-stats` is the one that disappears.
+- **Counting**: a command scan is a scan. Both surfaces record through one `createUsageRecorder`, with
+  the same tool name and the same `classifyCall` entry, so `byTool`, `byOutcome`, the daily bucket,
+  `scanRules`, `scanGuides` and `lastScan` move identically. A refusal is counted as an error call and
+  leaves `lastScan` alone, exactly as a refused tool call does. Nobody reading the counters can tell
+  which surface started the scan; that is the contract, not an accident. With the counters off the
+  recorder's sink is a no-op, so the command runs and records nothing.
+
 ## Stats, report and panel
 
 - `lib/telemetry.js`: the kind map grows to four (`search`, `retrieve`, `list`, `legacy-scan`). A call that

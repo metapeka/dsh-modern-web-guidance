@@ -76,3 +76,27 @@ Refresh rendered them — 2 calls, 100% hit rate, 193 guides, "light dismiss dia
 `ui-behaviors 1/37` over the full 17-category table, no missed queries, 192 of 193 guides never
 retrieved. Empty state and the no-session state both render as designed.
 
+## What the 0.7.0 rework added
+
+The panel stopped being a scoreboard and became a map. No new host service, no new dependency, still one
+hand-written file; the bridge contract above did not change.
+
+- **Three slots, one file.** `sidebar.panellist` (list, id `guidance`, the rail entry), `main` (keyed
+  `guidance`, the panel), and — new in 0.7.0 — `tool.call.toolview` (keyed `web_guidance_legacy_scan`,
+  the chat table). The third is keyed, so it replaces the generic card for that one tool and leaves it
+  in place for every other tool.
+- **The data call keeps its shape**: still a plugin command through `remote.commands.execute`, now
+  `/guidance-stats --json --days N` so the `7 d` / `30 d` switch picks the window instead of the panel
+  reading a wider report and slicing it.
+- **The scan button adds one command call**: `/guidance-scan . --format json`. `.` is the session
+  workspace the command resolves; the panel names no file itself, and it renders the answer inline
+  through the same value reader the chat row uses, so one parser serves both surfaces.
+- **Everything on screen is a reduction of that JSON, not a second computation**: the hit rate over the
+  calls that could hit (`hits / (hits + misses + unknown-id)`, with the report's own all-calls rate kept
+  in the tooltip), dead-guide ids, and the scan rules and guides from `topRules` / `topScanGuides`. The
+  panel deliberately shows no path and no snippet: counters are not evidence, and the chat row is where
+  files and lines appear.
+- **The chat row reads `ToolCallOwnerProps`**: `phase`, `block.argsRaw` while the arguments are still
+  being written, and the settled `block` for a result. A `summary`-format answer is parsed back into the
+  same table; anything it cannot read degrades to the text the generic card would have shown.
+

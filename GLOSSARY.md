@@ -30,9 +30,9 @@ _Avoid_: build id, revision
 ## Legacy scan
 
 **Legacy scan**:
-One run of the `web_guidance_legacy_scan` tool over the paths the caller explicitly named: it walks
-them, matches the rule table line by line and reports what it found. Read-only; it never writes,
-spawns a process or reaches the network.
+One run of the `web_guidance_legacy_scan` tool — or of the `/guidance-scan` command that runs the same
+scanner — over the paths the caller explicitly named: it walks them, matches the rule table line by
+line and reports what it found. Read-only; it never writes, spawns a process or reaches the network.
 _Avoid_: audit, lint, codemod, migration
 
 **Marker scanner**:
@@ -86,14 +86,22 @@ _Avoid_: bad id, 404
 A guide that no call has ever retrieved.
 _Avoid_: unused guide, orphan, zero-hit guide
 
+**Hit rate**:
+The share of calls that found something. The report divides hits by every call — `list` and `error` included — and so
+reads low; the panel divides hits by the calls that could hit (hits, misses and unknown ids) and keeps the report's
+number in the tile's tooltip.
+_Avoid_: success rate, accuracy
+
 **Report**:
-The human-facing summary of counters over one period, produced by the plugin's command.
+The human-facing summary of counters over one period, produced by the `/guidance-stats` command.
 _Avoid_: dashboard, metrics page
 
 ## Panel
 
 **Panel**:
 A read-only view the plugin contributes to the Harness Web UI — today exactly one, Guidance Insights,
-opened from the left rail. It draws the same counters the report prints, as a screen: it never
-changes a counter, calls no tool and reaches no network. The report stays the text form.
+opened from the left rail. It draws the same counters the report prints as a map: it never changes a
+counter itself, calls no tool and reaches no network. The one action it offers is the scan button, which
+asks the host to run the `/guidance-scan` command and shows that run inline; a scan started there is
+counted like any other. The report stays the text form.
 _Avoid_: dashboard, widget, tab

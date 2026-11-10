@@ -17,6 +17,9 @@ checks. What is missing is the repo itself.
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
+> 0.7.0 is prepared in this tree and **not yet published**: its tag runs the same workflow, with
+> nothing to configure and no token to add.
+>
 > The trusted publisher is pinned to `metapeka/dsh-modern-web-guidance` + workflow `release.yml`,
 > with `npm publish` allowed and no environment (the job declares none). The first publish after the
 > connection is created is what turns npm's "Pending validation" into a validated configuration.
@@ -79,12 +82,12 @@ was opened on 2026-11-10 with the 208-guide entry.
       `dsh.client` (the sidebar panel), which is the combination the catalog wants.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
-- [x] Real working code: 4 tools, 2 skills, 208 guides, and a `npm test` suite of **159 tests in 13
-      files** covering the index, the plugin mount, the security invariants, the counter pipeline, the
-      panel's three dictionaries, the legacy scanner and the rule table's guide hashes (a run reports 158
-      passed plus 1 skipped where the host forbids symlink creation, because the walk test skips itself
-      there rather than failing) (`node --test test/*.test.mjs`; a single file also runs directly where
-      child processes are blocked).
+- [x] Real working code: 4 tools, 2 skills, 208 guides, two human commands, and a `npm test` suite of
+      **205 tests in 14 files** covering the index, the plugin mount, the security invariants, the counter
+      pipeline, the panel's three dictionaries, the legacy scanner, the rule table's guide hashes and the
+      `/guidance-scan` command (a run reports 204 passed plus 1 skipped where the host forbids symlink
+      creation, because the walk test skips itself there rather than failing)
+      (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
       `npm pack --dry-run` on every push and PR, so it guards both the suite and the package contents.
 - [x] 0.2.0 adds local usage counters and the human `/guidance-stats` command: counts are written to the
@@ -213,9 +216,10 @@ Constraints worth knowing:
   0.2.0 adds no dev files (its usage counters are runtime state in the profile, not package content),
   0.3.0 adds one hand-written `client.js` with no build step, 0.5.0 adds the two scanner modules
   (`lib/scan.js`, `lib/scan-rules.js`), and 0.6.0 adds three rules to that table plus a dev-only
-  guide-hash guard (`scripts/hash-guides.mjs`, `test/scan-guide-hashes.json`), neither of which ships —
-  still no dependency, no build step. `npm pack --dry-run` lists exactly what ships: 256 files,
-  874 kB packed / 2.5 MB unpacked at 0.6.0.
+  guide-hash guard (`scripts/hash-guides.mjs`, `test/scan-guide-hashes.json`), neither of which ships.
+  0.7.0 adds no file at all: the panel rework and the `/guidance-scan` command are source inside
+  `client.js` and `index.js`, so the file list and the zero-dependency shape hold. `npm pack --dry-run`
+  lists exactly what ships: 256 files, 893 kB packed / 2.6 MB unpacked at 0.7.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 

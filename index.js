@@ -327,6 +327,41 @@ function buildListTool(guidance) {
 }
 
 /**
+ * Run one scan request and return the value the tool renders.
+ *
+ * This is the single place a refusal becomes a value instead of a throw: the model-facing tool and
+ * the human command read the same shape and print the same text. Nothing here re-implements a path
+ * check — resolution, containment and every cap belong to `lib/scan.js`, and its `ScanError` codes
+ * are passed through verbatim.
+ *
+ * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
+ * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
+ * @param {{ paths?: readonly string[], rules?: readonly string[], format?: string }} args the caller's arguments.
+ * @param {string} cwd session workspace, already resolved by the caller.
+ * @param {AbortSignal | undefined} signal optional cancellation.
+ * @returns {Promise<object>} the tool's value, or an `{ error, subject, message }` refusal.
+ */
+async function runScanRequest(scanner, ruleSet, args, cwd, signal) {
+  const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
+  const selected = ruleSet.selectRules(args?.rules)
+  // Unknown ids are named back rather than thrown: a typo should cost one retry, and the scan
+  // must not touch the filesystem at all when the rule set itself is wrong.
+  if (selected.unknown.length > 0) {
+    return { error: 'unknown-rules', unknown: selected.unknown, rules: allRuleIds }
+  }
+  try {
+    const result = await scanner.scan({ cwd, paths: args?.paths, rules: selected.rules, signal })
+    return { format: args?.format === 'json' ? 'json' : 'summary', cwd, ...result }
+  } catch (error) {
+    // A refusal (absolute path, escape, missing target, bad rule set) is an answer, not a crash.
+    if (error instanceof scanner.ScanError) {
+      return { error: error.code, subject: error.subject, message: error.message }
+    }
+    throw error
+  }
+}
+
+/**
  * The fourth tool: an offline marker scanner over the caller's own files. The scanner and the rule
  * table arrive as arguments so this file states which implementations back the tool in one place
  * (`apply`), and a test can drive the tool without reaching into the modules directly.
@@ -358,26 +393,106 @@ function buildScanTool(scanner, ruleSet) {
     async execute(args, exec) {
       exec?.signal?.throwIfAborted?.()
       const cwd = exec?.agent?.session?.header?.cwd ?? process.cwd()
-      const selected = ruleSet.selectRules(args?.rules)
-      // Unknown ids are named back rather than thrown: a typo should cost one retry, and the scan
-      // must not touch the filesystem at all when the rule set itself is wrong.
-      if (selected.unknown.length > 0) {
-        return { error: 'unknown-rules', unknown: selected.unknown, rules: allRuleIds }
+      return runScanRequest(scanner, ruleSet, args, cwd, exec?.signal)
+    },
+  }
+}
+
+/**
+ * Parse a `/guidance-scan` line: `<paths> [--rules ls-01,ls-13] [--format summary|json]`.
+ *
+ * Paths are positional and comma-separated (spaces work too); both flags accept `--flag value` and
+ * `--flag=value`. Nothing here validates a path — an absolute or escaping path is refused by
+ * `lib/scan.js` with its own code, so this parser must not grow a second opinion about it.
+ *
+ * @param {string} line raw arguments after the command name.
+ * @returns {{ paths: string[], rules: string[] | undefined, format: 'summary' | 'json' }}
+ */
+function parseScanArguments(line) {
+  const text = String(line ?? '')
+  const formatMatch = text.match(/--format(?:\s+|=)(\S+)/)
+  const rulesMatch = text.match(/--rules(?:\s+|=)(\S+)/)
+  const paths = text
+    .replace(/--format(?:\s+|=)\S+/g, ' ')
+    .replace(/--rules(?:\s+|=)\S+/g, ' ')
+    .split(/[\s,]+/)
+    .map((token) => token.trim())
+    // A bare flag left over by a missing value is not a path, and must not become a path refusal.
+    .filter((token) => token.length > 0 && !token.startsWith('--'))
+  const rules = rulesMatch === null
+    ? undefined
+    : rulesMatch[1].split(',').map((id) => id.trim()).filter((id) => id.length > 0)
+  return { paths, rules, format: formatMatch?.[1] === 'json' ? 'json' : 'summary' }
+}
+
+/**
+ * The session workspace a command runs in. A tool reads `exec.agent.session.header.cwd`; a command
+ * invocation carries the same session header, so the field is read the same way and falls back to
+ * the process directory exactly as the tool does.
+ * @param {object} invocation the command invocation the host hands the handler.
+ * @returns {string} an absolute workspace path.
+ */
+function commandCwd(invocation) {
+  const header = invocation?.agent?.session?.header ?? invocation?.session?.header
+  return header?.cwd ?? process.cwd()
+}
+
+/**
+ * The text a command prints: exactly what the tool's renderer produces, joined into one string.
+ * A second renderer would drift from the tool, and the panel parses this JSON — so the command
+ * reuses `renderScan` rather than formatting findings itself.
+ * @param {object} args the parsed command arguments.
+ * @param {object} value the value `runScanRequest` returned.
+ * @param {readonly string[]} ruleIds rule ids in table order, for the refusal hint.
+ * @returns {string} the rendered result.
+ */
+function renderScanText(args, value, ruleIds) {
+  return renderScan(args, value, ruleIds).map((block) => block.text).join('\n')
+}
+
+/**
+ * The human command that runs the same scan the model gets from the tool. It exists because the
+ * panel can execute commands and nothing else, so this is the only entry point a person has.
+ * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
+ * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
+ * @param {ReturnType<typeof createUsageRecorder>} usage the counters' recorder, a no-op while they are off.
+ * @returns {object} a CommandDefinition.
+ */
+function buildScanCommand(scanner, ruleSet, usage) {
+  const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
+  return {
+    name: 'guidance-scan',
+    description: 'Scan explicit workspace paths for legacy web-platform marker patterns and point every finding at the Modern Web Guidance guide that replaces it.',
+    input: { hint: '<paths> [--rules ls-01,ls-13] [--format summary|json]' },
+    recordInput: false,
+    async handler(invocation) {
+      const args = parseScanArguments(invocation?.rawInput)
+      if (args.paths.length === 0) {
+        // Never fall back to `.`: an unexpected walk over the whole workspace is worse than an error.
+        // This is a usage mistake before any call, so it is not counted as one.
+        return {
+          kind: 'error',
+          text: 'Pass at least one relative path, for example /guidance-scan src/app.js, because the command never scans the whole workspace on its own.',
+        }
       }
       try {
-        const result = await scanner.scan({
-          cwd,
-          paths: args?.paths,
-          rules: selected.rules,
-          signal: exec?.signal,
-        })
-        return { format: args?.format === 'json' ? 'json' : 'summary', cwd, ...result }
-      } catch (error) {
-        // A refusal (absolute path, escape, missing target, bad rule set) is an answer, not a crash.
-        if (error instanceof scanner.ScanError) {
-          return { error: error.code, subject: error.subject, message: error.message }
+        // Same pre-flight as the tool: an aborted call must not touch the filesystem.
+        invocation?.signal?.throwIfAborted?.()
+        const value = await runScanRequest(scanner, ruleSet, args, commandCwd(invocation), invocation?.signal)
+        // A command scan is a scan: it goes through the same reporter the `tools/result` listener
+        // uses, with the same tool name and the same payload, so the counters cannot tell the two
+        // apart. A refusal arrives as a value with an `error` key, which the classifier counts as an
+        // error call without touching `lastScan` — exactly as it does for a refused tool call.
+        usage.record('web_guidance_legacy_scan', { paths: args.paths, rules: args.rules, format: args.format }, value, false)
+        return {
+          kind: value.error === undefined ? 'success' : 'error',
+          text: renderScanText(args, value, allRuleIds),
         }
-        throw error
+      } catch (error) {
+        // A thrown scan is a failed call, counted the way a host-marked failed result is counted.
+        usage.record('web_guidance_legacy_scan', { paths: args.paths, rules: args.rules, format: args.format }, undefined, true)
+        // The scanner's own refusals already came back as values; this is the unexpected case.
+        return { kind: 'error', text: `The scan could not run: ${error instanceof Error ? error.message : String(error)}` }
       }
     },
   }
@@ -534,14 +649,37 @@ function buildStatsCommand(telemetry) {
 }
 
 /**
+ * The counters' single recording surface.
+ *
+ * It starts as a no-op so `apply` can hand it to the scan command before the counters exist;
+ * `startUsageCounters` swaps in the real sink once telemetry is up, and `enabled: false` simply
+ * leaves the no-op in place. Both entry points therefore call the same `record` with the same
+ * arguments, and nothing downstream can tell a command scan from a tool scan.
+ * @returns {{ record: (toolName: string, args: unknown, value: unknown, isError: boolean) => void, start: (sink: Function) => void }}
+ */
+function createUsageRecorder() {
+  let sink = () => {}
+  return {
+    record(toolName, args, value, isError) {
+      sink(toolName, args, value, isError)
+    },
+    /** Install the real recording function once a telemetry instance exists. */
+    start(next) {
+      if (typeof next === 'function') sink = next
+    },
+  }
+}
+
+/**
  * Start the local counters: subscribe to finished tool calls, persist them on a short debounce, and
  * register the human command. Counting is best-effort by design — a broken counter must never
  * change what a tool returns.
  * @param {import('@deepseek-ai/cordis').Context} ctx host plugin context.
  * @param {{ enabled?: boolean, retentionDays?: number }} config plugin row configuration.
+ * @param {ReturnType<typeof createUsageRecorder>} usage the recorder both entry points share.
  * @returns {void}
  */
-function startUsageCounters(ctx, config) {
+function startUsageCounters(ctx, config, usage) {
   if (config?.enabled === false) return
   // A bare test context has no event bus; without it there is nothing to count.
   if (typeof ctx.on !== 'function') return
@@ -562,35 +700,40 @@ function startUsageCounters(ctx, config) {
   const save = () => Promise.resolve(telemetry.flush()).catch(() => {})
   let pending
 
+  /** Coalesce a burst of calls into one write of the counters document. */
+  const scheduleSave = () => {
+    if (pending !== undefined) return
+    pending = setTimeout(() => {
+      pending = undefined
+      void save()
+    }, SAVE_DEBOUNCE_MS)
+    pending.unref?.()
+  }
+
+  // The one place a finished call is classified and recorded. A tool result and a command scan both
+  // arrive here with the tool's own name and payload, so the numbers cannot reveal which raised it.
+  usage.start((toolName, args, value, isError) => {
+    const tool = TRACKED_TOOLS.get(toolName)
+    if (tool === undefined) return
+
+    let entry
+    try {
+      entry = classifyCall({ tool: toolName, args, value, isError })
+    } catch {
+      return
+    }
+
+    void Promise.resolve()
+      .then(() => telemetry.record({ at: Date.now(), tool, ...entry }))
+      .catch(() => {})
+
+    scheduleSave()
+  })
+
   ctx.effect(() => {
     const onResult = (exec, result) => {
-      const tool = TRACKED_TOOLS.get(exec?.name)
-      if (tool === undefined) return
-
-      let entry
-      try {
-        const isError = result?.isError === true
-        entry = classifyCall({
-          tool: exec.name,
-          args: exec.arguments,
-          value: isError ? undefined : result?.value,
-          isError,
-        })
-      } catch {
-        return
-      }
-
-      void Promise.resolve()
-        .then(() => telemetry.record({ at: Date.now(), tool, ...entry }))
-        .catch(() => {})
-
-      if (pending === undefined) {
-        pending = setTimeout(() => {
-          pending = undefined
-          void save()
-        }, SAVE_DEBOUNCE_MS)
-        pending.unref?.()
-      }
+      const isError = result?.isError === true
+      usage.record(exec?.name, exec?.arguments, isError ? undefined : result?.value, isError)
     }
 
     ctx.on('tools/result', onResult)
@@ -633,6 +776,16 @@ export function apply(ctx, config = {}) {
   const scanTool = buildScanTool({ scan, ScanError }, { RULES, selectRules })
   ctx.effect(() => ctx.tools.register(scanTool), `modern-web-guidance ${scanTool.name}`)
 
+  // A person gets the same scan through a command, because the panel can only execute commands.
+  // It is registered here, not with the counters below: scanning is not a counting feature, and
+  // the command must exist whether or not the counters are enabled.
+  const usage = createUsageRecorder()
+  const commands = typeof ctx.get === 'function' ? ctx.get('commands') : undefined
+  if (commands !== undefined && commands !== null && typeof commands.register === 'function') {
+    const scanCommand = buildScanCommand({ scan, ScanError }, { RULES, selectRules }, usage)
+    ctx.effect(() => commands.register(scanCommand), `modern-web-guidance /${scanCommand.name}`)
+  }
+
   for (const definition of SKILL_DEFINITIONS) {
     const content = readSkillBody(definition.bodyPath)
     if (content === undefined) continue
@@ -653,7 +806,9 @@ export function apply(ctx, config = {}) {
     )
   }
 
-  startUsageCounters(ctx, config)
+  // Last, so the counters can reuse the recorder the scan command already holds: the command is
+  // registered before them, and both write through one sink.
+  startUsageCounters(ctx, config, usage)
 }
 
 export const name = 'modern-web-guidance'

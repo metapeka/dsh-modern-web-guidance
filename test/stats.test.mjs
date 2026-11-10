@@ -69,7 +69,7 @@ test('the plugin registers four tools, two skills and one human command', async 
     'web_guidance_legacy_scan',
   ])
   assert.deepEqual(registered.skills.map((skill) => skill.name), ['modern-web-guidance', 'chrome-extensions'])
-  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-stats'])
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-stats'])
   assert.ok(registered.listeners.some((listener) => listener.event === 'tools/result'))
 
   await rm(home, { recursive: true, force: true })
@@ -89,7 +89,7 @@ test('a finished search is counted and the command renders the report', async ()
   )
   await settle()
 
-  const report = await registered.commands[0].handler({ rawInput: '' })
+  const report = await registered.commands.find((command) => command.name === 'guidance-stats').handler({ rawInput: '' })
 
   assert.equal(report.kind, 'success')
   assert.match(report.text, /Guidance usage: 1 call/)
@@ -106,7 +106,7 @@ test('the command honours --days and --json', async () => {
   const { ctx, registered } = createContext()
 
   apply(ctx, {})
-  const command = registered.commands[0]
+  const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
 
   const wide = await command.handler({ rawInput: '--days 30' })
   assert.match(wide.text, /Period: last 30 days/)
@@ -132,7 +132,7 @@ test('--reset asks for confirmation, then erases the counters', async () => {
   )
   await settle()
 
-  const command = registered.commands[0]
+  const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
   const refused = await command.handler({ rawInput: '--reset' })
   assert.match(refused.text, /Re-run \/guidance-stats --reset --yes/)
 
@@ -145,14 +145,14 @@ test('--reset asks for confirmation, then erases the counters', async () => {
   await rm(home, { recursive: true, force: true })
 })
 
-test('enabled: false writes nothing and registers no command', async () => {
+test('enabled: false writes nothing and leaves only the scanner command', async () => {
   const home = await isolatedHome()
   const { apply } = await import('../index.js')
   const { ctx, registered } = createContext()
 
   apply(ctx, { enabled: false })
 
-  assert.equal(registered.commands.length, 0)
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan'])
   assert.equal(registered.listeners.length, 0)
   assert.equal(registered.tools.length, 4)
 
@@ -341,7 +341,13 @@ test('a clean scan is clean, and a refused scan is still a counted error', async
   })
 
   const clean = classifyCall({ tool: 'web_guidance_legacy_scan', value: scanResult({ files: 3, findings: 0 }) })
-  assert.deepEqual(clean, { outcome: 'clean', files: 3, findings: 0 })
+  // Asserted field by field, not as the whole object: 0.6.0 added the per-rule and per-guide id
+  // lists to the scan classification, and a clean scan names none of them.
+  assert.equal(clean.outcome, 'clean')
+  assert.equal(clean.files, 3)
+  assert.equal(clean.findings, 0)
+  assert.deepEqual(clean.rules, [])
+  assert.deepEqual(clean.guides, [])
 
   // A ScanError comes back as a value, not a thrown error — the attempt must still count.
   const refused = classifyCall({
@@ -390,7 +396,7 @@ test('a legacy-scan result is counted through the plugin listener', async () => 
     )
     await settle()
 
-    const command = registered.commands[0]
+    const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
     const report = await command.handler({ rawInput: '' })
     assert.match(report.text, /Calls by tool: legacy-scan 1/)
     assert.match(report.text, /Legacy scans: 1 call, 12 files scanned, 2 findings/)
