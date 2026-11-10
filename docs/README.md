@@ -49,6 +49,7 @@ door for users; this page is the front door for anyone working on the plugin.
 | [docs/notes/upstream-v1.0.0-plan.md](notes/upstream-v1.0.0-plan.md) | the 0.4.0 plan with its decisions and what was refused | you wonder why something is missing |
 | [docs/notes/legacy-scan-feasibility.md](notes/legacy-scan-feasibility.md) | the 0.5.0 `legacy-scan` verdict, rule set and security boundary | you are wondering what the scanner does not do |
 | [docs/notes/legacy-scan-contract.md](notes/legacy-scan-contract.md) | the interface the 0.5.0 workstreams coded against: rule shape, scan result, error codes, caps | you are adding a rule or changing the scanner's contract |
+| [docs/notes/legacy-scan-parity.md](notes/legacy-scan-parity.md) | the scanner's rule set measured against upstream's: what we take, what we drop and why, and the one debt | you are adding a rule, or wondering why a rule is missing |
 | [docs/notes/client-panel-spike.md](notes/client-panel-spike.md) | the spike that settled the panel's slot and bridge design | you are changing how the panel mounts |
 | [docs/notes/readme-p0p1-spec.md](notes/readme-p0p1-spec.md) | the source text behind the README's navigation and comparison sections | you edit the READMEs |
 | [docs/agents/](agents/) | the agent-facing conventions: issue tracker, triage labels, domain docs | you are wiring this repo into an agent workflow |

@@ -39,6 +39,9 @@ report-only — it never writes, spawns a process or reaches the network. The fu
 - **Paths are relative and stay inside the session workspace**: absolute paths are refused, every
   named path is `realpath`-checked against the session cwd, and a symlink met while walking that
   leaves the workspace is skipped rather than followed.
+- **A rule upstream has and we do not ship has a reason, not a to-do**: the absent and half-covered
+  rules, and the one real debt (no guide-hash invalidation), are recorded in
+  `docs/notes/legacy-scan-parity.md`; read it before adding a rule to "close the gap".
 
 ## CI
 

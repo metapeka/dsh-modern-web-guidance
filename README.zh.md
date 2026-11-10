@@ -68,7 +68,7 @@
 
 扫描器只读不写。`web_guidance_legacy_scan` 接受 `paths`（1–16 个文件或目录，没有默认目标）、可选的 `rules`（最多
 30 个规则 id）和 `format: 'summary' | 'json'`；每次调用最多读 200 个文件、单文件 512 kB、合计 8 MB，最多返回
-200 条发现。
+200 条发现。上游一共 35 条规则，这里实现了 30 条；剩下没做的规则、以及唯一真正的一笔技术债，都记在[对照说明](docs/notes/legacy-scan-parity.md)里。
 
 目录覆盖 `css`、`ui-atoms`、`ui-components`、`ui-behaviors`、`forms`、`html`、`js`、`accessibility`、
 `visual-design`、`security`、`performance`、`built-in-ai`、`pwa`、`wasm`、`webmcp`、`privacy` 和
@@ -182,7 +182,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
 | 运行时依赖 | Node 加上包里附带的 CLI 引擎 | 无 |
 | 网络 | `npx` 先取包，之后本地运行 | 从不联网 —— 语料就在包里 |
-| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，30 条规则，只接受显式路径，只输出报告 |
+| legacy-scan 扫描 | 4.99 MB 的 `legacy-scan` 引擎，带扫描 → 校验 → 报告 → 现代化四步工作流 | 0.5.0 起内置：零依赖的正则扫描器，覆盖上游 35 条规则中的 30 条，只接受显式路径，只输出报告 |
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 和侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |

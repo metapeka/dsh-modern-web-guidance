@@ -69,7 +69,8 @@ calls. Usage counters have existed since 0.2.0, but they never leave the machine
 
 The scanner is report-only. `web_guidance_legacy_scan` takes `paths` (1–16 files or directories, no default target), an
 optional `rules` list of up to 30 rule ids, and `format: 'summary' | 'json'`; it reads at most 200 files, 512 kB per file
-and 8 MB per call, and returns at most 200 findings.
+and 8 MB per call, and returns at most 200 findings. It covers 30 of upstream's 35 rules; the
+[parity note](docs/notes/legacy-scan-parity.md) accounts for the rest and for the one real debt.
 
 The catalog covers `css`, `ui-atoms`, `ui-components`, `ui-behaviors`, `forms`, `html`, `js`, `accessibility`,
 `visual-design`, `security`, `performance`, `built-in-ai`, `pwa`, `wasm`, `webmcp`, `privacy`, and `user-experience`.
@@ -187,7 +188,7 @@ and security budget. The honest split:
 | Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
 | Runtime dependencies | Node plus the CLI engines shipped in the package | none |
 | Network | `npx` fetches the package, then works locally | never — the corpus is inside the package |
-| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped in 0.5.0: a dependency-free regex scanner over 30 rules, explicit paths only, report only |
+| Legacy scan | a 4.99 MB `legacy-scan` engine with a four-step scan → verify → report → modernize workflow | shipped in 0.5.0: a dependency-free regex scanner over 30 of upstream's 35 rules, explicit paths only, report only |
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, `/guidance-stats`, and the sidebar panel |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
