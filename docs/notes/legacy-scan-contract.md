@@ -287,7 +287,7 @@ a scan read less than it was already allowed to read, never more.
 
 This repository stores the rule table, so a scan of it reports the rule table's own markers as findings.
 `scan({ cwd, paths: ['.'] })` here returns **70 files scanned, 85 findings, 0 of them in Markdown,
-`truncated: false`**, with `skippedTotal: 283` (`skippedByReason: { extension: 281, dot-directory: 2 }`,
+`truncated: false`**, with `skippedTotal: 284` (`skippedByReason: { extension: 281, dot-directory: 2 }`,
 100 of those entries returned, which is the cap). The skip total is a moving figure and moves by one for
 every Markdown document added to the tree — `.md` is skipped as `extension` — so read it as a snapshot
 rather than a constant. `scan({ cwd, paths: ['lib'] })` returns **6 files and 16
@@ -433,22 +433,22 @@ The text tails are fixed strings, one per surface, and the panel keys below are 
 `client.js` cannot drift. Measured, not paraphrased — `renderReport` with a six-key `lastScan` prints:
 
 ```text
-Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 283 (281 extension, 2 dot-directory)
+Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 284 (282 extension, 2 dot-directory)
 ```
 
 - report text — that line: the date, two counts, then ` (rules: …)` (up to five ids, omitted when none),
   then `; skipped N (…)` when the map is non-empty, then `; truncated` when the flag is set. The `N` is the
   sum of the stored map, so it obeys the top-four caveat above.
-- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 85 findings · skipped 283`, built
+- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 85 findings · skipped 284`, built
   from `scanner.last`, `file`/`finding` plurals, `scanner.skipped` and `scanner.cut`, joined with ` · `; the
   date is the `YYYY-MM-DD` part, and each later fact is omitted when absent.
-- panel, button result — `Scanned 70 files, 85 findings` (`scan.summary`) then `Skipped 283 (281 extension,
+- panel, button result — `Scanned 70 files, 85 findings` (`scan.summary`) then `Skipped 284 (282 extension,
   2 dot-directory)` (`scan.skipped`), with at most **three** reasons named and `+N more` (`scan.skippedMore`)
   inside the parentheses beyond that; its count is the fresh scan's own total. Truncation reuses the 0.7.0
   string `scan.truncated` — `Truncated: the scan hit a cap, so this list is incomplete.` — so there is no
   fifth key.
 - chat tool row — the same `Skipped …` line under the table, for a JSON **and** a summary answer: the
-  summary format prints `Skipped 283 path(s): 281 extension, 2 dot-directory` as prose and the row parses
+  summary format prints `Skipped 284 path(s): 282 extension, 2 dot-directory` as prose and the row parses
   that line back, so one reader serves both formats.
 - Reason tokens are **never translated**, on any of those surfaces: `dot-directory` stays `dot-directory`
   in EN, RU and ZH, exactly as a rule id stays `ls-13`. They are values a reader matches against a scan,

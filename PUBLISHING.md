@@ -19,10 +19,14 @@ checks. What is missing is the repo itself.
 >
 > 0.8.1 is on the registry but **broken for the host**: its `package.json` shipped with a UTF-8
 > byte-order mark, and the host validates the manifest with `JSON.parse`, which throws on one, so an
-> install fails with `SyntaxError: Unexpected token`. It is deprecated on npm and superseded by
-> 0.8.2, which ships the same code with the mark stripped and adds a test that fails if any shipped
-> JSON or entry file starts with a BOM. `require()` strips a BOM and `npm pack` does not complain,
-> which is why CI was green: the guard, not the workflow, is the fix.
+> install fails with `SyntaxError: Unexpected token`. It is superseded by 0.8.2, which ships the same
+> code with the mark stripped and adds a test that fails if any shipped JSON or entry file starts with
+> a BOM. `require()` strips a BOM and `npm pack` does not complain, which is why CI was green: the
+> guard, not the workflow, is the fix.
+>
+> Deprecating 0.8.1 takes one authenticated `npm deprecate "dsh-modern-web-guidance@0.8.1" "<reason>"`,
+> and that is the owner's to run: trusted publishing grants `npm publish` only, and this machine has
+> no npm login. `latest` already points at 0.8.2, so a plain install never lands on 0.8.1.
 >
 > The trusted publisher is pinned to `metapeka/dsh-modern-web-guidance` + workflow `release.yml`,
 > with `npm publish` allowed and no environment (the job declares none). The first publish after the

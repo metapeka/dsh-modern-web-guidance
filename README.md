@@ -93,7 +93,7 @@ report/
 *.min.js
 ```
 
-Either way the summary says what it skipped, and why: `Skipped 283 path(s): 281 extension, 2 dot-directory` on this
+Either way the summary says what it skipped, and why: `Skipped 284 path(s): 282 extension, 2 dot-directory` on this
 repository — `path(s)`, not `file(s)`, because a skipped directory is one entry rather than one per file inside it.
 
 The same scan is a human command, `/guidance-scan <paths> [--rules ls-01,ls-13] [--format summary|json]`: it reuses the
@@ -385,7 +385,7 @@ draws the counters `/guidance-stats` prints as a map, and answers four questions
 - **what the scanner catches** — the last completed scan, the rules that matched most (up to 10) and the guides those
   findings point at; the button below runs the scanner over every code file in the session workspace (Markdown is
   skipped and reported as skipped) and shows that run's result inline — `Scanned 70 files, 85 findings` followed by
-  `Skipped 283 (281 extension, 2 dot-directory)` and, when a cap cut the list, the truncation line, so a count is never
+  `Skipped 284 (282 extension, 2 dot-directory)` and, when a cap cut the list, the truncation line, so a count is never
   printed without the caveats behind it
 
 Below those, the report's lists: the most frequent queries with hit and miss counts, category coverage against the 208
@@ -393,12 +393,12 @@ guides, the queries that found nothing, and the dead guides — listed by id, up
 
 Refresh re-reads the counters, and the `7 d` / `30 d` switch sends `/guidance-stats --json --days N` to the host. In a
 conversation, a scan renders as a table — rule, place, confidence, guide — up to 16 rows and an "and N more" count,
-whichever format the call asked for, with the same skip line under it: the summary format prints `Skipped 283 path(s):
-281 extension, 2 dot-directory` as prose and the row reads that line back, so JSON and summary answers show the same
+whichever format the call asked for, with the same skip line under it: the summary format prints `Skipped 284 path(s):
+282 extension, 2 dot-directory` as prose and the row reads that line back, so JSON and summary answers show the same
 caveats. The place column prints the site rather than a line: a single hit stays `path:line`, a collapsed run prints
 `path:110-112`, and one that skips a line adds its count — `path:2-4 (2)` — because the range alone would overstate it.
 The last-scan line makes the same point in one line — `Last scan: 2026-11-11 · 70 files · 85 findings ·
-skipped 283`, the total only, with `· truncated` appended when a cap cut the run — and a state file written before 0.7.3
+skipped 284`, the total only, with `· truncated` appended when a cap cut the run — and a state file written before 0.7.3
 simply renders shorter rather than claiming nothing was skipped.
 
 The panel is read-only apart from the scan button: it changes no counter, never leaves the machine, and adds no network
