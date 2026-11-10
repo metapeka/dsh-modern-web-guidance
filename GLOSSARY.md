@@ -48,8 +48,11 @@ a confidence, one imperative message naming the modern replacement, and the mark
 _Avoid_: check, pattern, detector
 
 **Finding**:
-One match produced by a rule: path, 1-based line and column, rule id, guide id, confidence, message
-and a clipped snippet of the matched line. One finding per rule, path and line.
+One code site produced by a rule: a path, the `lines` it covers, how many hits that is (`occurrences`),
+the first hit's 1-based line and column, rule id, guide id, confidence, message and a clipped snippet of
+the first hit's line. A run of one rule's hits on neighbouring lines — the next line or one blank line
+later — is **one** finding, never N, and `maxFindings` counts findings rather than hits. Use `lines[0]`
+and `lines.at(-1)` for the range.
 _Avoid_: hit, warning, error, issue
 
 **Confidence**:
@@ -79,7 +82,9 @@ none, and an errored call is still counted.
 _Avoid_: result, status
 
 **Hit**:
-A search call that returned at least one guide.
+A search call that returned at least one guide. In the scanner's vocabulary a hit is one match of one rule
+on one line, and several neighbouring hits of the same rule collapse into a single finding — `occurrences`
+is that count.
 _Avoid_: match, success
 
 **Miss**:

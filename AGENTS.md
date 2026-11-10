@@ -33,6 +33,12 @@ full interface is `docs/notes/legacy-scan-contract.md`.
 - **A new rule goes into `lib/scan-rules.js`, never into the scanner**: a `guideId` that exists in
   `data/guides.json`, a `confidence`, a message naming the modern replacement, and a test in
   `test/scan-rules.test.mjs` (plus `test/scan.test.mjs` when the matching behaviour itself changes).
+- **A finding is a code site, not a line**: hits of one rule in one file collapse into one finding while the
+  next hit's line is at most `RUN_LINE_GAP = 2` after the previous one — the next line, or one blank line
+  later. Every finding carries `lines` and `occurrences` (a single hit is `lines: [n]`, `occurrences: 1`),
+  while `line`, `column`, `snippet` and `message` describe the **first** hit, so a rule's message must never
+  be reworded to mention a range, and `maxFindings` counts findings, not hits. The run boundaries are
+  covered by `test/scan.test.mjs`; the spec is `docs/notes/legacy-scan-contract.md`.
 - **Caps are the scanner's, not the caller's**: `SCAN_LIMITS` fixes 16 paths, 200 files, 512 KiB per
   file, 8 MiB total, 200 findings, 100 skipped entries and 160-character snippets; a `limits`
   argument may only tighten them.

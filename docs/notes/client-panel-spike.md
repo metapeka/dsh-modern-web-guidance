@@ -125,3 +125,19 @@ still no host method: the data was already in the answer.
   `truncated`) prints the line it always did. Inventing `skipped 0` or a bare `truncated` would turn the
   absence of a fact into a claim.
 
+## What the 0.8.0 ranges added
+
+0.8.0 made a finding one code site instead of one line, so the chat row's `place` column had to say so or
+it would have printed the first line of an eight-line block as if that were the whole of it.
+
+- **One helper, `findingPlace()`**, decides the column: a single hit prints `path:line` — the row never
+  printed a column, and it still does not — a run prints `path:110-112`, and a run that skips a line prints
+  `path:2-4 (2)` with the hit count. That last form exists for the same reason the tool text has it: a bare
+  `2-4` would claim three hits where there are two. A dense run needs no count.
+- **`readFinding()` reads the new fields defensively**: `lines` is taken from the row when it is an array of
+  positive numbers and otherwise left empty, and `occurrences` falls back to `lines.length` and then to `1`.
+  An older host sends neither field, so `lines` stays empty and the row renders `path:line` exactly as it
+  did before 0.8.0 — a version skew costs a range, never a row.
+- **The panel's own summary is untouched**: it deliberately shows no path and no snippet, so ranges appear
+  only in the chat row and in the scan text. Still one client file, no new dependency, no host method.
+

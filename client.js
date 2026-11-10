@@ -748,10 +748,17 @@ window.__ModuleLoader__.load({
     /**
      * One finding of a scan result, as the chat row renders it.
      *
+     * A finding since 0.8.0 is one code site, not one line: `lines` carries the whole run it stands
+     * for, and `occurrences` its length. Both are read defensively — an older host sends neither, and
+     * then the row shows the single `line` exactly as before.
+     *
      * @param {Record<string, unknown>} row
-     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string }}
+     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string, lines: number[], occurrences: number }}
      */
     function readFinding(row) {
+      const lines = Array.isArray(row.lines)
+        ? row.lines.map((line) => asCount(line)).filter((line) => line > 0)
+        : []
       return {
         ruleId: asText(row.ruleId),
         confidence: asText(row.confidence),
@@ -759,7 +766,28 @@ window.__ModuleLoader__.load({
         line: asCount(row.line),
         column: asCount(row.column),
         guideId: asText(row.guideId),
+        lines,
+        occurrences: asCount(row.occurrences) || lines.length || 1,
       }
+    }
+
+    /**
+     * Where one finding lives, as the row prints it: `path:line` for a single hit and
+     * `path:first-last` for a run, with the hit count when the run skips a line.
+     *
+     * @param {{ path: string, line: number, lines: number[], occurrences: number }} finding
+     * @returns {string}
+     */
+    function findingPlace(finding) {
+      if (finding.path === '') return ''
+      const lines = Array.isArray(finding.lines) ? finding.lines : []
+      if (lines.length > 1) {
+        const first = lines[0]
+        const last = lines[lines.length - 1]
+        const dense = last - first + 1 === lines.length
+        return `${finding.path}:${first}-${last}${dense ? '' : ` (${finding.occurrences})`}`
+      }
+      return `${finding.path}:${finding.line}`
     }
 
     /**
@@ -1677,7 +1705,7 @@ window.__ModuleLoader__.load({
           ),
         )
         for (const [index, finding] of shown.entries()) {
-          const place = finding.path === '' ? '' : `${finding.path}:${finding.line}`
+          const place = findingPlace(finding)
           body.push(
             h(
               'div',

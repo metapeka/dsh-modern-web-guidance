@@ -456,3 +456,25 @@ test('the command prints the same skip and ignore lines as the tool, from one re
   const value = await tool.execute({ paths: ['.'] }, invocation('.', workspace))
   assert.equal(result.text, tool.output.render({ paths: ['.'] }, value)[0].text)
 })
+
+test('a collapsed run prints its range through both surfaces', async (t) => {
+  const workspace = await tempWorkspace(t)
+  // Eight ladder hits starting at line 306: one finding, printed as the range the bench reported.
+  const ladder = Array.from({ length: 8 }, (_, index) => `:nth-child(${index + 1}) { animation-delay: ${index * 40}ms }`)
+  const report = [...Array.from({ length: 305 }, () => ''), ...ladder].join('\n')
+  await writeFile(join(workspace, 'report-template.css'), report, 'utf8')
+
+  const registered = setup()
+  const result = await scanCommand(registered).handler(invocation('.', workspace))
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /^- report-template\.css:306-313 ls-05 \(/m)
+
+  // One renderer, two surfaces: the command prints exactly the text the tool's own render returns.
+  const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+  assert.ok(tool !== undefined, 'apply() must register web_guidance_legacy_scan')
+  const value = await tool.execute({ paths: ['.'] }, invocation('.', workspace))
+  assert.equal(value.findings.length, 1)
+  assert.deepEqual(value.findings[0].lines, [306, 307, 308, 309, 310, 311, 312, 313])
+  assert.equal(value.findings[0].occurrences, 8)
+  assert.equal(result.text, tool.output.render({ paths: ['.'] }, value)[0].text)
+})

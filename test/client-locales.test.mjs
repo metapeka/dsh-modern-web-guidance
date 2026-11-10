@@ -371,8 +371,12 @@ test('the panel counts and the chat row locates', () => {
   assert.ok(!CLIENT_SOURCE.includes('scanRuleLine(finding'), 'the panel renders a finding instead of a rule count')
   assert.match(
     CLIENT_SOURCE,
-    /const place = finding\.path === '' \? '' : `\$\{finding\.path\}:\$\{finding\.line\}`/,
-    'the chat row no longer locates a finding',
+    /function findingPlace\(finding\)/,
+    'the chat row no longer has one place to format a location',
+  )
+  assert.ok(
+    CLIENT_SOURCE.includes('const place = findingPlace(finding)'),
+    'the chat row no longer locates a finding through findingPlace',
   )
 })
 

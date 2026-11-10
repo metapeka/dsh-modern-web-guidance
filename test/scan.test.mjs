@@ -338,6 +338,26 @@ test('.scanignore excludes a directory subtree, and the same page is scanned wit
   assert.deepEqual(found.findings.map((finding) => [finding.path, finding.ruleId]), [['page.html', 'ls-17']])
 })
 
+test('a one-line pattern parks one file and leaves its neighbours readable', async (t) => {
+  const workspace = await tempDir(t)
+  await mkdir(join(workspace, 'pages'), { recursive: true })
+  // The live-bench shape: a styleguide page that shows the legacy form on purpose, next to pages that
+  // must still be checked. Parking the file must not park the directory.
+  await writeFile(join(workspace, 'pages/styleguide.astro'), 'transition: max-height 0.3s ease;\n', 'utf8')
+  await writeFile(join(workspace, 'pages/index.astro'), 'transition: max-height 0.3s ease;\n', 'utf8')
+  await writeFile(join(workspace, '.scanignore'), '# legacy demo\npages/styleguide.astro\n', 'utf8')
+
+  const value = await scan({ cwd: workspace, paths: ['.'] })
+  assert.deepEqual(value.scanned.skipped.map((entry) => [entry.path, entry.reason]), [
+    ['.scanignore', 'extension'],
+    ['pages/styleguide.astro', 'scanignore'],
+  ])
+  assert.deepEqual(value.scanned.skippedByReason, { extension: 1, scanignore: 1 })
+  assert.deepEqual(value.scanned.ignoreProblems, [])
+  assert.equal(value.scanned.files, 1)
+  assert.deepEqual(value.findings.map((finding) => [finding.path, finding.ruleId]), [['pages/index.astro', 'ls-09']])
+})
+
 test('every skip is counted per reason, and the counts add up to skippedTotal', async (t) => {
   const workspace = await tempDir(t)
   await writeFile(join(workspace, '.scanignore'), 'artifacts/\n*.min.js\n!nope.js\n', 'utf8')
@@ -540,4 +560,102 @@ test('an empty paths array is refused as paths before the cwd is resolved', asyn
   const tooMany = Array.from({ length: 17 }, (_, index) => `src/file-${index}.js`)
   const second = await runScan({ paths: tooMany }, gone)
   assert.equal(second.error, 'paths')
+})
+
+/** Two rules of this file's own, so a workspace can hold a run and a pair on the same line. */
+const RUN_A = { id: 'ls-run-a', guideId: 'css', confidence: 'medium', message: 'Marker A.', source: 'runMarkerA' }
+const RUN_B = { id: 'ls-run-b', guideId: 'css', confidence: 'medium', message: 'Marker B.', source: 'runMarkerB' }
+
+test('a run of hits on neighbouring lines is one finding that carries the whole range', async (t) => {
+  const workspace = await tempDir(t)
+  await writeFile(join(workspace, 'ladder.css'), 'runMarkerA\nrunMarkerA\nrunMarkerA\n', 'utf8')
+
+  const value = await scan({ cwd: workspace, paths: ['ladder.css'], rules: [RUN_A] })
+  assert.equal(value.findings.length, 1)
+  const [finding] = value.findings
+  assert.equal(finding.line, 1)
+  assert.deepEqual(finding.lines, [1, 2, 3])
+  assert.equal(finding.occurrences, 3)
+  // The range belongs to the finding, not to the text of the rule: the first hit keeps the wording.
+  assert.equal(finding.snippet, 'runMarkerA')
+  assert.equal(finding.message, RUN_A.message)
+})
+
+test('a blank line inside a block keeps the run, two untouched lines end it', async (t) => {
+  const workspace = await tempDir(t)
+  const file = [
+    'runMarkerA', // 1
+    'runMarkerA', // 2
+    '', // 3
+    'runMarkerA', // 4 — one line after line 2, still the same block
+    '', // 5
+    '', // 6
+    'runMarkerA', // 7 — three lines after line 4, a new block
+    'runMarkerA', // 8
+    '',
+  ].join('\n')
+  await writeFile(join(workspace, 'ladder.css'), file, 'utf8')
+
+  const value = await scan({ cwd: workspace, paths: ['ladder.css'], rules: [RUN_A] })
+  assert.deepEqual(value.findings.map((finding) => finding.line), [1, 7])
+  assert.deepEqual(value.findings.map((finding) => finding.lines), [[1, 2, 4], [7, 8]])
+  assert.deepEqual(value.findings.map((finding) => finding.occurrences), [3, 2])
+})
+
+test('runs never cross a file or a rule, and a single hit keeps the same shape', async (t) => {
+  const workspace = await tempDir(t)
+  await writeFile(join(workspace, 'one.css'), 'runMarkerA\n', 'utf8')
+  await writeFile(join(workspace, 'two.css'), 'runMarkerA\n', 'utf8')
+  // Same line pair, different rules: one finding each, not a run of two.
+  await writeFile(join(workspace, 'pair.css'), 'runMarkerA\nrunMarkerB\n', 'utf8')
+
+  const value = await scan({ cwd: workspace, paths: ['.'], rules: [RUN_A, RUN_B] })
+  assert.deepEqual(
+    value.findings.map((finding) => [finding.path, finding.line, finding.occurrences]),
+    [
+      ['one.css', 1, 1],
+      ['pair.css', 1, 1],
+      ['pair.css', 2, 1],
+      ['two.css', 1, 1],
+    ],
+  )
+  assert.deepEqual(value.findings.map((finding) => finding.lines), [[1], [1], [2], [1]])
+})
+
+test('the renderer prints a range for a run and the old triple for a single hit', async (t) => {
+  const workspace = await tempDir(t)
+  // The ladder starts at line 306, the shape the live bench reported: eight hits, one finding.
+  const ladder = Array.from({ length: 8 }, (_, index) => `:nth-child(${index + 1}) { animation-delay: ${index * 40}ms }`)
+  const report = [...Array.from({ length: 305 }, () => ''), ...ladder].join('\n')
+  await writeFile(join(workspace, 'report-template.css'), report, 'utf8')
+  await writeFile(join(workspace, 'single.css'), 'a {\n  :nth-child(9) { color: red }\n}\n', 'utf8')
+
+  const args = { paths: ['.'] }
+  const value = await scan({ cwd: workspace, paths: ['.'] })
+  assert.equal(value.findings.length, 2)
+  assert.deepEqual(value.findings.map((finding) => finding.lines.length), [8, 1])
+
+  const text = render(args, value)
+  assert.match(text, /^- report-template\.css:306-313 ls-05 \(/m)
+  assert.match(text, /^- single\.css:2:3 ls-05 \(/m)
+})
+
+test('a run with a gap prints its hit count, because the range would overclaim', async (t) => {
+  const workspace = await tempDir(t)
+  // Two hits with an untouched line between them: `110-112` alone would read as three hits. This is
+  // the live bench shape — `display: -webkit-box` and `-webkit-box-orient` around a line-clamp line.
+  await writeFile(
+    join(workspace, 'card.css'),
+    ['a {', '  :nth-child(1) { color: red }', '  -webkit-line-clamp: 3;', '  :nth-child(2) { color: blue }', '}', ''].join('\n'),
+    'utf8',
+  )
+
+  const args = { paths: ['card.css'] }
+  const value = await scan({ cwd: workspace, paths: ['card.css'] })
+  assert.equal(value.findings.length, 1)
+  assert.deepEqual(value.findings[0].lines, [2, 4])
+  assert.equal(value.findings[0].occurrences, 2)
+
+  const text = render(args, value)
+  assert.match(text, /^- card\.css:2-4 \(2 hits\) ls-05 \(/m)
 })

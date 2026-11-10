@@ -92,8 +92,10 @@ test('a relative directory is walked and findings carry the contract shape', asy
 
     const [finding] = result.findings
     assert.deepEqual(Object.keys(finding).sort(), [
-      'column', 'confidence', 'guideId', 'line', 'message', 'path', 'ruleId', 'snippet',
+      'column', 'confidence', 'guideId', 'line', 'lines', 'message', 'occurrences', 'path', 'ruleId', 'snippet',
     ])
+    assert.equal(finding.lines.length, 1)
+    assert.equal(finding.occurrences, 1)
     assert.equal(finding.path, 'src/app.js')
     assert.equal(finding.path.includes('\\'), false, 'report paths always use forward slashes')
     assert.equal(finding.line, 1)
@@ -243,14 +245,29 @@ test('a file with a NUL byte is skipped as binary', async () => {
 })
 
 test('maxFindings caps the returned list and marks the result truncated', async () => {
-  const lines = Array.from({ length: 10 }, (_, index) => `legacyModal ${index}`).join('\n')
+  // Blocks of one hit, four lines apart: each block is its own run, so the cap sees ten findings.
+  const lines = Array.from({ length: 10 }, (_, index) => `legacyModal ${index}`).join('\n\n\n\n')
   await withWorkspace({ 'many.js': lines }, async (cwd) => {
     const result = await scan({ cwd, paths: ['.'], rules: [RULE_MODAL], limits: { maxFindings: 3 } })
     assert.equal(result.findings.length, 3)
-    assert.deepEqual(result.findings.map((finding) => finding.line), [1, 2, 3])
+    assert.deepEqual(result.findings.map((finding) => finding.line), [1, 5, 9])
     assert.equal(result.truncated, true)
     assert.equal(result.scanned.truncated, false)
     assert.deepEqual(result.guides, [{ id: 'dialog', findings: 3 }])
+  })
+})
+
+test('a run of adjacent hits costs one finding, so the cap is spent on code sites', async () => {
+  // Forty consecutive hits are one block to change; four such blocks, two untouched lines apart, are
+  // four findings, so a cap of three keeps three blocks and truncates — not three lines of one block.
+  const block = Array.from({ length: 40 }, () => 'legacyModal').join('\n')
+  const file = [block, '', '', block, '', '', block, '', '', block].join('\n')
+  await withWorkspace({ 'many.js': file }, async (cwd) => {
+    const result = await scan({ cwd, paths: ['.'], rules: [RULE_MODAL], limits: { maxFindings: 3 } })
+    assert.equal(result.findings.length, 3)
+    assert.deepEqual(result.findings.map((finding) => finding.occurrences), [40, 40, 40])
+    assert.deepEqual(result.findings.map((finding) => finding.lines.length), [40, 40, 40])
+    assert.equal(result.truncated, true)
   })
 })
 
@@ -278,18 +295,20 @@ test('findings are ordered by path, then line, then column, then rule id', async
   const alphaA = { id: 'ls-test-a', guideId: 'css', confidence: 'medium', message: 'Alpha marker.', source: 'alphaMarker' }
   const alphaZ = { id: 'ls-test-z', guideId: 'css', confidence: 'medium', message: 'Alpha marker.', source: 'alphaMarker' }
   const beta = { id: 'ls-test-b', guideId: null, confidence: 'low', message: 'Beta marker.', source: 'betaMarker' }
-  const aLines = ['alphaMarker', 'x betaMarker alphaMarker']
+  // Line 1 carries a column tie and a rule-id tie; line 4 is far enough from line 1 that its hits
+  // are their own runs rather than continuations.
+  const aLines = ['x betaMarker alphaMarker', '', '', 'alphaMarker']
   await withWorkspace({ 'a.js': `${aLines.join('\n')}\n`, 'b.js': 'alphaMarker\n' }, async (cwd) => {
     // Roots are listed in reverse on purpose: enumeration sorts, the report does not depend on argv.
     const result = await scan({ cwd, paths: ['b.js', 'a.js'], rules: [beta, alphaZ, alphaA] })
     assert.deepEqual(
       result.findings.map((finding) => `${finding.path}:${finding.line}:${finding.column}:${finding.ruleId}`),
       [
-        `a.js:1:1:${alphaA.id}`,
-        `a.js:1:1:${alphaZ.id}`,
-        `a.js:2:3:${beta.id}`,
-        `a.js:2:${aLines[1].indexOf('alphaMarker') + 1}:${alphaA.id}`,
-        `a.js:2:${aLines[1].indexOf('alphaMarker') + 1}:${alphaZ.id}`,
+        `a.js:1:3:${beta.id}`,
+        `a.js:1:${aLines[0].indexOf('alphaMarker') + 1}:${alphaA.id}`,
+        `a.js:1:${aLines[0].indexOf('alphaMarker') + 1}:${alphaZ.id}`,
+        `a.js:4:1:${alphaA.id}`,
+        `a.js:4:1:${alphaZ.id}`,
         `b.js:1:1:${alphaA.id}`,
         `b.js:1:1:${alphaZ.id}`,
       ],
@@ -349,7 +368,9 @@ test('guides count only the returned findings, sorted by count then id, null gui
   const markB = { id: 'ls-test-mark-b', guideId: 'a-guide', confidence: 'high', message: 'B.', source: 'markB' }
   const markD = { id: 'ls-test-mark-d', guideId: 'b-guide', confidence: 'high', message: 'D.', source: 'markD' }
   const markC = { id: 'ls-test-mark-c', guideId: null, confidence: 'low', message: 'C.', source: 'markC' }
-  const lines = ['markA markB markC markD', 'markA markB markD', 'markA']
+  // The same three code sites per rule, four lines apart, so each stays its own finding and the
+  // guide roll-up is counting findings rather than lines.
+  const lines = ['markA markB markC markD', '', '', '', 'markA markB markD', '', '', '', 'markA']
   await withWorkspace({ 'app.js': `${lines.join('\n')}\n` }, async (cwd) => {
     const result = await scan({ cwd, paths: ['.'], rules: [markA, markB, markC, markD] })
     assert.equal(result.findings.length, 8)

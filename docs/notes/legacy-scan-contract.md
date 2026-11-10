@@ -7,7 +7,9 @@ the upstream analysis live in [legacy-scan-feasibility.md](legacy-scan-feasibili
 Revised in 0.7.1: `.md` and `.mdx` left the extension allowlist, so prose is now skipped rather than
 scanned — see the allowlist under `lib/scan.js` and the self-scan caveat below. Revised again in 0.7.2:
 dot-directories are never entered, `.scanignore` at the workspace root is honoured, and skips are counted
-per reason in `scanned.skippedByReason`. Everything else below is unchanged.
+per reason in `scanned.skippedByReason`. Revised again in 0.8.0: a finding is one **code site** rather than
+one line, so every finding carries `lines` and `occurrences`, runs of neighbouring hits collapse, and
+`maxFindings` counts findings. Everything else below is unchanged.
 
 ## Non-negotiables
 
@@ -93,7 +95,7 @@ export async function scan({ cwd, paths, rules = RULES, signal, limits = SCAN_LI
     ignoreProblems: { line: number | null, reason: 'malformed'|'unreadable' }[],
     truncated: boolean,
   },
-  findings: { path: string, line: number, column: number, ruleId: string, guideId: string | null, confidence: string, message: string, snippet: string }[],
+  findings: { path: string, line: number, column: number, ruleId: string, guideId: string | null, confidence: string, message: string, snippet: string, lines: number[], occurrences: number }[],
   guides: { id: string, findings: number }[],
   truncated: boolean,
 }
@@ -116,7 +118,49 @@ before this path), `unreadable` (the file could not be read), `outside` (a symli
 workspace), `dot-directory` (a directory whose name starts with `.`, one entry per directory), and
 `scanignore` (covered by a pattern, one entry per skipped file or subtree root).
 
-Rules of the road:
+## A finding is a code site (0.8.0)
+
+One rule on one run of neighbouring lines is **one** finding — the thing a reader opens the file to change,
+not one thing per line. Everything below follows from that sentence.
+
+- **The run rule.** Hits of one rule in one file stay in the same run while the next hit's line is at most
+  `RUN_LINE_GAP = 2` lines after the previous one: the next line, or one blank line later. A wider gap, a
+  different file or a different rule starts a new finding. A run is per rule and per file, so two rules
+  interleaving on the same lines stay two findings.
+- **`lines` and `occurrences` are always present.** A single hit is `lines: [154]` with `occurrences: 1`,
+  so no consumer needs a fallback branch for the new fields. `lines` holds the exact line numbers, in
+  order, and `occurrences` is their count (and therefore `lines.length`).
+- **`line`, `column`, `snippet` and `message` describe the first hit** and keep their old meaning. The
+  range belongs to the finding: rule messages are not rewritten to mention it, and `snippet` is the first
+  hit's line, never a concatenation of the run.
+- **`maxFindings` counts findings, not hits.** A 40-line ladder is one finding against a cap of 200
+  findings, so the same `SCAN_LIMITS` now admits far more code than it did. No cap was widened.
+- **Ordering**: `path`, then first line, then column, then `ruleId`.
+- **Measured on the bench project's `src`** (58 files): **22 → 10 findings**, `ls-05` **13 → 2**, no
+  truncation, and **22 line references before, 22 after** — `report-template.css:306-313` with 8 hits and
+  `:347-351` with 5 are now two findings instead of thirteen, and no line number was lost.
+
+### How to read one
+
+Use `lines[0]` and `lines.at(-1)` for the range and `occurrences` for how many hits it stands for. `line`
+and `column` still point at the first hit, so code that printed `path:line:column` keeps printing something
+true — it just names the start of the site rather than claiming to be the whole of it.
+
+### The rendered form
+
+```text
+- src/components/Header.astro:642:5 ls-09 (medium)
+- src/components/ui/PostCard.astro:110-112 (2 hits) ls-12 (high)
+- src/styles/report-template.css:306-313 ls-05 (medium)
+```
+
+A single hit renders `path:line:column`, byte for byte as before. A run renders `path:first-last`, and
+`(N hits)` is appended **only** when the run is not dense — because `110-112` would otherwise claim three
+hits where there are two. A dense run such as `306-313` needs no count: eight hits on eight lines. Both the
+tool's summary text and `/guidance-scan` render from this one rule, and the JSON never formats a string at
+all — the fields are the truth.
+
+## Rules of the road
 
 1. `paths` is a non-empty array of strings, at most `maxPaths`. Anything else is `ScanError('paths')`.
 2. Relative only: an absolute path (POSIX `/`, Windows drive letter, UNC `\\`, or a leading `~`) is
@@ -142,13 +186,16 @@ Rules of the road:
    with `reason: 'unreadable'`, never fatal.
 7. Totals: `maxFiles` files scanned or `maxTotalBytes` read → stop walking, `scanned.truncated = true`.
 8. Matching: for each line, each selected rule's compiled regex; `lastIndex` reset before every line;
-   only the first match per rule per line produces a finding (one finding per `ruleId + path + line`).
-   `line` and `column` are 1-based, `column` is the match offset in the line.
-9. `snippet` is the line with leading and trailing whitespace trimmed, then clipped to
+   only the first match per rule per line is a **hit**. Hits are grouped into runs and a run is one
+   finding, so the pre-0.8.0 rule "one finding per `ruleId + path + line`" is gone: neighbouring lines of
+   one rule collapse into a single finding with `lines` and `occurrences`. `line` and `column` are
+   1-based, and `column` is the match offset of the run's first hit.
+9. `snippet` is the **first hit's** line with leading and trailing whitespace trimmed, then clipped to
    `maxSnippetChars` with a trailing `…` when it had to shrink. Control characters other than tab are
    replaced with `\u0000`-style escapes so a report cannot smuggle terminal control bytes.
-10. Ordering: `path` ascending, then `line`, then `column`, then `ruleId`. `maxFindings` is a hard cap on
-    the returned array; hitting it sets both `findings` length to the cap and `truncated = true`.
+10. Ordering: `path` ascending, then first line, then `column`, then `ruleId`. `maxFindings` is a hard cap
+    on the returned array of **findings** — 40 hits in one ladder consume one slot — and hitting it sets
+    both `findings` length to the cap and `truncated = true`.
 11. `guides` is the per-guide count over the **returned** findings, ordered by `findings` descending then
     `id` ascending; rules with a null `guideId` are excluded. `signal.aborted` →
     `ScanError('cancelled')` is **not** used: throw the abort reason itself (`signal.throwIfAborted()`)
@@ -216,27 +263,33 @@ a scan read less than it was already allowed to read, never more.
 ## What a self-scan looks like (measured on this tree)
 
 This repository stores the rule table, so a scan of it reports the rule table's own markers as findings.
-`scan({ cwd, paths: ['.'] })` here returns **70 files scanned, 97 findings, 0 of them in Markdown,
-`truncated: false`**, with `skippedTotal: 279` (`skippedByReason: { extension: 277, dot-directory: 2 }`,
-100 of those entries returned, which is the cap). `scan({ cwd, paths: ['lib'] })` returns **6 files and 18
-findings**. The 97 is expected, not a bug: 61 of them are `lib/scan-rules.js` (18) and
-`test/scan-rules.test.mjs` (43), where every marker lives as data. Of the remaining 36: 10 are the fixtures
-under `test/fixtures/scan/`, 24 come from four other test files that assert on findings, 1 from
-`audit/repro/security/scan-containment.mjs`, and 1 from `data/guides.json`. The two `dot-directory` skips
-are `.github` at the root and the `.hidden` fixture directory the ignore tests need.
+`scan({ cwd, paths: ['.'] })` here returns **70 files scanned, 85 findings, 0 of them in Markdown,
+`truncated: false`**, with `skippedTotal: 282` (`skippedByReason: { extension: 280, dot-directory: 2 }`,
+100 of those entries returned, which is the cap). `scan({ cwd, paths: ['lib'] })` returns **6 files and 16
+findings**. The 85 is expected, not a bug: 56 of them are the rule table stored as data —
+`test/scan-rules.test.mjs` (40) and `lib/scan-rules.js` (16). Of the remaining 29: 10 are the fixtures under
+`test/fixtures/scan/`, 17 come from the four other test files that assert on findings (`scan.test` 11,
+`scan-tool` 3, `scan-command` 2, `scan-core` 1), 1 from `audit/repro/security/scan-containment.mjs` and 1
+from `data/guides.json`. The two `dot-directory` skips are `.github` at the root and the `.hidden` fixture
+directory the ignore tests need. No finding here is truncated and none is lost: 102 hits land in 85 findings
+because ten of them are runs holding 27 hits between them.
 
-Two releases moved these numbers, and neither move was a regression:
+Three releases moved these numbers, and no move was a regression:
 
 - **0.7.1** took Markdown out of the allowlist, so findings went 73 → 82. While `.md` was allowlisted the
   200-file cap was consumed by `data/guides/*.md` (208 files, 66 findings already), so the walk never
   reached `lib/` or `test/`. Removing prose made the scan the size of the code.
-- **0.7.2** stopped entering dot-directories and added an ignore file, so the same probe now reports 70
-  files and 97 findings. Both deltas are inside `test/`, not in shipped code: two more scanned files
+- **0.7.2** stopped entering dot-directories and added an ignore file, so the same probe then reported 70
+  files and 97 findings. Both deltas were inside `test/`, not in shipped code: two more scanned files
   (`test/scan-ignore.test.mjs` and the `artifacts/page.html` fixture the ignore tests need) and 15 more
-  findings, of which 1 is that fixture file and 14 are marker-bearing lines added to three existing test
+  findings, of which 1 was that fixture file and 14 were marker-bearing lines added to three existing test
   files as the new cases were written (`scan.test` 6 → 12, `scan-tool` 2 → 6, `scan-command` 1 → 5).
   `.git`, `.agents` and `.tmp` are still not walked — they were in `skipDirectories` before there was a
   `dot-directory` rule — and nothing inside `.github` is read at all any more.
+- **0.8.0** made a finding a code site, so the same tree reports **85** findings from the same 70 files. The
+  97 became 85 because neighbouring hits of one rule collapsed, not because anything was fixed: ten runs
+  absorbed 17 hits, and `lib` went 18 → 16 the same way. The number is a property of this tree, not a target:
+  it moves whenever a test adds a marker line, which is why it is quoted with the command that measured it.
 
 ## `index.js` — the fourth tool
 
@@ -322,9 +375,9 @@ re-running it. Six keys, and `version` stays `1` — the two new fields are addi
 lastScan: {
   at: '2026-11-10T21:26:09.000Z',                    // ISO 8601, replaced by every completed scan
   files: 70,
-  findings: 97,
+  findings: 85,
   rules: ['ls-13', 'ls-21'],                         // distinct ids, capped for display
-  skipped: { extension: 278, 'dot-directory': 2 },   // top FOUR reasons, count desc then name
+  skipped: { extension: 280, 'dot-directory': 2 },   // top FOUR reasons, count desc then name
   truncated: false,                                  // true when the run stopped at any cap
 }
 ```
@@ -355,22 +408,22 @@ The text tails are fixed strings, one per surface, and the panel keys below are 
 `client.js` cannot drift. Measured, not paraphrased — `renderReport` with a six-key `lastScan` prints:
 
 ```text
-Last scan: 2026-11-10, 70 files, 97 findings (rules: ls-13); skipped 280 (278 extension, 2 dot-directory); truncated
+Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 282 (280 extension, 2 dot-directory); truncated
 ```
 
 - report text — that line: the date, two counts, then ` (rules: …)` (up to five ids, omitted when none),
   then `; skipped N (…)` when the map is non-empty, then `; truncated` when the flag is set. The `N` is the
   sum of the stored map, so it obeys the top-four caveat above.
-- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 97 findings · skipped 280 · truncated`, built
+- panel, last-scan line — `Last scan: 2026-11-10 · 70 files · 85 findings · skipped 282 · truncated`, built
   from `scanner.last`, `file`/`finding` plurals, `scanner.skipped` and `scanner.cut`, joined with ` · `; the
   date is the `YYYY-MM-DD` part, and each later fact is omitted when absent.
-- panel, button result — `Scanned 70 files, 97 findings` (`scan.summary`) then `Skipped 280 (278 extension,
+- panel, button result — `Scanned 70 files, 85 findings` (`scan.summary`) then `Skipped 282 (280 extension,
   2 dot-directory)` (`scan.skipped`), with at most **three** reasons named and `+N more` (`scan.skippedMore`)
   inside the parentheses beyond that; its count is the fresh scan's own total. Truncation reuses the 0.7.0
   string `scan.truncated` — `Truncated: the scan hit a cap, so this list is incomplete.` — so there is no
   fifth key.
 - chat tool row — the same `Skipped …` line under the table, for a JSON **and** a summary answer: the
-  summary format prints `Skipped 279 path(s): 277 extension, 2 dot-directory` as prose and the row parses
+  summary format prints `Skipped 282 path(s): 280 extension, 2 dot-directory` as prose and the row parses
   that line back, so one reader serves both formats.
 - Reason tokens are **never translated**, on any of those surfaces: `dot-directory` stays `dot-directory`
   in EN, RU and ZH, exactly as a rule id stays `ls-13`. They are values a reader matches against a scan,

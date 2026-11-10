@@ -231,7 +231,16 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
     lines.push('No rule in the table matched. That is not proof of modern code: the scanner works line by line and sees markers, not behaviour.')
   } else {
     for (const finding of findings.slice(0, SCAN_RENDER_LIMIT.findings)) {
-      lines.push(`- ${finding.path}:${finding.line}:${finding.column} ${finding.ruleId} (${finding.confidence}) ${finding.message}`)
+      // A collapsed run prints its range; a single hit keeps the exact `path:line:column` it always
+      // had. A run whose lines skip one prints the count too, because `110-112` alone would claim
+      // three hits where there are two.
+      const first = finding.lines[0]
+      const last = finding.lines[finding.lines.length - 1]
+      const dense = last - first + 1 === finding.lines.length
+      const location = finding.occurrences > 1 && finding.lines.length > 1
+        ? `${finding.path}:${first}-${last}${dense ? '' : ` (${finding.occurrences} hits)`}`
+        : `${finding.path}:${finding.line}:${finding.column}`
+      lines.push(`- ${location} ${finding.ruleId} (${finding.confidence}) ${finding.message}`)
     }
     if (findings.length > SCAN_RENDER_LIMIT.findings) {
       lines.push(`… and ${findings.length - SCAN_RENDER_LIMIT.findings} more finding(s).`)
