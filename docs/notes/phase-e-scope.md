@@ -149,8 +149,9 @@ Two details that must be pinned because they are where this item would otherwise
 
 **Protects.** C-2's own promise — "the next scan reads less" — which is a claim nobody can check today.
 
-**Files.** [`lib/scan.js`](../../lib/scan.js) (the walk and the value), [`lib/report.js`](../../lib/report.js)
-(the sentence), [`client.js`](../../client.js) (the hint, in the three dictionaries),
+**Files.** [`lib/scan.js`](../../lib/scan.js) (the walk and the value), [`lib/telemetry.js`](../../lib/telemetry.js)
+(the persisted summary — see the amendment below), [`lib/report.js`](../../lib/report.js) (the sentence),
+[`client.js`](../../client.js) (the hint, in the three dictionaries),
 `docs/notes/legacy-scan-contract.md` (the shape).
 
 **Proof.** `test/scan-ignore.test.mjs`: a pattern matching files has `matched >= 1`; a pattern matching
@@ -159,6 +160,28 @@ dot-directory is credited rather than reported idle; an unreadable ignore file y
 `ignoreUsage` at all — never a list of "everything unused", which would be the exact lie this phase is
 about. `test/report.test.mjs` pins the sentence, and the sentence is absent (not empty) when the field
 is.
+
+**Amendment while delivering: the rows must not be persisted, and the sentence needs a summary instead.**
+`/guidance-stats` reads `stats.json`, and `stats.json` is one profile-wide file per user; telemetry's rule
+since D is that no path, file name or snippet is ever stored (site ids are hashes). An `ignoreUsage` row
+carries the *pattern*, which is a path fragment (`src/pages/styleguide.astro`), so persisting the rows
+would leak a project's layout into a file shared by every project — the exact defect the workspace
+partition exists to prevent.
+
+The split is therefore explicit, and it is the design rather than a compromise:
+
+- **In memory, on the scan value:** `ignoreUsage: [{ line, pattern, matched }]`, one row per source line,
+  capped like `ignoreProblems`. It never leaves the process. The panel may render its hint from the scan
+  result it has just received, because that envelope is transient.
+- **On disk, in the counters:** `lastScan.ignoreUsage: { patterns, idle }` — two integers, additive,
+  absent on an older document, a corrupt block dropped whole rather than read as zeros, `version` still 1.
+  `/guidance-stats` renders "3 patterns, 1 matched nothing" from those two numbers and from nothing else.
+- **Pinned by a test, not a sentence:** after a scan over a workspace whose `.scanignore` names a
+  distinctive pattern, `stats.json` must not contain that string while `lastScan.ignoreUsage.idle` is the
+  expected count. If that test ever goes away, the choice becomes prose and the leak becomes a
+  "simplification".
+- The scan's own text gains no line (E-3's precedent: a statement about a file is a statistics line, not a
+  scan finding), so nothing has to parse English prose to recover a number.
 
 ### E-3 — a suppression that matches nothing is counted, and can be removed
 
