@@ -15,7 +15,8 @@ moves to "Done".
 | **A — Readable** | released — 0.9.0 published to npm and GitHub | 0.9.0 |
 | **D — Attributable** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
 | **B — Over time** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
-| **C — Under control** | C-1 committed (`7606112`); C-2/C-3/C-4 in flight — the next release | 0.11.0 |
+| **C — Under control** | released — 0.11.0 published to npm and GitHub | 0.11.0 |
+| **E — Auditable** | scoped in [docs/notes/phase-e-scope.md](notes/phase-e-scope.md); E-1/E-2/E-3 in flight | 0.12.0 |
 
 Update this table in the same commit that changes a phase's state. A phase is "in progress" only when
 its contract below is fixed; it is "done" when its acceptance list passes and its release note exists.
