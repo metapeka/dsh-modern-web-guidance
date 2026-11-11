@@ -82,6 +82,17 @@ window.__ModuleLoader__.load({
     const MAX_HISTORY_ROWS = 5
     const MAX_TOOL_ROWS = 16
     /**
+     * The `.suppress` review's own limits, mirrored from `lib/suppress.js` because absence has to be
+     * read the same way on both sides: the host omits the row list once a file holds more entries than
+     * one surface may draw (`MAX_SUPPRESSIONS`), so a block without rows and *more* entries than this
+     * is a list too long to show — while a block without rows and fewer is a host that predates the
+     * list. The two dates and reasons are clamped by the host already; clamping them again is the
+     * panel's half of "the envelope is data, not an instruction".
+     */
+    const MAX_SUPPRESSION_ROWS = 200
+    const MAX_REVIEW_DATE_CHARS = 40
+    const MAX_REASON_CHARS = 200
+    /**
      * How long the copy button waits for the clipboard before it says it could not.
      *
      * `navigator.clipboard.writeText()` is a browser promise that is allowed to stay pending: a window
@@ -133,6 +144,7 @@ window.__ModuleLoader__.load({
       'scanner.review': '.suppress: {entries}, {matching} matching, {unused} unused',
       'scanner.reviewUnknown': '.suppress: {entries}, {matching} matching; the last scan was incomplete, so no entry is shown as unused',
       'scanner.reviewList': 'Entries that matched nothing:',
+      'scanner.reviewTooLong': 'More entries than this panel lists; /guidance-suppress --review prints every one.',
       'scanner.history': 'Recent scans',
       'scanner.historyMore': 'and {count} earlier',
       'scanner.diffAgainst': 'Since the scan of {when}:',
@@ -168,6 +180,9 @@ window.__ModuleLoader__.load({
       'scan.removeConfirm': 'Remove from .suppress',
       'scan.removeFailed': 'The entry was not removed: {message}',
       'scan.removeNote': 'Removing a mute un-mutes one site: the next scan counts that finding again, and no counter changes.',
+      'scan.matchMatched': 'matched',
+      'scan.matchUnused': 'unused',
+      'scan.matchUnknown': 'unknown',
       'row.title': 'Legacy scan',
       'row.preparing': 'Preparing the scan...',
       'row.running': 'Scanning...',
@@ -261,6 +276,7 @@ window.__ModuleLoader__.load({
       'scanner.review': '.suppress: {entries}, совпадений: {matching}, без совпадений: {unused}',
       'scanner.reviewUnknown': '.suppress: {entries}, совпадений: {matching}; последнее сканирование было неполным, поэтому ни одна запись не показана как несовпавшая',
       'scanner.reviewList': 'Записи без совпадений:',
+      'scanner.reviewTooLong': 'Записей больше, чем показывает панель; /guidance-suppress --review выводит все.',
       'scanner.history': 'Последние сканирования',
       'scanner.historyMore': 'и ещё {count} более ранних',
       'scanner.diffAgainst': 'С момента сканирования {when}:',
@@ -296,6 +312,9 @@ window.__ModuleLoader__.load({
       'scan.removeConfirm': 'Удалить из .suppress',
       'scan.removeFailed': 'Запись не удалена: {message}',
       'scan.removeNote': 'Удаление заглушения снова открывает один участок: следующее сканирование снова засчитает эту находку, а счётчики не изменятся.',
+      'scan.matchMatched': 'совпало',
+      'scan.matchUnused': 'не совпало',
+      'scan.matchUnknown': 'неизвестно',
       'row.title': 'Сканер устаревшего кода',
       'row.preparing': 'Готовлю сканирование...',
       'row.running': 'Сканирую...',
@@ -393,6 +412,7 @@ window.__ModuleLoader__.load({
       'scanner.review': '.suppress：{entries}，匹配 {matching}，未匹配 {unused}',
       'scanner.reviewUnknown': '.suppress：{entries}，匹配 {matching}；上次扫描不完整，因此不显示未匹配的条目',
       'scanner.reviewList': '未匹配的条目：',
+      'scanner.reviewTooLong': '条目数量超过面板能列出的数量；/guidance-suppress --review 会输出全部条目。',
       'scanner.history': '最近的扫描',
       'scanner.historyMore': '另有 {count} 次更早的',
       'scanner.diffAgainst': '自 {when} 的扫描以来：',
@@ -428,6 +448,9 @@ window.__ModuleLoader__.load({
       'scan.removeConfirm': '从 .suppress 删除',
       'scan.removeFailed': '未删除条目：{message}',
       'scan.removeNote': '删除屏蔽会让这一处重新显示：下次扫描会再次计入该问题，计数器不会改变。',
+      'scan.matchMatched': '已匹配',
+      'scan.matchUnused': '未匹配',
+      'scan.matchUnknown': '未知',
       'row.title': '遗留代码扫描',
       'row.preparing': '正在准备扫描...',
       'row.running': '正在扫描...',
@@ -904,8 +927,16 @@ window.__ModuleLoader__.load({
      * without an unused figure: the panel never turns "unknown" into `0`, which here would say every
      * mute still matches a site nobody looked for.
      *
+     * `items` is the file itself, one row per honoured entry, and it is what the block lists when the
+     * host sends it: a site id, the date and reason the file records, and the one verdict the scan
+     * could prove. The list is accepted only when it is exactly as long as `entries` and every id is a
+     * distinct eight-hex key, because a short list rendered as the file is the plausible lie this
+     * whole member exists to avoid; a list that fails that is dropped whole, and the block falls back
+     * to the ids `unused` names. **The file stores no rule id** — its hash runs over `path + ruleId +
+     * snippet` and is one-way — so there is no rule member here and the panel invents none.
+     *
      * @param {unknown} value
-     * @returns {{ entries: number, matching: number, unused: string[]|null }|null}
+     * @returns {{ entries: number, matching: number, unused: string[]|null, items?: Array<{ siteId: string, date?: string, reason?: string, matched: boolean|null }> }|null}
      */
     function readSuppressionReview(value) {
       if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
@@ -913,10 +944,43 @@ window.__ModuleLoader__.load({
       if (typeof value.matching !== 'number' || !Number.isFinite(value.matching)) return null
       const entries = asCount(value.entries)
       const matching = Math.min(entries, asCount(value.matching))
-      if (value.unused === null) return { entries, matching, unused: null }
+      const items = readSuppressionItems(value.items, entries)
+      const rows = items === null ? {} : { items }
+      if (value.unused === null) return { entries, matching, unused: null, ...rows }
       if (!Array.isArray(value.unused)) return null
       const unused = [...new Set(value.unused.filter((id) => typeof id === 'string' && /^[0-9a-f]{8}$/.test(id)))]
-      return { entries, matching, unused: unused.length === entries - matching ? unused : null }
+      return { entries, matching, unused: unused.length === entries - matching ? unused : null, ...rows }
+    }
+
+    /**
+     * The review's row list, or null when it cannot be read as the whole file.
+     *
+     * One row per honoured entry and nothing else: a row without a valid, distinct site id, or a list
+     * whose length disagrees with the count beside it, is not the file and must not be drawn as if it
+     * were — the block has an honest shorter version of itself (`unused`) for exactly that case. The
+     * members are clamped here as well as by the host, because the envelope is data: a date, a reason
+     * and a verdict, each optional and omitted rather than defaulted, so a row the file wrote without
+     * a reason simply has no reason line — never an empty string, never a guess.
+     *
+     * @param {unknown} value
+     * @param {number} entries the count the list has to match to be the file.
+     * @returns {Array<{ siteId: string, date?: string, reason?: string, matched: boolean|null }>|null}
+     */
+    function readSuppressionItems(value, entries) {
+      if (!Array.isArray(value)) return null
+      const rows = []
+      const seen = new Set()
+      for (const row of value) {
+        if (row === null || typeof row !== 'object' || Array.isArray(row)) return null
+        const siteId = typeof row.siteId === 'string' ? row.siteId : ''
+        if (!/^[0-9a-f]{8}$/.test(siteId) || seen.has(siteId)) return null
+        seen.add(siteId)
+        const item = { siteId, matched: row.matched === true || row.matched === false ? row.matched : null }
+        if (typeof row.date === 'string' && row.date !== '') item.date = row.date.slice(0, MAX_REVIEW_DATE_CHARS)
+        if (typeof row.reason === 'string' && row.reason !== '') item.reason = row.reason.slice(0, MAX_REASON_CHARS)
+        rows.push(item)
+      }
+      return rows.length === entries ? rows : null
     }
 
     /**
@@ -2416,22 +2480,37 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * One suppression entry that matched nothing, as the row that offers to remove it.
+     * One entry of the suppression file, as the row that offers to remove it.
      *
-     * The row shows the site id and nothing else, because that is all the scan could prove about the
-     * entry: a date, a reason and a rule belong to the file, and the join that produced this list never
-     * read them. The id is what `--remove` takes, so the row and the command name the same thing, and
-     * the removal's plan is where a person reads the date and reason of the payload before the second
-     * click — the host prints them, the panel does not guess them.
+     * A review row is the file, not a verdict: the site id it is keyed by, the date and reason the file
+     * itself recorded, and — when the host sent rows — the one thing this scan could add, its
+     * three-valued `matched`. A member the row does not carry draws nothing, so an entry written
+     * without a reason is a shorter row and never an empty one. **There is no rule cell**: the file
+     * stores a one-way hash over `path + ruleId + snippet` and keeps neither the rule nor the code, so
+     * a rule id here could only be invented — and the removal's own plan is where the host prints the
+     * payload a person confirms.
+     *
+     * `matched` is passed as sent: `true`, `false`, `null` for "this scan could not say", and
+     * `undefined` for the 0.12.0 fallback, whose rows are ids under a caption that already says what
+     * they are and therefore carry no marker of their own.
      *
      * @param {Function} t bound translator.
-     * @param {string} siteId one eight-hex identity from the review's `unused`.
+     * @param {{ siteId: string, date?: string, reason?: string, matched?: boolean|null }} row one entry.
      * @param {number} index its position: zero draws no separator above it.
      * @param {boolean} blocked whether a scan or a write is in flight.
      * @param {{ onRemove: Function }} actions asks the host for the plan that would remove this entry.
      * @returns {object} the row.
      */
-    function reviewEntryLine(t, siteId, index, blocked, actions) {
+    function reviewEntryLine(t, row, index, blocked, actions) {
+      const siteId = row.siteId
+      const matched = row.matched
+      const tag = matched === undefined
+        ? ''
+        : matched === true
+          ? t('scan.matchMatched')
+          : matched === false
+            ? t('scan.matchUnused')
+            : t('scan.matchUnknown')
       return h(
         'div',
         { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `entry-${siteId}` },
@@ -2439,6 +2518,8 @@ window.__ModuleLoader__.load({
           'div',
           { style: S.scanRuleHead },
           h('span', { style: S.scanName, key: 'site' }, siteId),
+          row.date === undefined ? null : h('span', { style: S.scanSeen, key: 'date' }, row.date),
+          tag === '' ? null : h('span', { style: S.mutedTag, key: 'match' }, tag),
           h(
             'div',
             { style: S.rowActions, key: 'actions' },
@@ -2455,6 +2536,7 @@ window.__ModuleLoader__.load({
             ),
           ),
         ),
+        row.reason === undefined ? null : h('div', { style: S.historyText, key: 'reason' }, row.reason),
       )
     }
 
@@ -2629,12 +2711,15 @@ window.__ModuleLoader__.load({
         )
       }
       // The `.suppress` file's own review: the host's join of every entry against the sites its last
-      // scan saw, as two counts and — only when it could prove them — the ids that matched nothing.
+      // scan saw. The header is the two counts plus how many entries matched nothing; the rows below
+      // it are the file itself when the host sent them (`items`), and the ids that matched nothing
+      // when it did not — a 0.12.0 host, which is the version-skew fallback and not an error state.
       // Three absences, each with its own rendering and none of them a zero: no block at all (a 0.11.0
       // document, or a file nobody could read) draws nothing; `unused: null` (an incomplete scan) draws
       // the numbers *without* an unused figure; an empty file draws nothing either, because a file
-      // with no entry has nothing to review. Never "everything is unused", which is the claim this
-      // block exists to make impossible.
+      // with no entry has nothing to review. A file too large for one list draws its counts and says
+      // the list is elsewhere — never a prefix that would read as the file. Never "everything is
+      // unused", which is the claim this block exists to make impossible.
       const review = last === null ? null : last.suppressions
       if (review !== null && review.entries > 0) {
         children.push(
@@ -2650,7 +2735,34 @@ window.__ModuleLoader__.load({
                 }),
           ),
         )
-        if (review.unused !== null && review.unused.length > 0) {
+        if (review.items !== undefined) {
+          // The whole file, one row per entry, because the host sent it: the file's own date and reason
+          // and the scan's three-valued verdict. Every row is removable — a still-matching mute is a
+          // legitimate removal, and it is the only entry whose removal un-mutes a live finding. A
+          // verdict of `null` marks the row unknown, never unused: this scan did not prove absence, and
+          // the header already says so, so the two can never disagree.
+          children.push(
+            h(
+              'div',
+              { style: S.reviewBox, key: 'scan-review-rows' },
+              review.items.map((item, index) =>
+                reviewEntryLine(
+                  t,
+                  { ...item, matched: review.unused === null ? null : item.matched },
+                  index,
+                  blocked || writing,
+                  actions,
+                ),
+              ),
+            ),
+          )
+        } else if (review.entries > MAX_SUPPRESSION_ROWS) {
+          // Too many entries for one list to be the file: the host keeps the counts and drops the rows,
+          // and the panel says so rather than drawing a prefix that would read as the whole file.
+          children.push(h('div', { style: S.note, key: 'scan-review-too-long' }, t('scanner.reviewTooLong')))
+        } else if (review.unused !== null && review.unused.length > 0) {
+          // The 0.12.0 host, which sent no rows: its own fallback, unchanged — the ids that matched
+          // nothing, under the caption that says exactly that.
           children.push(h('div', { style: S.scanCaption, key: 'scan-review-list' }, t('scanner.reviewList')))
           // The list is bounded rather than shortened: a box that scrolls keeps every entry's remove
           // action reachable, where slicing to five would silently put a file's 200th entry beyond a
@@ -2660,7 +2772,7 @@ window.__ModuleLoader__.load({
               'div',
               { style: S.reviewBox, key: 'scan-review-rows' },
               review.unused.map((siteId, index) =>
-                reviewEntryLine(t, siteId, index, blocked || writing, actions),
+                reviewEntryLine(t, { siteId }, index, blocked || writing, actions),
               ),
             ),
           )

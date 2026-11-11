@@ -235,6 +235,7 @@ const SCANNER_KEYS = [
   'scanner.review',
   'scanner.reviewUnknown',
   'scanner.reviewList',
+  'scanner.reviewTooLong',
   'scanner.rules',
   'scanner.lifetime',
   'scanner.lifetimeSince',
@@ -2167,4 +2168,221 @@ test('a refused removal is an error with the host reason, never an outcome', asy
   // A refusal is not an outcome: the entry stays listed, and no second click is offered.
   assert.equal(buttonOf(refused, EN.get('scan.removeConfirm')), undefined, 'a refusal leaves a live confirmation')
   assert.equal(texts.includes(refusal), false, 'the refusal is rendered as a success sentence')
+})
+
+/** The three words a review row may use for the verdict this scan could prove, plus the too-long note. */
+const MATCH_KEYS = ['scan.matchMatched', 'scan.matchUnused', 'scan.matchUnknown']
+
+test('the row-state words exist in all three dictionaries and say three different things', () => {
+  const english = [...EN.keys()]
+  const positions = MATCH_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the state words are out of order')
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.equal(positions[index], positions[index - 1] + 1, 'the state words are not one contiguous group')
+  }
+  // They follow the removal's own group, because they describe the rows that group is offered on.
+  assert.equal(positions[0], english.indexOf('scan.removeNote') + 1, 'the state words do not follow the removal note')
+  for (const key of MATCH_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // Three states, three words: "unknown" must not be spelled as "unused", or the row would claim the
+  // one thing the scan explicitly could not prove.
+  for (const dictionary of [EN, RU, ZH]) {
+    const words = MATCH_KEYS.map((key) => dictionary.get(key))
+    assert.equal(new Set(words).size, 3, `a dictionary reuses a row-state word: ${words.join(', ')}`)
+  }
+  // The too-long note names the command that prints the whole file, and a command line is never
+  // translated: it is the same Latin text in all three dictionaries.
+  assert.match(EN.get('scanner.reviewTooLong'), /\/guidance-suppress --review/, 'the note names no way to see the list')
+  for (const dictionary of [EN, RU, ZH]) {
+    assert.match(dictionary.get('scanner.reviewTooLong'), /\/guidance-suppress --review/, 'a dictionary dropped the command')
+  }
+})
+
+test('rows that carry the file show its date and reason, and mark every verdict it can prove', async () => {
+  const review = {
+    entries: 3,
+    matching: 1,
+    unused: ['aa11bb22', 'cc33dd44'],
+    items: [
+      { siteId: 'aa11bb22', date: '2026-10-02', reason: 'changed on purpose', matched: false },
+      { siteId: 'bb22cc33', date: '2026-10-04', matched: true },
+      { siteId: 'cc33dd44', reason: 'temporary experiment', matched: false },
+    ],
+  }
+  const { tree } = await mountPanel(reviewReport(review))
+  const texts = textsOf(tree)
+  assert.ok(
+    texts.includes(translate('scanner.review', { entries: translate('entry.few', { count: 3 }), matching: 1, unused: 2 })),
+    'the header does not name the counts',
+  )
+  // Every entry of the file, not only the dead ones: three rows, three remove actions.
+  const removals = elementsOf(tree).filter(
+    (element) => element.type === 'button' && element.children.includes(EN.get('scan.remove')),
+  )
+  assert.equal(removals.length, 3, 'the review does not offer one removal per entry')
+  // The file's own members, verbatim: the date as it was written, the reason as a person wrote it.
+  for (const fact of ['aa11bb22', 'bb22cc33', 'cc33dd44', '2026-10-02', '2026-10-04', 'changed on purpose', 'temporary experiment']) {
+    assert.ok(texts.includes(fact), `the review dropped ${fact}`)
+  }
+  // The verdict, in three words: two dead, one live, none unknown.
+  assert.equal(texts.filter((text) => text === EN.get('scan.matchUnused')).length, 2, 'an unused entry is not marked')
+  assert.equal(texts.filter((text) => text === EN.get('scan.matchMatched')).length, 1, 'a matching entry is not marked')
+  assert.equal(texts.includes(EN.get('scan.matchUnknown')), false, 'a proven verdict is marked unknown')
+  // The fallback's caption belongs to the fallback: this block lists the file, so it does not say
+  // "entries that matched nothing" about a list that is mostly matches.
+  assert.equal(texts.includes(EN.get('scanner.reviewList')), false, 'the whole file is captioned as its dead rows')
+  // No rule id can be recovered from the file's one-way hash, so the panel must not draw one.
+  assert.equal(texts.some((text) => /^ls-\d\d$/.test(text)), false, 'the panel invented a rule id for a file entry')
+  // Still bounded by height, and still not capped: all three rows live in the one scroll box.
+  const box = elementIn(tree, (element) => element.props.style?.maxHeight === '150px' && element.props.style?.overflowY === 'auto')
+  assert.equal(typeof box, 'object', 'the file list is not a bounded, scrollable block')
+  assert.equal(elementsOf(box).filter((element) => element.type === 'button').length, 3, 'the bounded list is not whole')
+})
+
+test('a row whose verdict the scan could not prove is marked unknown, never unused', async () => {
+  const review = {
+    entries: 2,
+    matching: 0,
+    unused: null,
+    items: [
+      { siteId: 'aa11bb22', date: '2026-10-02', matched: null },
+      { siteId: 'bb22cc33', matched: null },
+    ],
+  }
+  const { tree } = await mountPanel(reviewReport(review))
+  const texts = textsOf(tree)
+  assert.ok(
+    texts.includes(translate('scanner.reviewUnknown', { entries: translate('entry.few', { count: 2 }), matching: 0 })),
+    'an incomplete review draws no sentence',
+  )
+  assert.equal(texts.filter((text) => text === EN.get('scan.matchUnknown')).length, 2, 'an unknown verdict is not marked')
+  assert.equal(texts.includes(EN.get('scan.matchUnused')), false, 'an unknown verdict is marked unused')
+  assert.equal(
+    texts.includes(translate('scanner.review', { entries: translate('entry.few', { count: 2 }), matching: 0, unused: 0 })),
+    false,
+    'an incomplete review invented an unused number',
+  )
+  // The rows are the file, so they can still be acted on one by one — this is the only way to un-mute
+  // a live finding, and it never needed the verdict to be proven.
+  assert.equal(
+    elementsOf(tree).filter((element) => element.type === 'button' && element.children.includes(EN.get('scan.remove'))).length,
+    2,
+    'the rows of an incomplete review offer no removal',
+  )
+  // A row that contradicts the header loses: `unused: null` says this scan could not prove absence, so a
+  // stray `matched: true` is drawn as unknown rather than believed over the count it disagrees with.
+  const { tree: contradicted } = await mountPanel(
+    reviewReport({ ...review, items: [{ siteId: 'aa11bb22', matched: true }, { siteId: 'bb22cc33', matched: false }] }),
+  )
+  const contradictedTexts = textsOf(contradicted)
+  assert.equal(contradictedTexts.filter((text) => text === EN.get('scan.matchUnknown')).length, 2, 'a contradiction is trusted')
+  assert.equal(contradictedTexts.includes(EN.get('scan.matchMatched')), false, 'a partial scan claimed a match it did not prove')
+})
+
+test('a file too large to list draws its counts and one plain note, never a prefix', async () => {
+  // The host drops the row list past its own cap and keeps the counts honest; a prefix would read as
+  // the whole file, which is exactly the plausible lie the cap exists to refuse.
+  const { tree } = await mountPanel(reviewReport({ entries: 240, matching: 12, unused: null }))
+  const texts = textsOf(tree)
+  assert.ok(texts.includes(EN.get('scanner.reviewTooLong')), 'a file too large to list says nothing about it')
+  assert.equal(texts.includes(EN.get('scanner.reviewList')), false, 'a too-long file lists a partial caption')
+  assert.equal(buttonOf(tree, EN.get('scan.remove')), undefined, 'a too-long file offers removals from a list it does not show')
+  // The counts stay, because they are computed over the whole file and are the honest half of the block.
+  assert.ok(
+    texts.includes(translate('scanner.reviewUnknown', { entries: translate('entry.many', { count: 240 }), matching: 12 })),
+    'a too-long file dropped the counts too',
+  )
+  // A measured zero is still a zero, and the note still explains why no row follows it.
+  const { tree: measured } = await mountPanel(reviewReport({ entries: 240, matching: 240, unused: [] }))
+  const measuredTexts = textsOf(measured)
+  assert.ok(
+    measuredTexts.includes(
+      translate('scanner.review', { entries: translate('entry.many', { count: 240 }), matching: 240, unused: 0 }),
+    ),
+    'a measured zero of a too-long file does not print',
+  )
+  assert.ok(measuredTexts.includes(EN.get('scanner.reviewTooLong')), 'a too-long file with nothing unused drew no note')
+  assert.equal(buttonOf(measured, EN.get('scan.remove')), undefined, 'a too-long file offered a removal anyway')
+})
+
+test('a row list that is not the file is dropped, and the fallback lists what it can prove', async () => {
+  // Each of these claims to be the file and is not: a list shorter than the count, one id twice, an id
+  // that is not a key, a member that is not a list at all. The block falls back to the ids `unused`
+  // names rather than drawing a partial file — the difference between "here is the file" and "here is
+  // what matched nothing" is the whole point of having two shapes.
+  const unused = ['aa11bb22', 'cc33dd44']
+  const shared = { entries: 2, matching: 0, unused }
+  for (const items of [
+    [{ siteId: 'aa11bb22', date: '2026-10-02', matched: false }],
+    [{ siteId: 'aa11bb22', matched: false }, { siteId: 'aa11bb22', matched: false }],
+    [{ siteId: 'aa11bb22', matched: false }, { siteId: 'zzzzzzzz', matched: false }],
+    'aa11bb22',
+    [{ siteId: 'aa11bb22', reason: 'only one row' }],
+  ]) {
+    const { tree } = await mountPanel(reviewReport({ ...shared, items }))
+    const texts = textsOf(tree)
+    assert.ok(
+      texts.includes(EN.get('scanner.reviewList')),
+      `a row list that is not the file (${JSON.stringify(items)}) was drawn as the file`,
+    )
+    assert.deepEqual(
+      texts.filter((text) => text === 'aa11bb22' || text === 'cc33dd44'),
+      unused,
+      'the fallback did not list the ids it can prove',
+    )
+    assert.equal(texts.includes('2026-10-02'), false, 'a dropped row kept its date on screen')
+    assert.equal(texts.includes('only one row'), false, 'a dropped row kept its reason on screen')
+  }
+})
+
+test('a matching entry can be removed too, under the same two clicks', async () => {
+  // The only entry whose removal un-mutes a live finding is one that still matches: offering Remove
+  // only on dead rows would make the panel unable to undo the useful mutes.
+  const review = {
+    entries: 1,
+    matching: 1,
+    unused: [],
+    items: [{ siteId: 'dd44ee55', date: '2026-10-06', reason: 'still live', matched: true }],
+  }
+  const plan =
+    'Removal plan for dd44ee55: remove 1 entry from /work/app/.suppress, which would go from 1 to 0 entries, dropping the entry it recorded (2026-10-06, "still live"). Nothing has been written; run the same line without --dry-run to remove it.'
+  const outcome =
+    'Removed dd44ee55 from /work/app/.suppress; the file now holds 0 entries. The site is no longer muted, so the next scan counts it as a finding again. A removal is not a fix: it does not mean the finding went away, and no counter has changed.'
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reviewReport(review), {
+    '*': reportEnvelope(reviewReport(review)),
+    '/guidance-suppress --remove dd44ee55 --dry-run': textEnvelope(plan),
+    '/guidance-suppress --remove dd44ee55': textEnvelope(outcome),
+  })
+  const texts = textsOf(tree)
+  assert.equal(texts.includes(EN.get('scan.matchMatched')), true, 'a live entry is not marked as matched')
+  buttonOf(tree, EN.get('scan.remove')).props.onClick()
+  const planned = await settle(panel, props)
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-suppress')),
+    ['/guidance-suppress --remove dd44ee55 --dry-run'],
+    'the first click did not ask for exactly one removal plan',
+  )
+  assert.ok(textsOf(planned).includes(plan), 'the host plan is not shown verbatim')
+  buttonOf(planned, EN.get('scan.removeConfirm')).props.onClick()
+  const done = await settle(panel, props)
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-suppress')),
+    ['/guidance-suppress --remove dd44ee55 --dry-run', '/guidance-suppress --remove dd44ee55'],
+    'the second click did not run the plan it showed',
+  )
+  assert.ok(textsOf(done).includes(outcome), 'the outcome the host reported is not shown')
 })
