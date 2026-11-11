@@ -853,3 +853,78 @@ test('a report without workspaces keeps the panel exactly as it was', async () =
     'the workspace switch added a button',
   )
 })
+
+/** The branch label's two strings: the branch itself, and the detached checkout's shortened sha. */
+const BRANCH_KEYS = ['scanner.branch', 'scanner.detached']
+
+test('the branch label is translated into every language and rendered on the scan line', () => {
+  for (const key of BRANCH_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // The detached form names the short sha, and the branch form names the branch: one placeholder each.
+  assert.deepEqual(placeholders(EN.get('scanner.branch')), ['branch'])
+  assert.deepEqual(placeholders(EN.get('scanner.detached')), ['sha'])
+})
+
+/** The last-scan line the panel renders for one stored scan, read back out of its markup. */
+async function lastScanLine(lastScan) {
+  const { tree } = await mountPanel(reportOf({ lastScan }))
+  const lines = elementsOf(tree)
+    .filter((element) => element.children.length === 1 && typeof element.children[0] === 'string')
+    .map((element) => element.children[0])
+    .filter((text) => text.startsWith(EN.get('scanner.last').split('{when}')[0]))
+  assert.equal(lines.length, 1, 'the panel does not render one last-scan line')
+  return lines[0]
+}
+
+test('the last-scan line gains the branch fact and nothing else', async () => {
+  const scan = { at: '2026-11-11', files: 70, findings: 85, rules: [] }
+  const plain = await lastScanLine(scan)
+  // Byte-identical to the line before the label existed: date, two counted facts, no suffix.
+  assert.equal(plain, 'Last scan: 2026-11-11 · 70 files · 85 findings', 'the branchless last-scan line changed')
+  // One more fact, in the same ` · ` list the line already joins.
+  assert.equal(await lastScanLine({ ...scan, branch: { kind: 'branch', name: 'main' } }), `${plain} · branch main`)
+  assert.equal(
+    await lastScanLine({ ...scan, branch: { kind: 'detached', sha: 'a1b2c3d' } }),
+    `${plain} · detached at a1b2c3d`,
+  )
+  // A label that was not read is silence, never an "unknown" and never an empty `branch `.
+  for (const branch of [
+    null,
+    {},
+    { kind: 'nope' },
+    { kind: 'branch' },
+    { kind: 'branch', name: '' },
+    { kind: 'detached' },
+    { kind: 'detached', sha: '' },
+    'main',
+    ['main'],
+  ]) {
+    assert.equal(
+      await lastScanLine({ ...scan, branch }),
+      plain,
+      `a ${JSON.stringify(branch)} label rendered a suffix on the last-scan line`,
+    )
+  }
+})
+
+test('the branch belongs to the scan, so the workspace chip does not change', async () => {
+  const { tree } = await mountPanel(
+    reportOf({
+      lastScan: { at: '2026-11-11', files: 70, findings: 85, rules: [], branch: { kind: 'branch', name: 'main' } },
+      workspace: { id: 'aaaa1111', name: 'app' },
+      workspaces: [{ id: 'aaaa1111', name: 'app', findings: 85, rules: 1, lastScanAt: 1762000000000 }],
+    }),
+  )
+  assert.deepEqual(elementIn(tree, (element) => element.props.title === 'app')?.children, ['Workspace: app'])
+})

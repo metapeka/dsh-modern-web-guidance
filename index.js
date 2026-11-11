@@ -9,7 +9,7 @@
  * leaves the session workspace.
  */
 
-import { readFileSync, realpathSync } from 'node:fs'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -18,7 +18,7 @@ import { renderJson, renderReport, workspaceLabel } from './lib/report.js'
 import { RULES, selectRules } from './lib/scan-rules.js'
 import { ScanError, scan } from './lib/scan.js'
 import { createFileStore, defaultStatePath } from './lib/store.js'
-import { classifyCall, createTelemetry, workspaceId } from './lib/telemetry.js'
+import { branchLabel, classifyCall, createTelemetry, workspaceId } from './lib/telemetry.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(here, 'data')
@@ -474,32 +474,164 @@ function commandCwd(invocation) {
 }
 
 /**
- * A workspace as the counters store it: a stable id and a directory name, never a path.
+ * The resolved directory a workspace id hashes, or null when the caller named no usable path.
  *
- * The id hashes the resolved path, so two sessions in one checkout land in one bucket and a renamed
- * directory starts a new one. `realpathSync` only sharpens the string — a path that cannot be
- * resolved (yet) still has an identity — and the raw string is what gets hashed if it fails.
- *
- * `null` means "there is no usable path", never "use the process directory": the report must be able
- * to say it does not know which project it is showing, and `process.cwd()` posed as the project is
- * exactly the lie this helper exists to prevent.
+ * `realpathSync` only sharpens the string — a path that cannot be resolved (yet) still has an
+ * identity — and the raw string is what gets hashed if it fails. `null` means "there is no usable
+ * path", never "use the process directory": the report must be able to say it does not know which
+ * project it is showing, and `process.cwd()` posed as the project is exactly the lie this helper
+ * exists to prevent.
  *
  * @param {unknown} cwd the workspace path, as the host reported it.
  * @param {string} [base] where a relative path is read from — the command passes the session
  *   directory, so `--workspace ../other` never resolves against the plugin process's own directory.
- * @returns {{ id: string, name: string } | null}
+ * @returns {string | null}
  */
-function resolveWorkspace(cwd, base) {
+function workspaceDirectory(cwd, base) {
   const raw = typeof cwd === 'string' ? cwd.trim() : ''
   if (raw === '') return null
   const target = base !== undefined && base !== '' && !isAbsolute(raw) ? join(base, raw) : raw
-  let resolved = target
   try {
-    resolved = realpathSync(target)
+    return realpathSync(target)
   } catch {
-    resolved = target
+    return target
   }
-  return { id: workspaceId(resolved), name: basename(resolved) || 'workspace' }
+}
+
+/** The stored shape of one already-resolved directory: a stable id and a directory name. */
+function workspaceOfDirectory(directory) {
+  return { id: workspaceId(directory), name: basename(directory) || 'workspace' }
+}
+
+/**
+ * A workspace as the counters store it: a stable id and a directory name, never a path.
+ *
+ * The id hashes the resolved path, so two sessions in one checkout land in one bucket and a renamed
+ * directory starts a new one. The raw string is what gets hashed when the path cannot be resolved,
+ * which is why `workspaceDirectory` keeps that fallback in one place.
+ *
+ * @param {unknown} cwd the workspace path, as the host reported it.
+ * @param {string} [base] where a relative path is read from.
+ * @returns {{ id: string, name: string } | null}
+ */
+function resolveWorkspace(cwd, base) {
+  const directory = workspaceDirectory(cwd, base)
+  return directory === null ? null : workspaceOfDirectory(directory)
+}
+
+/** Longest a `.git` pointer or a `HEAD` file may be before it is refused unread, in bytes. */
+const MAX_HEAD_BYTES = 1024
+
+/** The one ref namespace a branch label comes from; every other namespace is no label. */
+const HEADS_PREFIX = 'refs/heads/'
+
+/** A detached `HEAD` holds a bare object id: 40 hex characters, or 64 for a wider hash. */
+const DETACHED_HEAD = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
+
+/**
+ * Read one small file, or null. The size is checked before the read, so an oversized path costs a
+ * `stat` rather than a read, and every failure — a missing file, a directory, a permission error, a
+ * link loop — answers null instead of throwing.
+ *
+ * @param {string} path
+ * @returns {string | null}
+ */
+function readSmallFile(path) {
+  try {
+    if (statSync(path).size > MAX_HEAD_BYTES) return null
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The path of the `HEAD` file that belongs to a workspace, or null when there is no usable `.git`.
+ *
+ * `.git` is usually a directory, but a linked worktree makes it a one-line `gitdir: <path>` file
+ * whose target may be absolute or relative to the workspace root. Exactly one hop is followed, and
+ * nothing else about the repository is read.
+ *
+ * @param {string} workspacePath
+ * @returns {string | null}
+ */
+function gitHeadPath(workspacePath) {
+  const dotGit = join(workspacePath, '.git')
+  let isDirectory
+  try {
+    isDirectory = statSync(dotGit).isDirectory()
+  } catch {
+    return null
+  }
+  if (isDirectory) return join(dotGit, 'HEAD')
+  const pointer = readSmallFile(dotGit)
+  if (typeof pointer !== 'string') return null
+  const lines = pointer
+    .split('\n')
+    .map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line))
+    .filter((line) => line.trim() !== '')
+  // A worktree pointer is one line. A file with more lines is not one, and guessing which line
+  // matters is the enumeration this read deliberately does not do.
+  if (lines.length !== 1) return null
+  const line = lines[0]
+  if (!line.startsWith('gitdir:')) return null
+  const target = line.slice('gitdir:'.length).trim()
+  if (target === '') return null
+  return join(isAbsolute(target) ? target : join(workspacePath, target), 'HEAD')
+}
+
+/**
+ * The single line of a HEAD file, or null when the file is not one line of text.
+ * @param {unknown} content
+ * @returns {string | null}
+ */
+function headLine(content) {
+  if (typeof content !== 'string' || content === '') return null
+  const line = content.endsWith('\n') ? content.slice(0, -1) : content
+  const bare = line.endsWith('\r') ? line.slice(0, -1) : line
+  if (bare === '' || bare.includes('\n') || bare.includes('\r')) return null
+  return bare
+}
+
+/**
+ * Parse one HEAD file's text into a validated label, or null.
+ *
+ * `ref: refs/heads/<name>` is a branch, whether or not the ref resolves: verifying it would mean
+ * reading `.git/refs` or `packed-refs`, which this read does not do. A bare object id is a detached
+ * checkout, labelled by its first seven characters and never resolved. Everything else is silence.
+ *
+ * @param {unknown} content
+ * @returns {{ kind: 'branch', name: string } | { kind: 'detached', sha: string } | null}
+ */
+function labelFromHead(content) {
+  const line = headLine(content)
+  if (line === null) return null
+  if (line.startsWith('ref: ')) {
+    const ref = line.slice('ref: '.length)
+    if (!ref.startsWith(HEADS_PREFIX)) return null
+    return branchLabel({ kind: 'branch', name: ref.slice(HEADS_PREFIX.length) })
+  }
+  if (DETACHED_HEAD.test(line)) return branchLabel({ kind: 'detached', sha: line.slice(0, 7) })
+  return null
+}
+
+/**
+ * The branch label a completed scan may carry, read from `<workspacePath>/.git/HEAD`.
+ *
+ * The read is deliberately tiny: one fixed path derived only from the resolved session workspace,
+ * one hop through a worktree's `gitdir:` pointer, both files refused above 1 KiB, and no
+ * enumeration, no subprocess and no other git file. Every failure — no repository, an unreadable
+ * file, garbage content, a name the branch rule rejects — is silence: the caller records no label,
+ * because a missing label costs one report suffix while a guessed one would be a lie.
+ *
+ * @param {string} workspacePath the resolved directory whose realpath produced the workspace id
+ * @returns {{ kind: 'branch', name: string } | { kind: 'detached', sha: string } | null}
+ */
+export function readHeadLabel(workspacePath) {
+  if (typeof workspacePath !== 'string' || workspacePath === '') return null
+  const headPath = gitHeadPath(workspacePath)
+  if (headPath === null) return null
+  return labelFromHead(readSmallFile(headPath))
 }
 
 /**
@@ -973,7 +1105,15 @@ function startUsageCounters(ctx, config, usage) {
     // guidance call, or a scan whose value carries none — records no workspace and its scan debt
     // stays in the legacy root counters.
     const { workspacePath, ...classified } = entry
-    const workspace = resolveWorkspace(workspacePath)
+    // One resolution serves both: the branch label is read in the very directory whose realpath
+    // produced the workspace id, so the two can never name different trees.
+    const directory = workspaceDirectory(workspacePath)
+    const workspace = directory === null ? null : workspaceOfDirectory(directory)
+    // Only a completed scan has a last scan to label; a refusal writes no summary, so reading for it
+    // would be a read nobody uses. A guidance call never takes this branch.
+    const scanCompleted = tool === 'legacy-scan'
+      && (classified.outcome === 'findings' || classified.outcome === 'clean')
+    const branch = scanCompleted && directory !== null ? readHeadLabel(directory) : null
 
     void Promise.resolve()
       .then(() => telemetry.record({
@@ -981,6 +1121,7 @@ function startUsageCounters(ctx, config, usage) {
         tool,
         ...classified,
         ...(workspace === null ? {} : { workspace }),
+        ...(branch === null ? {} : { branch }),
       }))
       .catch(() => {})
 

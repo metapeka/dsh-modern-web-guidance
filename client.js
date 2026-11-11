@@ -105,6 +105,8 @@ window.__ModuleLoader__.load({
       'scanner.last': 'Last scan: {when}',
       'scanner.skipped': 'skipped {count}',
       'scanner.cut': 'truncated',
+      'scanner.branch': 'branch {branch}',
+      'scanner.detached': 'detached at {sha}',
       'scanner.rules': 'Rules that matched',
       'scanner.lifetime': 'Lifetime totals, not the {days}-day window',
       'scanner.guides': 'Guides to load',
@@ -193,6 +195,8 @@ window.__ModuleLoader__.load({
       'scanner.last': 'Последнее сканирование: {when}',
       'scanner.skipped': 'пропущено {count}',
       'scanner.cut': 'обрезано',
+      'scanner.branch': 'ветка {branch}',
+      'scanner.detached': 'отсоединён HEAD: {sha}',
       'scanner.rules': 'Сработавшие правила',
       'scanner.lifetime': 'Итоги за всё время, а не за {days} дн.',
       'scanner.guides': 'Подсказки, которые стоит открыть',
@@ -285,6 +289,8 @@ window.__ModuleLoader__.load({
       'scanner.last': '最近一次扫描：{when}',
       'scanner.skipped': '跳过 {count}',
       'scanner.cut': '已截断',
+      'scanner.branch': '分支 {branch}',
+      'scanner.detached': '游离 HEAD：{sha}',
       'scanner.rules': '命中的规则',
       'scanner.lifetime': '累计总数，不是最近 {days} 天的窗口',
       'scanner.guides': '需要打开的指引',
@@ -671,14 +677,39 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The branch label a completed scan recorded, or null when it recorded none.
+     *
+     * The host writes exactly two shapes — `{ kind: 'branch', name }` and `{ kind: 'detached', sha }`
+     * — and writes nothing at all when `<workspace>/.git/HEAD` could not be read (ADR-0002 §4). A
+     * missing, malformed or empty label reads as null, so the last-scan line stays exactly what it
+     * was: a label that was not read is silence, never an "unknown" token.
+     *
+     * @param {unknown} value
+     * @returns {{ kind: 'branch', name: string }|{ kind: 'detached', sha: string }|null}
+     */
+    function readBranch(value) {
+      if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value)) return null
+      if (value.kind === 'branch') {
+        const name = asText(value.name)
+        return name === '' ? null : { kind: 'branch', name }
+      }
+      if (value.kind === 'detached') {
+        const sha = asText(value.sha)
+        return sha === '' ? null : { kind: 'detached', sha }
+      }
+      return null
+    }
+
+    /**
      * The stored last scan, or null. A value without a usable date reads as null: the section then
      * says nothing has run rather than printing an empty date.
      *
      * `skipped` and `truncated` are the caveats of the scan: 0.7.2 state files have neither, so a
-     * missing map reads as empty and a missing flag as false and the line is simply shorter.
+     * missing map reads as empty and a missing flag as false and the line is simply shorter. `branch`
+     * is the same bargain one layer later: absent unless the scan could read one.
      *
      * @param {unknown} value
-     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean } | null}
+     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null } | null}
      */
     function readLastScan(value) {
       if (value === null || typeof value !== 'object') return null
@@ -691,6 +722,7 @@ window.__ModuleLoader__.load({
         rules: Array.isArray(value.rules) ? value.rules.filter((id) => typeof id === 'string' && id !== '') : [],
         skipped: readSkipMap(value.skipped),
         truncated: value.truncated === true,
+        branch: readBranch(value.branch),
       }
     }
 
@@ -1730,6 +1762,15 @@ window.__ModuleLoader__.load({
             ]
       if (last !== null && last.skipped.total > 0) lastFacts.push(t('scanner.skipped', { count: last.skipped.total }))
       if (last !== null && last.truncated) lastFacts.push(t('scanner.cut'))
+      // The scan's branch is one more fact in the same list, and only when the host recorded one: an
+      // absent label adds nothing, so a non-git project or a 0.10.x state file keeps today's line.
+      if (last !== null && last.branch !== null) {
+        lastFacts.push(
+          last.branch.kind === 'branch'
+            ? t('scanner.branch', { branch: last.branch.name })
+            : t('scanner.detached', { sha: last.branch.sha }),
+        )
+      }
       const children = [
         h(
           'div',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
+import { branchLabel, classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -1012,6 +1012,141 @@ test('partitioning keeps version 1, so a reload finds the buckets rather than er
   assert.deepEqual(snapshot.workspaces, [
     { id: ALPHA.id, name: 'app', findings: 1, rules: 1, lastScanAt: new Date(NOW).toISOString() },
   ])
+})
+
+// --- The branch label: a label on one scan, never a counter key (ADR-0002) -------------------
+
+/** A scan carrying a label, recorded exactly as `index.js` records one. */
+function labelledScan(branch, findings = [finding('ls-13', 'guide-a')], files = 1, at = NOW) {
+  return { ...workspaceScan(ALPHA, findings, files, at), branch }
+}
+
+/** A stored 0.10.x last scan with the label member added, as a hand-edited document would have it. */
+function lastScanWith(branch) {
+  return {
+    ...lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }),
+    branch,
+  }
+}
+
+test('a branch label rides on the workspace last scan and survives a reload', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(labelledScan({ kind: 'branch', name: 'feature/branch-labels' }))
+  await telemetry.flush()
+  assert.equal(store.state.version, 1)
+  assert.deepEqual(store.state.workspaces[ALPHA.id].lastScan.branch, { kind: 'branch', name: 'feature/branch-labels' })
+  // The ring is untouched by the label: exactly the shape it had before ADR-0002.
+  assert.deepEqual(store.state.recent.at(-1), { at: NOW, tool: 'legacy-scan', outcome: 'findings', files: 1, findings: 1 })
+
+  // The document round-trips: a reload finds the same label, not a normalised-away member.
+  const reloaded = createTelemetry({ store, clock: () => NOW, catalog: CATALOG })
+  const snapshot = await reloaded.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.deepEqual(snapshot.lastScan.branch, { kind: 'branch', name: 'feature/branch-labels' })
+})
+
+test('a detached label stores only its seven validated hex characters', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(labelledScan({ kind: 'detached', sha: 'a1b2c3d' }))
+  await telemetry.flush()
+  assert.deepEqual(store.state.workspaces[ALPHA.id].lastScan.branch, { kind: 'detached', sha: 'a1b2c3d' })
+})
+
+test('a scan with no workspace labels the legacy root last scan instead of inventing a bucket', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    ...scanEntry([finding('ls-13', 'guide-a')]),
+    branch: { kind: 'branch', name: 'main' },
+  })
+  const snapshot = await telemetry.snapshot({ days: 7 })
+  assert.deepEqual(snapshot.lastScan.branch, { kind: 'branch', name: 'main' })
+  assert.equal(snapshot.workspace, null)
+
+  await telemetry.flush()
+  assert.deepEqual(store.state.workspaces, {})
+  assert.deepEqual(store.state.lastScan.branch, { kind: 'branch', name: 'main' })
+})
+
+test('a refused scan records no label, because it records no last scan at all', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({
+    ...classifyCall({ tool: 'web_guidance_legacy_scan', isError: true }),
+    branch: { kind: 'branch', name: 'main' },
+  })
+  await telemetry.flush()
+  assert.equal(store.state.lastScan, null)
+  assert.deepEqual(store.state.workspaces, {})
+})
+
+test('a malformed stored label reads as absent, never as a half-label', async () => {
+  const malformed = [
+    { kind: 'nope', name: 'main' },
+    { kind: 'branch' },
+    { kind: 'branch', name: '' },
+    { kind: 'branch', name: 'main\nsecond line' },
+    { kind: 'branch', name: 'feature name' },
+    { kind: 'branch', name: 'x'.repeat(81) },
+    { kind: 'detached', sha: 'abc' },
+    { kind: 'detached', sha: 'A1B2C3D' },
+    'main',
+    null,
+  ]
+  for (const branch of malformed) {
+    const { telemetry } = telemetryWith({
+      store: memoryStore({ ...legacyDocument(), lastScan: lastScanWith(branch) }),
+    })
+    const snapshot = await telemetry.snapshot({ days: 7 })
+    assert.equal('branch' in snapshot.lastScan, false, `${JSON.stringify(branch)} must read as absent`)
+  }
+})
+
+test('a valid stored label keeps its shape and drops every extra member', async () => {
+  const { telemetry } = telemetryWith({
+    store: memoryStore({
+      ...legacyDocument(),
+      lastScan: lastScanWith({ kind: 'branch', name: 'release/1.2', extra: 'not part of the label' }),
+    }),
+  })
+  const snapshot = await telemetry.snapshot({ days: 7 })
+  assert.deepEqual(snapshot.lastScan.branch, { kind: 'branch', name: 'release/1.2' })
+})
+
+test('a document written before labels keeps its six-key last scan and version 1', async () => {
+  const { telemetry, store } = telemetryWith({ store: memoryStore(legacyDocument()) })
+
+  const snapshot = await telemetry.snapshot({ days: 7 })
+  assert.deepEqual(Object.keys(snapshot.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
+  assert.equal('branch' in snapshot.lastScan, false)
+
+  await telemetry.flush()
+  assert.equal(store.state.version, 1)
+  assert.equal('branch' in store.state.lastScan, false)
+})
+
+test('branchLabel accepts exactly the two shapes and rebuilds them', () => {
+  assert.deepEqual(branchLabel({ kind: 'branch', name: 'main' }), { kind: 'branch', name: 'main' })
+  assert.deepEqual(branchLabel({ kind: 'detached', sha: 'a1b2c3d' }), { kind: 'detached', sha: 'a1b2c3d' })
+  // Extra members are not part of the label: the returned object is rebuilt, not passed through.
+  assert.deepEqual(
+    branchLabel({ kind: 'branch', name: 'feature/x', extra: 'x' }),
+    { kind: 'branch', name: 'feature/x' },
+  )
+
+  for (const name of ['..', 'a..b', 'a//b', '/main', 'main/', '-main', 'feature name', 'feature~1', 'mаin', 'a'.repeat(81)]) {
+    assert.equal(branchLabel({ kind: 'branch', name }), null, `${JSON.stringify(name)} must be rejected`)
+  }
+  assert.equal(branchLabel({ kind: 'branch' }), null)
+  assert.equal(branchLabel({ kind: 'detached', sha: 'a1b2c3' }), null)
+  assert.equal(branchLabel({ kind: 'detached', sha: 'A1B2C3D' }), null)
+  assert.equal(branchLabel({ kind: 'detached', sha: 1234567 }), null)
+  assert.equal(branchLabel('main'), null)
+  assert.equal(branchLabel(null), null)
+  assert.equal(branchLabel([]), null)
 })
 
 

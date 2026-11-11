@@ -579,9 +579,10 @@ test('renderJson passes the scan detail through under the snapshot names', () =>
   const json = renderJson(RICH)
   assert.deepEqual(json.topRules, RICH.topRules)
   assert.deepEqual(json.topScanGuides, RICH.topScanGuides)
-  // RICH predates the audit fields, so the JSON defaults them instead of omitting them.
-  assert.deepEqual(json.lastScan, { ...RICH.lastScan, skipped: {}, truncated: false })
-  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
+  // RICH predates the audit fields, so the JSON defaults them instead of omitting them. `branch`
+  // is defaulted to null like every other scan detail, so a consumer never needs a guard.
+  assert.deepEqual(json.lastScan, { ...RICH.lastScan, skipped: {}, truncated: false, branch: null })
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated', 'branch'])
   assert.equal(json.findings, 3)
 })
 
@@ -600,9 +601,10 @@ test('scan counters never leak paths or snippets into the report', () => {
   assert.doesNotMatch(text, /addEventListener/)
 
   const json = renderJson(leaky)
-  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
+  assert.deepEqual(Object.keys(json.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated', 'branch'])
   assert.equal('path' in json.lastScan, false)
   assert.equal('snippet' in json.lastScan, false)
+  assert.equal(json.lastScan.branch, null)
 })
 
 // --- The last scan's audit tails: skip counts and truncation ---------------------------------
@@ -665,12 +667,14 @@ test('renderJson passes the audit fields through, trims them and defaults an old
     rules: ['ls-05', 'ls-08', 'ls-13', 'ls-17', 'ls-21', 'ls-33'],
     skipped: { extension: 277, 'dot-directory': 2 },
     truncated: true,
+    branch: null,
   })
 
   // A snapshot written by 0.7.2 carries the four old keys; the new ones default instead of vanishing.
   const old = renderJson({ ...RICH, lastScan: { at: '2026-11-10T09:42:11.000Z', files: 12, findings: 4, rules: [] } })
   assert.deepEqual(old.lastScan.skipped, {})
   assert.equal(old.lastScan.truncated, false)
+  assert.equal(old.lastScan.branch, null)
 
   // Malformed values and the fifth reason are dropped, never passed through.
   const junky = renderJson({
@@ -689,6 +693,65 @@ test('renderJson passes the audit fields through, trims them and defaults an old
     lastScan: { ...RICH.lastScan, skipped: { '': 4, binary: 'many' } },
   })
   assert.deepEqual(malformed.lastScan.skipped, {})
+})
+
+// --- The branch label: one suffix on the last-scan line (ADR-0002) ---------------------------
+
+test('the last-scan line appends the branch label in the line own punctuation', () => {
+  const branched = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, branch: { kind: 'branch', name: 'feature/x' } },
+  })
+  assert.match(branched, /^Last scan: 2026-11-10, 12 files, 4 findings \(rules: .*\); branch feature\/x$/m)
+
+  const detached = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, branch: { kind: 'detached', sha: 'a1b2c3d' } },
+  })
+  assert.match(detached, /; detached at a1b2c3d$/m)
+
+  // Appended after the audit tails, so the line reads in the order the facts happened.
+  const audited = renderReport({
+    ...RICH,
+    lastScan: {
+      ...RICH.lastScan,
+      skipped: { extension: 2 },
+      truncated: true,
+      branch: { kind: 'branch', name: 'main' },
+    },
+  })
+  assert.match(audited, /; skipped 2 \(2 extension\); truncated; branch main$/m)
+  assert.equal(audited.split('\n').filter((line) => line.startsWith('Last scan:')).length, 1)
+})
+
+test('a scan without a label renders exactly today line: no suffix and no "unknown"', () => {
+  const text = renderReport(RICH)
+  const line = text.split('\n').find((entry) => entry.startsWith('Last scan:'))
+  assert.equal(line, 'Last scan: 2026-11-10, 12 files, 4 findings (rules: ls-05, ls-08, ls-13, ls-17, ls-21)')
+  assert.doesNotMatch(line, /branch|detached|unknown/i)
+})
+
+test('renderJson emits the label as an object and null when the scan carries none', () => {
+  const labelled = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, branch: { kind: 'detached', sha: 'a1b2c3d' } },
+  })
+  assert.deepEqual(labelled.lastScan.branch, { kind: 'detached', sha: 'a1b2c3d' })
+
+  // The report validates what it prints: a hand-built snapshot cannot put raw repository bytes on a
+  // line, so a corrupt label reads as null exactly as an absent one does.
+  const corrupt = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, branch: { kind: 'branch', name: 'main\nsecond line' } },
+  })
+  assert.equal(corrupt.lastScan.branch, null)
+  assert.doesNotMatch(renderReport({ ...RICH, lastScan: { ...RICH.lastScan, branch: { kind: 'branch', name: 'main\nsecond line' } } }), /second line/)
+})
+
+test('the text and the JSON agree on the one label the counters stored', () => {
+  const labelled = { ...RICH, lastScan: { ...RICH.lastScan, branch: { kind: 'branch', name: 'release/1.2.3' } } }
+  assert.match(renderReport(labelled), /; branch release\/1\.2\.3$/m)
+  assert.deepEqual(renderJson(labelled).lastScan.branch, { kind: 'branch', name: 'release/1.2.3' })
 })
 
 // --- The described scan rows: the message, confidence and guide behind every id -----------------
