@@ -194,3 +194,20 @@ languages in the same commit.
   prints no numbers at all — never three zeros. There is no chart: the per-rule × per-day matrix was
   refused on its size budget, so `scanSeries` carries whole scans, not rules, and the panel draws no
   sparkline.
+- **Every record can be reviewed, and an unanswered action says so** (0.12.0, phase E): the scanner
+  section carries one `.scanignore` sentence (`scanner.ignoreUsage`) built from the **two integers** the
+  host persists, never from the pattern text — the per-line rows are transient and the panel does not
+  draw them; a document without the counts renders shorter rather than "0 matched nothing". The copy
+  action is bounded (`COPY_TIMEOUT_MS`): a clipboard write parked by an unfocused window never settles, so
+  the label races the write and a fourth state says the clipboard did not answer. The label never claims
+  success while the write is in flight, a late success does not flip it back, and "did not answer" is not
+  "refused" — a parked promise was never refused. The mute plan opens with the same panel-owned lead-in
+  the ignore plan has (`scan.muteNote`), so the pair is symmetric, and it repeats the invariant: a mute
+  hides one site and the scan still counts it as suppressed. Host plan sentences stay verbatim and
+  English; the panel never parses or translates them.
+- **Every panel action leaves a command row in the conversation, and that is the accepted price** (0.12.0):
+  `ctx.remote.commands.execute` renders each `/guidance-stats --format json` and
+  `/guidance-scan . --format json` line the panel runs as a truncated JSON block in the transcript, so the
+  panel spends one visible row on mount and one per scan. The only ways to reduce it are a cached envelope
+  (stale numbers on open) or a second data path (forbidden), so the calls stay — and the copy action, which
+  calls nothing, adds no row.
