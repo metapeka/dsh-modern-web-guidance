@@ -284,23 +284,6 @@ function scanResult({ files, findings, muted = 0 }) {
 }
 
 /**
- * The counters document, waited for. A disposed instance flushes with a `void`ed promise, so on a busy
- * run the file can land after `settleCounters`' own window has closed; polling for the file keeps the
- * comparison about the bytes rather than about the scheduler.
- */
-async function settledCounters(home) {
-  const file = countersFile(home)
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      return await readFile(file, 'utf8')
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 10))
-    }
-  }
-  return readFile(file, 'utf8')
-}
-
-/**
  * A scan value whose findings all name one rule, `count` times — the shape the ring stores as that
  * scan's per-rule count, which is what a rule's slope is derived from. `scanResult` cannot express it:
  * it spreads findings across distinct rule ids, so every rule would count one.
@@ -1172,7 +1155,7 @@ test('a rule the ring sampled rising reports its own slope, and reading it write
     }
     for (const dispose of registered.disposers) dispose()
     await settleCounters(home)
-    const before = await settledCounters(home)
+    const before = await readFile(countersFile(home), 'utf8')
 
     const second = createContext()
     apply(second.ctx, {})
@@ -1190,7 +1173,7 @@ test('a rule the ring sampled rising reports its own slope, and reading it write
     assert.equal(row.count, 22)
 
     await settleCounters(home)
-    assert.equal(await settledCounters(home), before)
+    assert.equal(await readFile(countersFile(home), 'utf8'), before)
   } finally {
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
