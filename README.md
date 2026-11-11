@@ -222,7 +222,7 @@ and security budget. The honest split:
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 258 files, 989 kB packed, 2.9 MB unpacked |
+| Size | — | 258 files, 1.0 MB packed, 3.0 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -503,6 +503,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.10.0 | shipped | the counters say whose numbers they are, when each scan fired, and whether a site is still there: scan counters are partitioned per workspace, with a chip and a switcher in the panel and `--workspace`/`--all` on the command; the last scan carries `; branch main`, read from one fixed `.git/HEAD`; and a 20-deep scan history plus a hash-only site comparison print `Since the scan of …: 3 no longer present, 82 still open, 1 new` — or `not comparable` with the reason, never three zeros |
 | 0.11.0 | shipped | the panel writes, and every write asks first: **Mute** appends one `siteId` entry to `<workspace>/.suppress` through `/guidance-suppress <siteId> [--dry-run]`, so a muted finding keeps its place, its order and its count — never resolved, never subtracted; `/guidance-scanignore <pattern> [--dry-run]` offers one line that makes the next scan read less and mutes nothing; `--reset --yes` narrows to `--scan-only`, `--workspace` or `--days`, and no scope touches the mute file, because muting is not a counter |
 | 0.12.0 | shipped | every record can now be reviewed, and only a human retires it: a lifetime total names the day the books opened (`scanCountsSince`, and a document with no origin still prints nothing), an ignore line that excludes nothing is named (`.scanignore: 3 patterns, 1 matched nothing.`), and the mute list can be shrunk by exactly one entry — `/guidance-suppress --review` lists it against the last scan, `--remove <siteId> [--dry-run]` plans one removal, and a removal un-mutes a finding and moves no counter, because a removal is not a fix |
+| 0.13.0 | shipped | the report states a direction, and far more often states why it cannot: a project slope in rates rather than counts (`Slope: 6 scans: 12.4 → 9.1 findings per 100 files`) that refuses with `too-few-scans`, `branch-changed`, `no-files` or `aggregate`, a per-rule slope with its sample where `left-sample` is not `resolved` because the ring's ten rules are a sample and not a census, and the corpus answer rate beside the unchanged KPI hit rate, where an erased baseline reads `no-previous` instead of a jump to 100 % |
 
 The working plan for what comes after these releases — readable counters, per-workspace attribution,
 scan history and per-finding control — lives in [docs/ROADMAP.md](docs/ROADMAP.md), together with the
@@ -537,18 +538,19 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 506 tests across eighteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 562 tests across eighteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
-`report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
-scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its
+`report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline, its 0.7.0 scan
+fields and, since 0.13.0, the project's slope with its four refusals, the per-rule slope and its sample, and the corpus
+answer rate; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its
 rule table and the tool contract, `scan.test.mjs` is the end-to-end scan, `scan-ignore.test.mjs` holds the
 `.scanignore` grammar and the dot-directory rule to their spec, and `scan-command.test.mjs` holds
 `/guidance-scan` to the same refusals and the same values; `scan-guides.test.mjs` checks the guide hashes the rule table
 points at, `client-locales.test.mjs` keeps the panel's three dictionaries in sync, `branch-label.test.mjs` covers the
 four `.git/HEAD` shapes and every way the read stays silent, `site-identity.test.mjs` pins the site hash and every
 comparison guard, and `suppress.test.mjs` holds the suppression file to its shape, its caps, the writer's refusals, the
-byte-preserving one-entry removal and four end-to-end reset proofs with real bytes on disk. In a sandbox that forbids
-child processes, run the files directly (`node test/hardening.test.mjs`).
+byte-preserving one-entry removal, the tri-state `matched` of a review row and four end-to-end reset proofs with real
+bytes on disk. In a sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
 
 <a id="publishing"></a>
 

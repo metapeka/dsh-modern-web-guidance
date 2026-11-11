@@ -17,6 +17,10 @@ checks. What is missing is the repo itself.
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
+> 0.13.0 is in preparation, dispatch pending: `package.json`, `docs/releases/v0.13.0.md`, the three
+> READMEs and the counts below are written and measured on this tree, and the release waits on a manual
+> dispatch of `.github/workflows/release.yml`.
+>
 > 0.8.1 is on the registry but **broken for the host**: its `package.json` shipped with a UTF-8
 > byte-order mark, and the host validates the manifest with `JSON.parse`, which throws on one, so an
 > install fails with `SyntaxError: Unexpected token`. It is superseded by 0.8.2, which ships the same
@@ -91,14 +95,15 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 4 tools, 2 skills, 208 guides, four human commands, and a `npm test` suite of
-      **506 tests in 18 files** covering the index, the plugin mount, the security invariants, the counter
+      **562 tests in 18 files** covering the index, the plugin mount, the security invariants, the counter
       pipeline and its per-workspace buckets, the panel's three dictionaries, the legacy scanner (including
       the "Markdown is skipped" case, the dot-directory rule, the `.scanignore` grammar and the
       run-collapse boundaries), the byte-level manifest guard that would have caught 0.8.1, the `lastScan`
       summary with its optional branch label and the panel's skip/truncation lines, the rule table's guide
-      hashes, the site hash and every comparison guard, the suppression file's shape, caps and writer
+      hashes, the site hash and every comparison guard, the slope's four refusals and the two rates that must
+      stay two, the suppression file's shape, caps and writer
       refusals, the four reset scopes (with the mute file proved untouched at every one) and the
-      `/guidance-scan`, `/guidance-suppress` and `/guidance-scanignore` commands (a run reports 502 passed
+      `/guidance-scan`, `/guidance-suppress` and `/guidance-scanignore` commands (a run reports 558 passed
       plus 4 skipped where the host forbids symlink creation, because those tests skip themselves there
       rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
@@ -251,8 +256,11 @@ Constraints worth knowing:
   exactly two modules — `lib/site.js` (the one site identity) and `lib/suppress.js` (the suppression file
   and its writer) — and 0.12.0 added none, only a review command on `lib/suppress.js` and an `ignoreUsage`
   key on the scan value, so the tarball moves to 258 files and keeps the zero-dependency, no-build-step
-  shape; the two writes ADR-0003 licenses go to workspace files that never ship.
-  `npm pack --dry-run` lists exactly what ships: 258 files, 989 kB packed / 2.9 MB unpacked at 0.12.0.
+  shape; the two writes ADR-0003 licenses go to workspace files that never ship. 0.13.0 adds no file
+  either: the slope, a rule's slope, the answer rate and the review's `items` are source inside
+  `lib/report.js`, `lib/telemetry.js`, `lib/suppress.js` and `client.js` plus locale strings, all derived at
+  render time and stored nowhere, so the tarball holds at 258 files.
+  `npm pack --dry-run` lists exactly what ships: 258 files, 1.0 MB packed / 3.0 MB unpacked at 0.13.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 
