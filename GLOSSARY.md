@@ -72,6 +72,15 @@ result and never fails the scan. It is **not** a security boundary — the scann
 `realpath(cwd)`, so the file can only make a scan read less than it is allowed to, never more.
 _Avoid_: .gitignore, allowlist, blocklist, sandbox rule
 
+**Suppressed finding**:
+A finding a person decided to mute. It stays in the scan's results and is counted separately
+(`suppressed: N`) by rule, and a suppressed site is still present — so it is never counted as resolved
+and "fixed" and "muted" can never look the same. It is recorded per code site (`siteId`, never a line
+number) in a workspace-root `.suppress` file that only an explicit command appends to, after a visible
+confirmation (ADR-0003). Contrast an ignored path: `.scanignore` means the scan never reads the file,
+which is a different act with a different consequence.
+_Avoid_: fixed, ignored, false positive, accepted risk
+
 ## Telemetry
 
 **Call**:

@@ -61,6 +61,13 @@ full interface is `docs/notes/legacy-scan-contract.md`.
   project shares. The ignore file is **not** a security boundary: the scanner is already confined to the
   workspace, so it can only make a scan read less. Both rules are specified in
   `docs/notes/legacy-scan-contract.md` and covered by `test/scan-ignore.test.mjs`.
+- **A suppressed finding is muted, not fixed, and the scan still counts it.** A suppression names one code
+  site by `siteId` — never a line, never a whole rule — and lives in a workspace-root file that only an
+  explicit human command appends to, after a visible confirmation ([ADR-0003](docs/adr/0003-write-surface.md)).
+  The scan keeps the finding, reports it separately (`suppressed: N`) by rule, and never counts a suppressed
+  site as resolved: "fixed" and "muted" must never look the same number. The scanner itself still writes
+  nothing; the confirmed command is the only writer in the product.
+  The file's shape and its reporting rules are `docs/notes/suppression-contract.md`.
 
 ## Telemetry and attribution
 
@@ -125,8 +132,11 @@ entry and the panel's data call (`ctx.remote.commands.execute`). The panel regis
 `sidebar.panellist` id `guidance` and the keyed `main` slot with the same key; a third registration owns
 the chat side — the keyed `tool.call.toolview` slot under `web_guidance_legacy_scan`, which renders one
 scan call as a table (rule, place, confidence, guide) and leaves the generic card on every other tool.
-The panel is read-only apart from one button: it asks the host to run `/guidance-scan . --format json`,
-so a scan started from the panel is the command, not a second implementation.
+The panel holds no filesystem authority: it has two actions, and both are command lines the host runs.
+The scan button asks for `/guidance-scan . --format json`. Phase C adds one more request
+([ADR-0003](docs/adr/0003-write-surface.md)): a suppression entry or one `.scanignore` line, and only
+after the plan (`--dry-run`) is shown and a second, distinct confirmation is given — so a scan or a
+render never writes, and a single click never writes.
 See `docs/notes/client-panel-spike.md` for the verified contract.
 
 Panel strings live in three dictionaries — `EN`, `RU` and `ZH` — registered in one
@@ -158,7 +168,8 @@ languages in the same commit.
   title and the 7/30 switch, rendering `workspace.label` from the report's `workspace` and listing every
   entry of `workspaces` plus `workspace.all`. Selecting one re-runs
   `/guidance-stats --json --workspace <id>` through the same bridge as refresh, so the panel still owns no
-  second data path and still writes nothing. An empty or `_unattributed` name renders
+  second data path — it wrote nothing through 0.10.0, and the only write it may ever request is one
+  confirmed command (ADR-0003). An empty or `_unattributed` name renders
   `workspace.unattributed`, never a blank chip; two entries sharing a name get an id suffix (`app · aaaa`).
   A host that sends no `workspaces` renders no chip and no switcher — the 0.9.0 panel exactly.
 - **The panel answers "when" and "did it land", and says so when it cannot** (0.10.0, phase B): a

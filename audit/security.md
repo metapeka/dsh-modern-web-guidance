@@ -252,9 +252,9 @@ temp workspace and prints the exact command and output (see Repro artifacts belo
 
 ---
 
-## F9 — Info — 0.11.0 read surface: the branch label
+## F9 — Info — 0.10.0 read surface: the branch label
 
-Added with the release after 0.10.0 (2026-11-11, [ADR-0002](../docs/adr/0002-branch-labels.md)). The
+Added with 0.10.0 (2026-11-11, [ADR-0002](../docs/adr/0002-branch-labels.md)). The
 usage counters are the second surface that reads outside the package — one fixed file at the end of a
 completed scan — so its boundary is stated here rather than inferred from the attribution contract.
 
@@ -292,6 +292,52 @@ pointer is one string on one line.
 Not covered by this section: the counters' own write of the profile's `stats.json` (0.2.0 onward)
 predates this audit's "Filesystem writes: none" snapshot and is not rewritten here — this section records
 the new **read** only.
+
+---
+
+## F10 — Info — 0.11.0 write surface: the two confirmed project writes
+
+Added with phase C (2026-11-11, [ADR-0003](../docs/adr/0003-write-surface.md)). This is the first section
+in this audit that records a **write into the user's project**, so its boundary is stated here rather than
+left to the ADR's prose.
+
+- **Two actions, two files.** `<resolved workspace>/.suppress` (one JSON entry appended) and
+  `<resolved workspace>/.scanignore` (one pattern line appended). Nothing else in the product writes
+  outside the profile: `/guidance-stats --reset` writes only `stats.json` (see F9's note), and "copy as
+  JSON" is the clipboard, not a file.
+- **The browser half cannot write.** `client.js` holds no filesystem authority; it composes a command
+  line and asks the host to run it (`ctx.remote.commands.execute`) exactly as the scan button does. The
+  write executes in `index.js` under the same session-header rule as the scan (`index.js:471-474`,
+  `:515-519`); with no header the write is **refused**, never redirected to `process.cwd()`.
+- **No caller byte reaches a path.** The directory is the resolved workspace and the filename is a
+  literal; a site id or a pattern is written *into* the file, never into its name. There is no `--file`,
+  no `--output`, no batch mode and no `--all`.
+- **Containment.** The target's realpath must stay inside the real workspace, and a target that is a
+  symlink is refused rather than followed — a symlinked `.scanignore` would otherwise turn one append
+  into an escape.
+- **Plan, then apply.** Every write command answers `--dry-run` with the absolute target, the exact line
+  it would add and the current count, and writes nothing; the panel shows that plan and requires a
+  second, distinct click. The apply call prints the path and the new count.
+- **A refusal is an error, not a no-op.** An unknown site id, a foreign or ambiguous selector, a pattern
+  outside `lib/scan.js:20-39`'s grammar, an unreadable or unparsable target, a symlink, a full cap or a
+  failed write returns `kind: 'error'` with a code and reaches the panel's error state. The only benign
+  no-op — "already present" — says so in its text.
+- **Failure leaves the original intact.** The file is written to a sibling `.tmp` and renamed
+  (`lib/store.js:39-44`); a failed rename leaves the target byte-identical and removes the temp.
+- **The reader is forgiving, the writer is not.** A malformed `.scanignore` line is reported by the scan
+  and tolerated; the writer refuses to append a line its own reader would call malformed, refuses to
+  rewrite the file from a parsed model (so hand-written comments and formatting survive), and adds a
+  missing trailing newline before appending. A `.suppress` that fails to parse is refused, never
+  overwritten.
+- **No network, no spawn.** Node writes the file in-process: no `git`, no editor, no shell.
+
+Residual risk, accepted: the plugin process can now append inside the workspace it belongs to, so a
+confused panel could mute a finding. Three things bound it — the write is one line to one of two fixed
+dotfiles, the target is contained and symlink-refused, and a muted finding is never hidden: it is still
+counted and reported as suppressed, so the numbers keep the evidence. A suppression is a reviewable file
+in the user's repository, not a hidden setting. The write cannot delete, cannot escape the workspace,
+cannot touch source code or `.git`, and cannot be triggered by the model: no write tool exists, and the
+four model-facing tools still have no write API.
 
 ---
 
