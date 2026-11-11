@@ -855,6 +855,27 @@ test('scanCountsScope says the described lists are lifetime totals', () => {
   assert.equal('scanCountsScope' in renderJson(RICH), false)
 })
 
+test('the lifetime origin sits beside the scope flag, and only when the document recorded one', () => {
+  const dated = { ...RICH, scanCountsSince: '2026-11-01' }
+
+  const described = renderJson(dated, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+  assert.equal(described.scanCountsSince, '2026-11-01')
+  const keys = Object.keys(described)
+  // Beside the flag it qualifies, so a reader that finds one finds the other.
+  assert.equal(keys[keys.indexOf('scanCountsScope') + 1], 'scanCountsSince')
+
+  // An unrecorded origin is absent — not null, not a dash and not an empty string — for every shape
+  // an older or truncated document can produce.
+  for (const missing of [undefined, null, '']) {
+    assert.equal('scanCountsSince' in renderJson({ ...RICH, scanCountsSince: missing }, {}), false)
+  }
+
+  // The frozen document never grows the key: a consumer that asked for no enrichment, or a host that
+  // recorded no origin, renders the 0.11.0 JSON byte for byte.
+  assert.equal('scanCountsSince' in renderJson(dated), false)
+  assert.equal(JSON.stringify(renderJson(dated)), JSON.stringify(renderJson(RICH)))
+})
+
 test('renderJson without options keeps the pre-enrichment document exactly', () => {
   const frozen = renderJson(RICH)
   assert.deepEqual(Object.keys(frozen), [

@@ -233,6 +233,7 @@ const SCANNER_KEYS = [
   'scanner.cut',
   'scanner.rules',
   'scanner.lifetime',
+  'scanner.lifetimeSince',
   'scanner.guides',
   'scanner.scan',
   'scanner.scanning',
@@ -439,6 +440,50 @@ test('the lifetime caption is translated and names the window in every language'
   assert.match(ZH.get('scanner.lifetime'), CJK, 'ZH.scanner.lifetime has no Chinese text')
   assert.notEqual(RU.get('scanner.lifetime'), EN.get('scanner.lifetime'), 'RU.scanner.lifetime is copied from English')
   assert.notEqual(ZH.get('scanner.lifetime'), EN.get('scanner.lifetime'), 'ZH.scanner.lifetime is copied from English')
+})
+
+test('the lifetime caption names the day the books opened, and drops the suffix when it has none', async () => {
+  const rules = [{ ruleId: 'ls-13', count: 2 }]
+
+  const dated = await mountPanel(reportOf({ topRules: rules, scanCountsSince: '2026-11-01' }))
+  const datedCaption = elementIn(dated.tree, (element) => element.props?.key === 'scan-rules-scope')
+  assert.ok(datedCaption !== undefined, 'the lifetime caption is not rendered')
+  // The date is the host's string, printed as given and never reformatted by the panel.
+  assert.equal(
+    datedCaption.children.join(''),
+    `${translate('scanner.lifetime', { days: 7 })} · ${translate('scanner.lifetimeSince', { date: '2026-11-01' })}`,
+  )
+
+  // Without an origin the caption is the 0.11.0 sentence, character for character: an unrecorded
+  // start must not grow a dash, an empty pair or an "unknown".
+  const undated = await mountPanel(reportOf({ topRules: rules }))
+  const undatedCaption = elementIn(undated.tree, (element) => element.props?.key === 'scan-rules-scope')
+  assert.ok(undatedCaption !== undefined, 'the lifetime caption is not rendered')
+  assert.equal(undatedCaption.children.join(''), translate('scanner.lifetime', { days: 7 }))
+  assert.ok(!undatedCaption.children.join('').includes('·'), 'an absent date still rendered a separator')
+})
+
+test('the lifetime date is translated in all three languages and is only appended when recorded', () => {
+  for (const name of DICTIONARIES) {
+    const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+    assert.deepEqual(placeholders(dictionary.get('scanner.lifetimeSince')), ['date'], `${name} does not take {date}`)
+    assert.ok(dictionary.get('scanner.lifetimeSince').trim() !== '', `${name}.scanner.lifetimeSince is empty`)
+  }
+  assert.match(RU.get('scanner.lifetimeSince'), /[\u0400-\u04ff]/, 'RU.scanner.lifetimeSince is not Russian')
+  assert.match(ZH.get('scanner.lifetimeSince'), CJK, 'ZH.scanner.lifetimeSince has no Chinese text')
+  assert.notEqual(RU.get('scanner.lifetimeSince'), EN.get('scanner.lifetimeSince'), 'RU.scanner.lifetimeSince is copied from English')
+  assert.notEqual(ZH.get('scanner.lifetimeSince'), EN.get('scanner.lifetimeSince'), 'ZH.scanner.lifetimeSince is copied from English')
+
+  // The suffix is guarded by the host's field: an empty date renders no suffix at all.
+  assert.match(CLIENT_SOURCE, /report\.scanCountsSince === ''/, 'the caption does not check for an absent date')
+  assert.ok(
+    CLIENT_SOURCE.includes("t('scanner.lifetimeSince', { date: report.scanCountsSince })"),
+    'the caption does not render the recorded date',
+  )
+  assert.ok(
+    CLIENT_SOURCE.includes('scanCountsSince: asText(payload.scanCountsSince)'),
+    'the report body never reads the date',
+  )
 })
 
 test('the guide chips explain themselves without changing their text', () => {

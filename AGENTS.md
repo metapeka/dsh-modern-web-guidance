@@ -163,7 +163,12 @@ languages in the same commit.
   `finding` plurals), with the rule's own `message` clamped to two lines underneath — and no second line
   at all when the host sends none. A guide chip keeps `id (count)` visible and puts the catalog
   `description` in its `title`. While `scanCountsScope` is `lifetime`, one caption (`scanner.lifetime`)
-  says the ranked counts are not the `{days}` window the tiles above show. **The words come from the
+  says the ranked counts are not the `{days}` window the tiles above show — and since E-1 that caption also
+  names the day the counting began (`scanner.lifetimeSince`, fed by `scanCountsSince`), because a total
+  with no origin cannot be read. The origin is the selected bucket's own start, never the document's, and
+  legacy root counters have none: absence is silent, so an undated document renders the 0.9.0 caption
+  character for character, and `normalizeState` preserves a missing `since` as `null` instead of stamping
+  `now` on load. **The words come from the
   host**: `renderJson(snapshot, { rules, guides })` joins them from `lib/scan-rules.js` and the catalog,
   so the panel invents nothing, and the chat row reads the same per-finding `message`/`snippet` as
   `title`s rather than adding a line per row. Version skew costs a caption or a hint, never a row — a

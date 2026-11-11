@@ -950,6 +950,165 @@ test('an unknown workspace id reads as the aggregate rather than as an empty rep
   assert.deepEqual(await telemetry.snapshot({ days: 7, workspace: 'deadbeef' }), await telemetry.snapshot({ days: 7 }))
 })
 
+// --- When the books opened: the origin of a lifetime counter (E-1) -----------------------------
+
+test('a loaded document keeps the start it recorded, and the report prints that day', async () => {
+  // A realistic upgraded document: the root counters are empty, one bucket has counters and a start.
+  const seed = {
+    version: 1,
+    since: NOW - 40 * DAY,
+    calls: 0,
+    byDay: {},
+    byTool: {},
+    byOutcome: {},
+    byCategory: {},
+    retrieved: {},
+    recent: [],
+    scanRules: {},
+    scanGuides: {},
+    lastScan: null,
+    workspaces: {
+      [ALPHA.id]: {
+        name: ALPHA.name,
+        since: NOW - 9 * DAY,
+        scanRules: { 'ls-13': 1 },
+        scanGuides: { 'guide-a': 1 },
+      },
+    },
+  }
+  const { telemetry, store } = telemetryWith({ store: memoryStore(seed) })
+
+  const alpha = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal(alpha.scanCountsSince, localDay(NOW - 9 * DAY))
+
+  // Loading moves neither stamp: a date that is only read back must survive the round trip.
+  await telemetry.flush()
+  assert.equal(store.state.since, NOW - 40 * DAY)
+  assert.equal(store.state.workspaces[ALPHA.id].since, NOW - 9 * DAY)
+})
+
+test('a document loaded without a start stays undated, and recording invents none', async () => {
+  // Absence is reachable only through a hand-truncated or pre-since document — every document the
+  // plugin has written since 0.2.0 carries a start — but it is the state E-1 must not paper over.
+  const document = legacyDocument()
+  delete document.since
+  const { telemetry, store } = telemetryWith({ store: memoryStore(document) })
+
+  await telemetry.record(workspaceScan(ALPHA, [finding('ls-13', 'guide-a')], 1, NOW))
+
+  const all = await telemetry.snapshot({ days: 7 })
+  // The legacy root counters have no origin and cannot borrow the bucket's, so the aggregate carries
+  // no date at all. Not null in the document, not a dash: the key is simply absent.
+  assert.equal('scanCountsSince' in all, false)
+  // The bucket was created by that scan, so it does know when its own books opened.
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).scanCountsSince, localDay(NOW))
+
+  await telemetry.flush()
+  // Nothing was backfilled on load, and recording a scan does not stamp the document either: the
+  // lifetime totals it would date reach back before the missing field, so `now` would be a guess.
+  assert.equal(store.state.since, null)
+})
+
+test('a bucket without a start takes no date from its siblings, and undates the aggregate', async () => {
+  const seed = {
+    version: 1,
+    since: NOW - 40 * DAY,
+    calls: 0,
+    byDay: {},
+    byTool: {},
+    byOutcome: {},
+    byCategory: {},
+    retrieved: {},
+    recent: [],
+    scanRules: {},
+    scanGuides: {},
+    lastScan: null,
+    workspaces: {
+      [ALPHA.id]: { name: ALPHA.name, since: NOW - 9 * DAY, scanRules: { 'ls-13': 1 }, scanGuides: {} },
+      [BETA.id]: { name: BETA.name, scanRules: { 'ls-02': 1 }, scanGuides: {} },
+    },
+  }
+  const { telemetry } = telemetryWith({ store: memoryStore(seed) })
+
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).scanCountsSince, localDay(NOW - 9 * DAY))
+  assert.equal('scanCountsSince' in (await telemetry.snapshot({ days: 7, workspace: BETA.id })), false)
+  // The aggregate sums both buckets, and one source it cannot date makes the sum's origin unknown:
+  // a borrowed date from the dated sibling would describe numbers the sibling never counted.
+  assert.equal('scanCountsSince' in (await telemetry.snapshot({ days: 7 })), false)
+})
+
+test('the lifetime counters are dated from their oldest source, not from the document', async () => {
+  // Opened forty days ago; still no scans until twenty days ago, so the document date would claim a
+  // span the counters never covered.
+  const document = { ...legacyDocument(), since: NOW - 40 * DAY, scanRules: {}, scanGuides: {}, lastScan: null }
+  const { telemetry } = telemetryWith({ store: memoryStore(document) })
+
+  await telemetry.record(workspaceScan(ALPHA, [finding('ls-13', 'guide-a')], 1, NOW - 20 * DAY))
+  await telemetry.record(workspaceScan(BETA, [finding('ls-02', 'guide-b')], 1, NOW - 2 * DAY))
+
+  // A bucket is dated by its own first sight, not by the profile-wide document.
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).scanCountsSince, localDay(NOW - 20 * DAY))
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: BETA.id })).scanCountsSince, localDay(NOW - 2 * DAY))
+  // The aggregate is the oldest source that contributed a counter.
+  const all = await telemetry.snapshot({ days: 7 })
+  assert.equal(all.scanCountsSince, localDay(NOW - 20 * DAY))
+  assert.notEqual(all.scanCountsSince, localDay(document.since))
+})
+
+test('the legacy root counters have no start of their own, so a scope that includes them has none', async () => {
+  const { telemetry } = telemetryWith({ store: memoryStore(legacyDocument()) })
+  await telemetry.record(workspaceScan(ALPHA, [finding('ls-20', 'guide-c')], 1, NOW - DAY))
+
+  // A 0.9.0 document has a `since`, but that is when the document was created — the root scan
+  // counters arrived later, so printing the document date would date numbers it did not count.
+  const legacy = await telemetry.snapshot({ days: 7, workspace: '_unattributed' })
+  assert.deepEqual(legacy.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
+  assert.equal('scanCountsSince' in legacy, false)
+  assert.equal('scanCountsSince' in (await telemetry.snapshot({ days: 7 })), false)
+  // The bucket beside it is dated on its own.
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).scanCountsSince, localDay(NOW - DAY))
+})
+
+test('a new document and a new bucket are dated from the clock that created them', async () => {
+  const { telemetry, store } = telemetryWith()
+  await telemetry.record(workspaceScan(ALPHA, [finding('ls-13', 'guide-a')], 1, NOW))
+  await telemetry.flush()
+
+  // Initialising is honest: there is an origin, and it is now. Only *loading* must not invent one.
+  assert.equal(store.state.since, NOW)
+  assert.equal(store.state.workspaces[ALPHA.id].since, NOW)
+  assert.equal((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).scanCountsSince, localDay(NOW))
+})
+
+test('an unknown start changes no counter, no window and no series', async () => {
+  // E-1 makes `since` a label, never an input. If a null origin moved a counter or a window boundary
+  // that would be a bug to report, not to paper over, so pin the equality across every member the
+  // snapshot builds: the call counters, the day buckets, the scan series, the history and the diff.
+  const { telemetry, store } = telemetryWith()
+  await telemetry.record(workspaceScan(ALPHA, [finding('ls-13', 'guide-a'), finding('ls-13', 'guide-a')], 2, NOW - 1000))
+  await telemetry.record({ tool: 'search', outcome: 'hit', query: 'dialog', at: NOW - DAY })
+  await telemetry.flush()
+
+  // The same document twice: one as written, one with every recorded origin removed.
+  const written = JSON.parse(JSON.stringify(store.state))
+  const stripped = JSON.parse(JSON.stringify(written))
+  delete stripped.since
+  delete stripped.workspaces[ALPHA.id].since
+
+  const report = async (document) => {
+    const { telemetry: reader } = telemetryWith({ store: memoryStore(document) })
+    return reader.snapshot({ days: 7, workspace: ALPHA.id })
+  }
+  const dated = await report(written)
+  const undated = await report(stripped)
+
+  assert.equal(dated.scanCountsSince, localDay(NOW - 1000))
+  assert.equal('scanCountsSince' in undated, false)
+  // Byte for byte the same report once the label is removed.
+  delete dated.scanCountsSince
+  assert.deepEqual(undated, dated)
+})
+
 test('garbage workspace entries are dropped and an incomplete bucket is completed', async () => {
   const seed = {
     version: 1,

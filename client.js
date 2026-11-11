@@ -129,6 +129,7 @@ window.__ModuleLoader__.load({
       'scanner.lastSeen': 'last {when}',
       'scanner.rules': 'Rules that matched',
       'scanner.lifetime': 'Lifetime totals, not the {days}-day window',
+      'scanner.lifetimeSince': 'since {date}',
       'scanner.guides': 'Guides to load',
       'scanner.scan': 'Scan workspace folder',
       'scanner.scanning': 'Scanning the workspace...',
@@ -240,6 +241,7 @@ window.__ModuleLoader__.load({
       'scanner.lastSeen': 'последний раз {when}',
       'scanner.rules': 'Сработавшие правила',
       'scanner.lifetime': 'Итоги за всё время, а не за {days} дн.',
+      'scanner.lifetimeSince': 'начиная с {date}',
       'scanner.guides': 'Подсказки, которые стоит открыть',
       'scanner.scan': 'Сканировать рабочую папку',
       'scanner.scanning': 'Сканирую рабочую папку...',
@@ -355,6 +357,7 @@ window.__ModuleLoader__.load({
       'scanner.lastSeen': '最近 {when}',
       'scanner.rules': '命中的规则',
       'scanner.lifetime': '累计总数，不是最近 {days} 天的窗口',
+      'scanner.lifetimeSince': '自 {date} 起',
       'scanner.guides': '需要打开的指引',
       'scanner.scan': '扫描工作区',
       'scanner.scanning': '正在扫描工作区...',
@@ -995,6 +998,10 @@ window.__ModuleLoader__.load({
         // rest of the panel shows; an older report has no such field, and then the section stays
         // silent rather than claiming either way.
         scanCountsScope: asText(payload.scanCountsScope),
+        // The day those counters began, already formatted by the host: the panel renders the string
+        // it was given and never guesses at a locale date. '' means the document recorded no origin,
+        // and the caption then keeps exactly the 0.11.0 text — no suffix, no dash, no "unknown".
+        scanCountsSince: asText(payload.scanCountsSince),
         lastScan: readLastScan(payload.lastScan),
         // The scan story, additive like everything else in this block: a pre-B host sends neither,
         // and null / [] is what keeps the comparison line and the history block off the panel.
@@ -2399,11 +2406,17 @@ window.__ModuleLoader__.load({
         // The ranked rules are lifetime counters: they are not the {days} window the tiles above
         // show. Saying so costs one line; guessing either way would mislabel every number below.
         if (report.scanCountsScope === 'lifetime') {
+          // The date is the host's string, rendered as given: the panel never formats a calendar for
+          // a locale it does not know. Without one the caption is the 0.11.0 sentence unchanged — an
+          // unrecorded origin must not become a dash, an empty pair or an invented "today" (E-1).
+          const since = report.scanCountsSince === ''
+            ? ''
+            : ` · ${t('scanner.lifetimeSince', { date: report.scanCountsSince })}`
           children.push(
             h(
               'div',
               { style: S.scanCaption, key: 'scan-rules-scope' },
-              t('scanner.lifetime', { days: report.periodDays }),
+              `${t('scanner.lifetime', { days: report.periodDays })}${since}`,
             ),
           )
         }
