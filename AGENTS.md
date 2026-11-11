@@ -120,6 +120,17 @@ exists to prevent.
   of printing a number that looks like progress. `likelihood` is not a word this product uses: the sign
   of `delta` is the whole claim, and no surface colours it as a recovery. The deriving rules are §16 of
   `docs/notes/scan-history-contract.md`.
+- **The ten is a sample, not a census** (0.13.0, F-2): the ring keeps each scan's ten most-numerous rules,
+  so a rule's absence from an entry means it was not in that scan's top ten — never that it stopped
+  firing. A per-rule slope is therefore computed only over the entries that carry the rule, the halves are
+  trimmed to the same number of carrying entries (summing whole halves can invert the direction), and the
+  four tokens say what happened to the *sample*: `too-few-samples` (under three carrying entries),
+  `entered-sample`, `left-sample`, `not-sampled`. `left-sample` is not `resolved` and `entered-sample` is
+  not `new`; those belong to sites. The sample is printed beside every claim because it is the claim's
+  honesty, the floor decides whether to compare while the sample says how much was compared, an aggregate
+  carries `slope: null` with F-1's line giving the reason, and the frozen two-member row shape keeps two
+  members — the slope is enrichment for described rows, not snapshot data. §17 of
+  `docs/notes/scan-history-contract.md`.
 
 ## CI
 

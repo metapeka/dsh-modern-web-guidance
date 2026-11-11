@@ -715,3 +715,35 @@ instance and again after the debounce window.
   an array yields `scanSlope: null` (this host cannot tell); an empty ring yields
   `{ refusal: 'too-few-scans' }` (a real refusal). Three states, because "cannot tell" and "not enough
   data" are different answers.
+
+## 17. A rule's slope (0.13.0, phase F-2)
+
+The ring keeps each scan's ten most-numerous rules. **The ten is a sample, not a census**: a rule absent
+from an entry was not in that scan's top ten, which is not the same as a rule that stopped firing. That
+single distinction is the whole design, and it is why F-2's hole rule differs from F-1's.
+
+- **Two questions, two scopes.** `not-sampled` (no entry carries the rule at all) is decided over the
+  whole comparable series; every other state is decided over the two halves. "No scan sampled it" and
+  "the window does not reach the entries that did" are different answers and must not be merged.
+- **Trim the halves to the same number of carrying entries.** `pair = min(newer carried, older carried)`;
+  `from`/`to` are the sums of the newest `pair` counts on each side, `sample = 2 × pair`. Summing whole
+  halves makes a rule carried once recently against three times older read `falling` when it is per
+  carrying scan `rising` — and the trim is also what makes `flat` a stated case rather than an artefact of
+  half size.
+- **The floor decides whether to compare; the sample says how much was compared.** Fewer than three
+  carrying entries → `too-few-samples`. With exactly three the fair cut is one against one, so the
+  sentence prints `over 2 scans` — smaller than the floor, and honest: the floor is about evidence, the
+  sample is about the claim.
+- **The words are not B's.** `entered-sample` and `left-sample` are about the *sample*, not the finding:
+  a rule can leave the top ten while firing exactly as before. `new`/`resolved` belong to sites (B-3) and
+  never appear on a rule slope.
+- **Three-way presence, again**: no member = a document without a ring (renders the 0.12.0 report);
+  `null` = an aggregate, where there is no single ring to read and F-1's line already says why; a token =
+  a real refusal with its sample. Refusals print their sample, because a verdict without its evidence is
+  the thing this phase is against.
+- **Described rows only.** The frozen two-member row shape (`renderJson(snapshot)` with no options) stays
+  two members: the slope is enrichment derived from the ring, not snapshot data, and an older consumer
+  parsing that row must not see a member appear inside it.
+- **Derived, never stored.** Same as §16: a report leaves `stats.json` byte-identical, and the shared
+  window helpers (`comparableSeries`, `halfSeries`) make a truncated scan a hole in every series it
+  touches.
