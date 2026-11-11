@@ -17,7 +17,7 @@ moves to "Done".
 | **B — Over time** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
 | **C — Under control** | released — 0.11.0 published to npm and GitHub | 0.11.0 |
 | **E — Auditable** | released — 0.12.0 published to npm and GitHub | 0.12.0 |
-| **F — Directional** | delivered — F-1 (slope + panel line), F-2 (rule slope), F-3 (answer rate); 0.13.0 in preparation | 0.13.0 |
+| **F — Directional** | released — 0.13.0 published to npm and GitHub; F-1 (slope + panel line), F-2 (rule slope), F-3 (answer rate) | 0.13.0 |
 
 Update this table in the same commit that changes a phase's state. A phase is "in progress" only when
 its contract below is fixed; it is "done" when its acceptance list passes and its release note exists.
