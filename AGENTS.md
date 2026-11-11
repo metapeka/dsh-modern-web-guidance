@@ -219,7 +219,14 @@ languages in the same commit.
   two-click discipline; the plan text is the host's, verbatim and English, and the host sends no rule id
   because the file keeps only a one-way hash — a row that invents one is a bug, not a nicety. A host that
   predates `items` falls back to listing `unused` ids, and that fallback is tested as its own state. Host
-  plan sentences stay verbatim and English; the panel never parses or translates them.
+  plan sentences stay verbatim and English; the panel never parses or translates them. **The three
+  verdicts are three pills, not one grey word**: a live-host pass measured `совпало` / `не совпало` /
+  `неизвестно` sharing one transparent style, so the tri-state existed in the data and in the caption but
+  not on the row — the verdict now has its own tag (`S.mutedTag` is for other chips), and `unknown` must
+  stay visually distinct from `unused`, not merely spelled differently. **A write keeps the reader's
+  place**: the refresh after a confirmed write restores `scrollTop` and brings the outcome into view,
+  because the measured behaviour was a jump to the top with the answer below the fold, which reads as a
+  failure to the person who just confirmed. One write block, chosen by `write.target`, never two.
 - **Every panel action leaves a command row in the conversation, and that is the accepted price** (0.12.0):
   `ctx.remote.commands.execute` renders each `/guidance-stats --format json` and
   `/guidance-scan . --format json` line the panel runs as a truncated JSON block in the transcript, so the
