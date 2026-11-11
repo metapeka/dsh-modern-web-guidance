@@ -91,14 +91,14 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 4 tools, 2 skills, 208 guides, four human commands, and a `npm test` suite of
-      **463 tests in 18 files** covering the index, the plugin mount, the security invariants, the counter
+      **506 tests in 18 files** covering the index, the plugin mount, the security invariants, the counter
       pipeline and its per-workspace buckets, the panel's three dictionaries, the legacy scanner (including
       the "Markdown is skipped" case, the dot-directory rule, the `.scanignore` grammar and the
       run-collapse boundaries), the byte-level manifest guard that would have caught 0.8.1, the `lastScan`
       summary with its optional branch label and the panel's skip/truncation lines, the rule table's guide
       hashes, the site hash and every comparison guard, the suppression file's shape, caps and writer
       refusals, the four reset scopes (with the mute file proved untouched at every one) and the
-      `/guidance-scan`, `/guidance-suppress` and `/guidance-scanignore` commands (a run reports 459 passed
+      `/guidance-scan`, `/guidance-suppress` and `/guidance-scanignore` commands (a run reports 502 passed
       plus 4 skipped where the host forbids symlink creation, because those tests skip themselves there
       rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).

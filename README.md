@@ -502,6 +502,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.9.0 | shipped | a counter explains itself: a ranked rule row reads `ls-17 · medium · 121 findings` with the rule's own sentence underneath, a guide chip puts the catalog's description in its hint, and one caption says the ranked counts are lifetime totals rather than the window the tiles above show — the words come from the host (`renderJson(snapshot, { rules, guides })`), so a missing field costs a caption or a hint, never a row |
 | 0.10.0 | shipped | the counters say whose numbers they are, when each scan fired, and whether a site is still there: scan counters are partitioned per workspace, with a chip and a switcher in the panel and `--workspace`/`--all` on the command; the last scan carries `; branch main`, read from one fixed `.git/HEAD`; and a 20-deep scan history plus a hash-only site comparison print `Since the scan of …: 3 no longer present, 82 still open, 1 new` — or `not comparable` with the reason, never three zeros |
 | 0.11.0 | shipped | the panel writes, and every write asks first: **Mute** appends one `siteId` entry to `<workspace>/.suppress` through `/guidance-suppress <siteId> [--dry-run]`, so a muted finding keeps its place, its order and its count — never resolved, never subtracted; `/guidance-scanignore <pattern> [--dry-run]` offers one line that makes the next scan read less and mutes nothing; `--reset --yes` narrows to `--scan-only`, `--workspace` or `--days`, and no scope touches the mute file, because muting is not a counter |
+| 0.12.0 | shipped | every record can now be reviewed, and only a human retires it: a lifetime total names the day the books opened (`scanCountsSince`, and a document with no origin still prints nothing), an ignore line that excludes nothing is named (`.scanignore: 3 patterns, 1 matched nothing.`), and the mute list can be shrunk by exactly one entry — `/guidance-suppress --review` lists it against the last scan, `--remove <siteId> [--dry-run]` plans one removal, and a removal un-mutes a finding and moves no counter, because a removal is not a fix |
 
 The working plan for what comes after these releases — readable counters, per-workspace attribution,
 scan history and per-finding control — lives in [docs/ROADMAP.md](docs/ROADMAP.md), together with the
@@ -536,7 +537,7 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 463 tests across eighteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 506 tests across eighteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its
@@ -545,9 +546,9 @@ rule table and the tool contract, `scan.test.mjs` is the end-to-end scan, `scan-
 `/guidance-scan` to the same refusals and the same values; `scan-guides.test.mjs` checks the guide hashes the rule table
 points at, `client-locales.test.mjs` keeps the panel's three dictionaries in sync, `branch-label.test.mjs` covers the
 four `.git/HEAD` shapes and every way the read stays silent, `site-identity.test.mjs` pins the site hash and every
-comparison guard, and `suppress.test.mjs` holds the suppression file to its shape, its caps, the writer's refusals and
-four end-to-end reset proofs with real bytes on disk. In a sandbox that forbids child processes, run the files directly
-(`node test/hardening.test.mjs`).
+comparison guard, and `suppress.test.mjs` holds the suppression file to its shape, its caps, the writer's refusals, the
+byte-preserving one-entry removal and four end-to-end reset proofs with real bytes on disk. In a sandbox that forbids
+child processes, run the files directly (`node test/hardening.test.mjs`).
 
 <a id="publishing"></a>
 

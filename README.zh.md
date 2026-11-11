@@ -463,6 +463,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.9.0 | 已发布 | 计数器会自我解释：规则行读作 `ls-17 · medium · 121 findings`，下面附上规则自己那句话，指南 chip 把目录中的描述放进 `title`，另有一行说明讲清排名数字是累计总数、不是上方图块所选的时间窗口 —— 这些文字来自宿主（`renderJson(snapshot, { rules, guides })`），因此缺字段只会少一行说明或提示，永远不会少一行数据 |
 | 0.10.0 | 已发布 | 计数器现在说清数字属于谁、每次扫描发生在何时、某个位置还在不在：扫描计数器按工作区分开，面板里有 chip 与切换器，命令支持 `--workspace`/`--all`；最近一次扫描带上从固定文件 `.git/HEAD` 读到的 `; branch main`；20 条扫描历史加上只存哈希的位置比较会打印 `Since the scan of …: 3 no longer present, 82 still open, 1 new` —— 或者带原因的 `not comparable`，绝不给三个零 |
 | 0.11.0 | 已发布 | 面板开始写入，而且每次写入都先问：**屏蔽**经 `/guidance-suppress <siteId> [--dry-run]` 往 `<workspace>/.suppress` 追加一条 `siteId` 记录，被屏蔽的发现保留位置、顺序与计数 —— 既不算已解决，也不从总数里减掉；`/guidance-scanignore <pattern> [--dry-run]` 提供一行让下次扫描读得更少、并不屏蔽任何东西；`--reset --yes` 可以窄化成 `--scan-only`、`--workspace` 或 `--days`，而任何范围都不碰屏蔽文件，因为屏蔽不是计数器 |
+| 0.12.0 | 已发布 | 每条记录现在都可以复核，而且只有人能撤掉它：终身合计说明账本从哪天开始（`scanCountsSince`，没有起点的文档仍然什么都不打印），什么都不排除的 `.scanignore` 行会被点名（`.scanignore: 3 patterns, 1 matched nothing.`），屏蔽列表可以正好减掉一条 —— `/guidance-suppress --review` 把它与最近一次扫描对照，`--remove <siteId> [--dry-run]` 先给出计划；删除只解除屏蔽、不动任何计数器，因为删除不是修复 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -492,7 +493,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 463 个测试，分布在十八个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 506 个测试，分布在十八个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，
@@ -500,8 +501,8 @@ npm test
 `scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
 `scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步；
 `branch-label.test.mjs` 覆盖 `.git/HEAD` 的四种形态与所有「读不到就不出声」的情形；`site-identity.test.mjs`
-固定位置哈希与每道比较守卫；`suppress.test.mjs` 守住屏蔽文件的形态、上限、写入方的拒绝，以及四个带真实磁盘
-字节的端到端重置证明。在禁止
+固定位置哈希与每道比较守卫；`suppress.test.mjs` 守住屏蔽文件的形态、上限、写入方的拒绝、单条删除的逐字节保护，
+以及四个带真实磁盘字节的端到端重置证明。在禁止
 子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 
 <a id="publishing"></a>
