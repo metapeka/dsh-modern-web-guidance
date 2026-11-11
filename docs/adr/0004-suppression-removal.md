@@ -44,7 +44,10 @@ The scan joins the file it just read against the findings it just produced, and 
 additive block:
 
 ```
-suppressions: { entries: number, matching: number, unused: string[] | null }
+suppressions: {
+  entries: number, matching: number, unused: string[] | null,
+  items?: [{ siteId: string, date?: string, reason?: string, matched: boolean | null }],
+}
 ```
 
 - `entries` counts the entries the file's own parser **honours**. An entry the parser drops is a parse
@@ -54,6 +57,14 @@ suppressions: { entries: number, matching: number, unused: string[] | null }
   truncated at a cap, it read zero files, a finding arrived without a usable identity, or it read fewer
   files than the previous scan. `[]` is a claim that every entry still matches; only a complete scan may
   make it. An incomplete scan says *unknown*, and the sentence it prints says why.
+- `items` (added the same day, after the panel showed that three numbers cannot list a file) is one row
+  per honoured entry carrying what the file itself stores: the `siteId`, its `at` as `date`, its `reason`,
+  and `matched`. **`matched` is the row-level spelling of `unused`**: `true`/`false` only when the scan was
+  complete and could have seen that site, `null` otherwise — never `false` as a stand-in for "cannot say".
+  A field the entry does not carry is **absent**, not empty, and there is deliberately **no rule id**: the
+  file keeps `{ reason, at }` under a one-way hash, so a rule id could only be invented. Rows are omitted
+  entirely above `MAX_SUPPRESSIONS`, because a truncated prefix would read as the whole file while the
+  counts and `unused` still tell the truth. `items` is optional: a host without it is the 0.12.0 block.
 - The block rides on the scan value, and from there into the workspace's `lastScan` in the profile
   document, `version` still `1`. It becomes visible on exactly two surfaces: the **stats** JSON
   (`lastScan.suppressions` in `renderJson`) and `/guidance-suppress --review`. **The scan text gains no

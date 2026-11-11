@@ -203,8 +203,14 @@ languages in the same commit.
   success while the write is in flight, a late success does not flip it back, and "did not answer" is not
   "refused" — a parked promise was never refused. The mute plan opens with the same panel-owned lead-in
   the ignore plan has (`scan.muteNote`), so the pair is symmetric, and it repeats the invariant: a mute
-  hides one site and the scan still counts it as suppressed. Host plan sentences stay verbatim and
-  English; the panel never parses or translates them.
+  hides one site and the scan still counts it as suppressed. The suppression list is shown as a file, not
+  as a verdict: one row per entry with the file's own date and reason, and `matched` in three states —
+  `true`/`false` only when the scan was complete, `null` (unknown) whenever it could not prove absence,
+  which renders as its own marker and never as "unused". Every row carries its own Remove under the same
+  two-click discipline; the plan text is the host's, verbatim and English, and the host sends no rule id
+  because the file keeps only a one-way hash — a row that invents one is a bug, not a nicety. A host that
+  predates `items` falls back to listing `unused` ids, and that fallback is tested as its own state. Host
+  plan sentences stay verbatim and English; the panel never parses or translates them.
 - **Every panel action leaves a command row in the conversation, and that is the accepted price** (0.12.0):
   `ctx.remote.commands.execute` renders each `/guidance-stats --format json` and
   `/guidance-scan . --format json` line the panel runs as a truncated JSON block in the transcript, so the

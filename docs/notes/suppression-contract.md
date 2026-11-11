@@ -281,7 +281,9 @@ Additive, after `truncated` so the existing member order is untouched:
   truncated: false,
   suppressed: 3,                                    // always, 0 included
   suppressProblems: [ { key: null, reason: 'malformed' } ],   // only when non-empty
-  suppressions: { entries: 5, matching: 2, unused: ['96cb61de', '0a1b2c3d'] },  // 0.12.0, ADR-0004
+  suppressions: { entries: 5, matching: 2, unused: ['96cb61de', '0a1b2c3d'],  // 0.12.0, ADR-0004
+                  items: [ { siteId: '96cb61de', date: '2026-11-01', reason: 'one page only', matched: true },
+                           { siteId: '0a1b2c3d', reason: 'stale', matched: false } ] },
 }
 ```
 
@@ -290,6 +292,14 @@ Additive, after `truncated` so the existing member order is untouched:
   error. Present when a file was read and joined against this scan. `unused` is **`null`, never `[]`**,
   for a scan that could not prove absence (truncated, hit a cap, zero files, or fewer files than the
   baseline), so "0 unused" stays a claim a complete scan earns and nothing else gets for free.
+- **`items` is the file, `unused` is the verdict** (added with the panel's review block): one row per
+  honoured entry, carrying the file's own `at` and `reason` verbatim (trimmed and clamped to the same
+  40/200 budget the writer enforces) and `matched`. `matched` is `true`/`false` only for a complete scan
+  and `null` otherwise — the row-level spelling of `unused`, never `false` for "cannot say". A field the
+  entry does not store is **omitted, not empty**, and there is no rule id: the file keeps a one-way hash,
+  so a rule id could only be invented. Above `MAX_SUPPRESSIONS` the rows are omitted rather than
+  truncated, because a prefix would read as the whole file. A host that predates `items` is a valid
+  block, and the panel falls back to listing `unused`.
 
 - **The same word at two depths**: a number on the result, a boolean on the finding. `suppressed === 3`
   at the top, `suppressed === true` on a finding; never a count on a finding and never a boolean at the
@@ -354,10 +364,13 @@ surface (§9, §22) and in `--review`. `test/suppress.test.mjs` fails if a `Supp
 - **A refusal writes nothing**: an errored or refused call never touches `lastScan`
   (`lib/telemetry.js:646-658`), so it cannot add or clear a suppression count.
 - **The review rides on `lastScan` too** (0.12.0, `suppressionReviewOf()`): `suppressions: { entries,
-  matching, unused }`, validated at the door and clamped on read. `unused: null` survives as `null` —
-  it is the value that says "this scan could not prove absence", and `[]` is a different, stronger
-  claim. A block that cannot be read is dropped **whole**, never turned into three zeros, and the
-  version stays `1`: a pre-0.12.0 document renders exactly what it rendered before the member existed.
+  matching, unused, items? }`, validated at the door and clamped on read. `unused: null` survives as
+  `null` — it is the value that says "this scan could not prove absence", and `[]` is a different,
+  stronger claim. A block that cannot be read is dropped **whole**, never turned into three zeros, and
+  the version stays `1`: a pre-0.12.0 document renders exactly what it rendered before the member
+  existed. `items` is copied rather than aliased on read, so a panel that annotates a row cannot edit the
+  record, and a malformed row or a non-boolean `matched` is dropped or `null`ed at both doors — never
+  coerced to `false`.
 
 ## 9. The report
 
