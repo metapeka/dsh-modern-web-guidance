@@ -1069,6 +1069,10 @@ function startUsageCounters(ctx, config, usage) {
       retentionDays: Number.isFinite(config?.retentionDays) ? config.retentionDays : DEFAULT_RETENTION_DAYS,
       ringLimit: 1000,
       catalog,
+      // The counters never import the rule table: they cannot tell a retired rule from a typo
+      // without it, so the ids the scan can select are given once, at construction. A telemetry
+      // built without them (a test fixture) treats every rule as known and simply makes no claim.
+      ruleIds: ALL_RULE_IDS,
     })
   } catch {
     return

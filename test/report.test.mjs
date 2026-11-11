@@ -766,6 +766,8 @@ test('renderJson describes the scan rows it was given tables for', () => {
     message: 'Build the DOM with createElement/append instead of document.write(), which discards the parsed document.',
     confidence: 'medium',
     guideId: 'html',
+    firstSeen: null,
+    lastSeen: null,
   })
   // A rule the slice does not contain is described as unknown, not described as a guess.
   assert.deepEqual(json.topRules.find((row) => row.ruleId === 'ls-13'), {
@@ -774,6 +776,8 @@ test('renderJson describes the scan rows it was given tables for', () => {
     message: '',
     confidence: '',
     guideId: null,
+    firstSeen: null,
+    lastSeen: null,
   })
 
   // Every row survives the enrichment, in the snapshot's own order.
@@ -805,7 +809,15 @@ test('an unknown rule id keeps its row instead of losing a true count', () => {
     { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS },
   )
   assert.deepEqual(json.topRules, [
-    { ruleId: 'ls-99', count: 121, message: '', confidence: '', guideId: null },
+    {
+      ruleId: 'ls-99',
+      count: 121,
+      message: '',
+      confidence: '',
+      guideId: null,
+      firstSeen: null,
+      lastSeen: null,
+    },
   ])
 })
 
@@ -825,6 +837,8 @@ test('a missing catalog reads as an empty description, never as a missing row', 
     message: '',
     confidence: '',
     guideId: null,
+    firstSeen: null,
+    lastSeen: null,
   })
 })
 
@@ -966,3 +980,308 @@ test('workspaceLabel names a workspace once, and never invents a name', () => {
   assert.equal(workspaceLabel(null), '')
   assert.equal(workspaceLabel({}), '')
 })
+
+//#endregion
+
+//#region 0.11.0: when a scan fired, and whether it is still there
+
+/** One entry of the scan ring, as the counters store it. */
+function historyEntry(at, { findings, rules = {}, files = 70 }) {
+  return {
+    at,
+    outcome: findings > 0 ? 'findings' : 'clean',
+    files,
+    findings,
+    rules,
+    skipped: {},
+    truncated: false,
+  }
+}
+
+/**
+ * Twelve recent scans, newest first, the oldest day being the fixture's own horizon. Twelve is more
+ * than the five the text report shows, so the cap and the `+7 earlier` line are proven by the data
+ * rather than by a flag. The second entry is the one the comparison names as its baseline.
+ */
+const SCAN_HISTORY = [
+  historyEntry('2026-11-10T22:27:39.749Z', { findings: 85, rules: { 'ls-13': 4, 'ls-02': 2 } }),
+  historyEntry('2026-11-10T08:12:00.000Z', { findings: 88, rules: { 'ls-13': 4, 'ls-08': 2 } }),
+  historyEntry('2026-11-09T08:12:00.000Z', { findings: 90, rules: { 'ls-13': 5 } }),
+  historyEntry('2026-11-08T19:01:00.000Z', { findings: 0 }),
+  historyEntry('2026-11-07T07:45:00.000Z', { findings: 92, rules: { 'ls-13': 6 } }),
+  historyEntry('2026-11-06T07:45:00.000Z', { findings: 93, rules: { 'ls-13': 6 } }),
+  historyEntry('2026-11-05T07:45:00.000Z', { findings: 94, rules: { 'ls-13': 6 } }),
+  historyEntry('2026-11-04T07:45:00.000Z', { findings: 95, rules: { 'ls-13': 7 } }),
+  historyEntry('2026-11-03T07:45:00.000Z', { findings: 96, rules: { 'ls-13': 7 } }),
+  historyEntry('2026-11-02T07:45:00.000Z', { findings: 97, rules: { 'ls-13': 7 } }),
+  historyEntry('2026-11-01T07:45:00.000Z', { findings: 98, rules: { 'ls-13': 8 } }),
+  historyEntry('2026-10-30T07:45:00.000Z', { findings: 99, rules: { 'ls-13': 9 } }),
+]
+
+/**
+ * A snapshot from the 0.11.0 counters: the 0.10.0 workspace keys plus the day series, the ring and
+ * the comparison of the newest scan against the one before it. The ranked rules carry the two days
+ * the counters now store for each of them.
+ */
+const HISTORICAL = {
+  ...WORKSPACED,
+  lastScan: { ...RICH.lastScan, at: '2026-11-10T22:27:39.749Z' },
+  topRules: RICH.topRules.map((row) => ({ ...row, firstSeen: '2026-10-04', lastSeen: '2026-11-10' })),
+  scanSeries: [
+    { day: '2026-11-09', scans: 1, files: 70, findings: 90 },
+    { day: '2026-11-10', scans: 2, files: 140, findings: 173 },
+  ],
+  scanHistory: SCAN_HISTORY,
+  scanDiff: {
+    against: '2026-11-10T08:12:00.000Z',
+    resolved: 3,
+    stillOpen: 82,
+    new: 1,
+    retired: 0,
+    partial: null,
+    rows: [{ ruleId: 'ls-13', resolved: 2, stillOpen: 4, new: 0 }],
+  },
+}
+
+/**
+ * A compact 0.10.0 snapshot: workspace keys, scan counters, and none of the history. Its full text is
+ * frozen below, because the new evidence must be absent from it — not empty, absent.
+ */
+const PRE_B = {
+  periodDays: 7,
+  corpus: { version: '2026_11_09-5bcc021b', snapshotDate: '2026-11-09', total: 208 },
+  totals: { calls: 2, hitRate: 1, byTool: { 'legacy-scan': 1 }, byOutcome: { hit: 2 }, files: 3, findings: 1 },
+  topRules: [{ ruleId: 'ls-13', count: 1 }],
+  topScanGuides: [],
+  lastScan: { at: '2026-11-09T08:12:00.000Z', files: 3, findings: 1, rules: ['ls-13'] },
+  workspace: { id: 'a1b2c3d4', name: 'my-app' },
+  workspaces: [{ id: 'a1b2c3d4', name: 'my-app', findings: 1, rules: 1, lastScanAt: '2026-11-09T08:12:00.000Z' }],
+  misses: [],
+  topQueries: [],
+  coverage: [],
+  deadGuides: { total: 0, sample: [] },
+  series: [],
+}
+
+/** The exact text 0.10.0 produced for `PRE_B`, captured before the scan-history lines existed. */
+const PRE_B_GOLDEN = [
+  'Guidance usage: 2 calls, 100% hit rate',
+  'Calls by tool: legacy-scan 1',
+  'Calls by outcome: hit 2',
+  'Legacy scans: 1 call, 3 files scanned, 1 finding',
+  'Most matched rules: ls-13 1',
+  'Last scan: 2026-11-09, 3 files, 1 finding (rules: ls-13)',
+  '',
+  'Queries that returned nothing: none this period.',
+  '',
+  'Top queries: none this period.',
+  '',
+  'Category coverage: none in this snapshot.',
+  '',
+  'Dead guides: none; every guide in the corpus has been retrieved at least once.',
+  '',
+  'Workspace: my-app (a1b2c3d4)',
+  'Corpus: version 2026_11_09-5bcc021b, snapshot 2026-11-09, 208 guides',
+  'Period: last 7 days',
+].join('\n')
+
+const historyRowsOf = (text) => text.split('\n').filter((line) => /^ {2}\d{4}-\d{2}-\d{2} \d{2}:\d{2} - /.test(line))
+
+test('the comparison line follows the last-scan line and says "no longer present"', () => {
+  const text = renderReport(HISTORICAL)
+  const lines = text.split('\n')
+  const lastScan = lines.findIndex((line) => line.startsWith('Last scan:'))
+  assert.equal(
+    lines[lastScan + 1],
+    'Since the scan of 2026-11-10 08:12: 3 no longer present, 82 still open, 1 new',
+  )
+  // The counters can prove absence, never a fix, so the word never appears on any surface.
+  assert.doesNotMatch(text, /\bfixed\b|\bfix(ed|es)?\b/i)
+  // The comparison names its two scans by timestamp: a date alone would merge two scans of one day.
+  assert.match(text, /^Since the scan of \d{4}-\d{2}-\d{2} \d{2}:\d{2}: /m)
+})
+
+test('a comparison the counters refused is named with its own token, never rendered as zero', () => {
+  const text = renderReport({
+    ...HISTORICAL,
+    scanDiff: { ...HISTORICAL.scanDiff, partial: 'fewer-files', resolved: null, stillOpen: null, new: null },
+  })
+  assert.match(text, /^Since the scan of 2026-11-10 08:12: not comparable \(fewer-files\)$/m)
+  assert.doesNotMatch(text, /no longer present|still open/)
+  // The token is the counters' word, printed raw like a skip reason — never a translated phrase.
+  assert.doesNotMatch(text, /not comparable \(fewer files\)/)
+})
+
+test('a first scan says the next one will be compared, because there is nothing to compare yet', () => {
+  const first = renderReport({
+    ...HISTORICAL,
+    scanDiff: { against: null, resolved: null, stillOpen: null, new: null, retired: 0, partial: 'no-baseline', rows: [] },
+  })
+  assert.match(first, /^No earlier scan to compare with; the next scan will be compared\.$/m)
+  assert.doesNotMatch(first, /not comparable|no longer present|still open/)
+})
+
+test('a malformed comparison prints nothing rather than three zeros', () => {
+  // `partial: null` promises three numbers. A value that carries neither must not read as "nothing
+  // changed", which is a claim the counters never made.
+  const text = renderReport({
+    ...HISTORICAL,
+    scanDiff: { against: '2026-11-10T08:12:00.000Z', partial: null },
+  })
+  assert.doesNotMatch(text, /Since the scan of/)
+  assert.doesNotMatch(text, /no longer present/)
+})
+
+test('an aggregate or a pre-B snapshot carries no comparison line', () => {
+  // Aggregation returns no diff at all: a comparison across workspaces compares two projects.
+  assert.doesNotMatch(renderReport({ ...HISTORICAL, scanDiff: null }), /Since the scan of|No earlier scan/)
+  assert.doesNotMatch(renderReport(PRE_B), /Since the scan of|No earlier scan/)
+})
+
+test('the recent scans block lists five rows, newest first, between the counters and the queries', () => {
+  const text = renderReport(HISTORICAL)
+  assert.match(text, /^Recent scans \(last 5 of 12\):$/m)
+  assert.deepEqual(historyRowsOf(text), [
+    '  2026-11-10 22:27 - 70 files, 85 findings, rules 2 (ls-13 4, ls-02 2)',
+    '  2026-11-10 08:12 - 70 files, 88 findings, rules 2 (ls-13 4, ls-08 2)',
+    '  2026-11-09 08:12 - 70 files, 90 findings, rules 1 (ls-13 5)',
+    '  2026-11-08 19:01 - 70 files, 0 findings, rules 0',
+    '  2026-11-07 07:45 - 70 files, 92 findings, rules 1 (ls-13 6)',
+  ])
+  assert.match(text, /^ {2}\+7 earlier$/m)
+  // It sits under the scan counters it extends and above the queries: the KPI order is unchanged.
+  assert.ok(text.indexOf('Recent scans') > text.indexOf('Last scan:'))
+  assert.ok(text.indexOf('Recent scans') < text.indexOf('Queries that returned nothing'))
+})
+
+test('a short ring states no count and hides no line', () => {
+  const two = renderReport({ ...HISTORICAL, scanHistory: SCAN_HISTORY.slice(0, 2) })
+  assert.match(two, /^Recent scans:$/m)
+  assert.equal(historyRowsOf(two).length, 2)
+  assert.doesNotMatch(two, /earlier|last 2 of/)
+})
+
+test('an unscanned workspace and a pre-B document render no history block', () => {
+  assert.doesNotMatch(renderReport({ ...HISTORICAL, scanHistory: [] }), /Recent scans/)
+  assert.doesNotMatch(renderReport(PRE_B), /Recent scans/)
+})
+
+test('a history row names the rules it kept, and never invents the ones it lost', () => {
+  // An entry with no usable rule map is silent about rules: a missing field renders shorter.
+  const bare = renderReport({
+    ...HISTORICAL,
+    scanHistory: [historyEntry('2026-11-10T22:27:39.749Z', { findings: 85, rules: null })],
+  })
+  assert.deepEqual(historyRowsOf(bare), ['  2026-11-10 22:27 - 70 files, 85 findings'])
+  // The per-rule list is capped like every other scan list the text report prints.
+  const many = renderReport({
+    ...HISTORICAL,
+    scanHistory: [
+      historyEntry('2026-11-10T22:27:39.749Z', {
+        findings: 21,
+        rules: { 'ls-01': 6, 'ls-02': 5, 'ls-03': 4, 'ls-04': 3, 'ls-05': 2, 'ls-06': 1 },
+      }),
+    ],
+  })
+  assert.deepEqual(historyRowsOf(many), [
+    '  2026-11-10 22:27 - 70 files, 21 findings, rules 6 (ls-01 6, ls-02 5, ls-03 4, ls-04 3, ls-05 2)',
+  ])
+  assert.doesNotMatch(many, /ls-06/)
+})
+
+test('a merged history row carries its workspace label, a single-bucket row does not', () => {
+  const merged = renderReport({
+    ...HISTORICAL,
+    workspace: null,
+    scanHistory: [
+      { ...SCAN_HISTORY[0], workspace: { id: '0f1e2d3c', name: 'site' } },
+      { ...SCAN_HISTORY[1], workspace: { id: '_unattributed', name: '' } },
+    ],
+  })
+  assert.deepEqual(historyRowsOf(merged), [
+    '  2026-11-10 22:27 - 70 files, 85 findings, rules 2 (ls-13 4, ls-02 2) [site (0f1e2d3c)]',
+    '  2026-11-10 08:12 - 70 files, 88 findings, rules 2 (ls-13 4, ls-08 2) [_unattributed]',
+  ])
+  // A scoped report places the workspace once, in the footer, so its rows stay unlabelled.
+  assert.doesNotMatch(renderReport(HISTORICAL), /\[\w/)
+})
+
+test('renderJson carries the three history keys, after the workspace keys, only when present', () => {
+  const json = renderJson(HISTORICAL)
+  assert.deepEqual(Object.keys(json).slice(-3), ['scanSeries', 'scanHistory', 'scanDiff'])
+  // Snapshot data is passed through, not rebuilt: a consumer can depend on the reference.
+  assert.equal(json.scanSeries, HISTORICAL.scanSeries)
+  assert.equal(json.scanHistory, HISTORICAL.scanHistory)
+  assert.equal(json.scanDiff, HISTORICAL.scanDiff)
+  assert.equal(json.scanCountsScope, undefined)
+  assert.equal(renderJson(HISTORICAL, { rules: [] }).scanCountsScope, 'lifetime')
+
+  // Presence, not truthiness: an unscanned bucket sends three empty values, and the panel needs
+  // them to tell "nothing yet" from "this host cannot tell me".
+  const empty = renderJson({ ...HISTORICAL, scanSeries: [], scanHistory: [], scanDiff: null })
+  assert.deepEqual([empty.scanSeries, empty.scanHistory, empty.scanDiff], [[], [], null])
+
+  // A 0.10.0 snapshot has none of the three, and its own keys stay exactly where they were.
+  const preB = renderJson(PRE_B)
+  assert.deepEqual(Object.keys(preB).slice(-2), ['workspace', 'workspaces'])
+  assert.equal('scanSeries' in preB, false)
+  assert.equal('scanHistory' in preB, false)
+  assert.equal('scanDiff' in preB, false)
+})
+
+test('renderJson describes the days a rule was first and last seen, only in the described path', () => {
+  const described = renderJson(HISTORICAL, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+  assert.deepEqual(described.topRules.find((row) => row.ruleId === 'ls-17'), {
+    ruleId: 'ls-17',
+    count: 1,
+    message: 'Build the DOM with createElement/append instead of document.write(), which discards the parsed document.',
+    confidence: 'medium',
+    guideId: 'html',
+    firstSeen: '2026-10-04',
+    lastSeen: '2026-11-10',
+  })
+
+  // A rule the table does not know still carries its dates: the count and the days are the
+  // counters', and an unknown id must not lose true data.
+  const unknown = renderJson(
+    { ...HISTORICAL, topRules: [{ ruleId: 'ls-99', count: 121, firstSeen: '2026-10-01', lastSeen: '2026-11-01' }] },
+    { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS },
+  )
+  assert.deepEqual(unknown.topRules, [{
+    ruleId: 'ls-99',
+    count: 121,
+    message: '',
+    confidence: '',
+    guideId: null,
+    firstSeen: '2026-10-01',
+    lastSeen: '2026-11-01',
+  }])
+
+  // A date that is not a day reads as null, so the panel renders no suffix rather than a guess.
+  const junk = renderJson(
+    { ...HISTORICAL, topRules: [{ ruleId: 'ls-13', count: 4, firstSeen: 'yesterday', lastSeen: 42 }] },
+    { rules: [] },
+  )
+  assert.deepEqual([junk.topRules[0].firstSeen, junk.topRules[0].lastSeen], [null, null])
+})
+
+test('the frozen row shape keeps two members, dates or not', () => {
+  const frozen = renderJson(HISTORICAL)
+  assert.deepEqual(Object.keys(frozen.topRules[0]), ['ruleId', 'count'])
+  assert.deepEqual(frozen.topRules[0], { ruleId: 'ls-08', count: 2 })
+})
+
+test('the text rules line stays a counter: no dates are printed on it', () => {
+  // The days reach the panel through the described JSON, where it has room for them. On a chat line
+  // they would push the ids out, so the line is unchanged, dates or no dates.
+  const text = renderReport(HISTORICAL)
+  assert.match(text, /^Most matched rules: ls-13 4, ls-08 2, ls-21 2, ls-05 1, ls-17 1$/m)
+  assert.doesNotMatch(text, /2026-10-04/)
+})
+
+test('a 0.10.0 snapshot renders the report it always did, line for line', () => {
+  assert.equal(renderReport(PRE_B), PRE_B_GOLDEN)
+})
+
+//#endregion
+

@@ -71,6 +71,8 @@ window.__ModuleLoader__.load({
     const SKIP_REASONS_SHOWN = 3
     /** Rules one scan ranks in the panel, and findings the chat row lists before it summarises. */
     const MAX_SCAN_RULES = 10
+    /** Recent scans the panel lists: the ring keeps 20, a rail shows the five that answer "when". */
+    const MAX_HISTORY_ROWS = 5
     const MAX_TOOL_ROWS = 16
 
     /** English dictionary: the fallback locale, so it must stay complete. */
@@ -107,6 +109,14 @@ window.__ModuleLoader__.load({
       'scanner.cut': 'truncated',
       'scanner.branch': 'branch {branch}',
       'scanner.detached': 'detached at {sha}',
+      'scanner.history': 'Recent scans',
+      'scanner.historyMore': 'and {count} earlier',
+      'scanner.diffAgainst': 'Since the scan of {when}:',
+      'scanner.diffCounts': '{resolved} no longer present · {stillOpen} still open · {new} new',
+      'scanner.diffPartial': 'not comparable ({reason})',
+      'scanner.diffFirst': 'The next scan will be compared with this one',
+      'scanner.diffRetired': '{count} under retired rules',
+      'scanner.lastSeen': 'last {when}',
       'scanner.rules': 'Rules that matched',
       'scanner.lifetime': 'Lifetime totals, not the {days}-day window',
       'scanner.guides': 'Guides to load',
@@ -197,6 +207,14 @@ window.__ModuleLoader__.load({
       'scanner.cut': 'обрезано',
       'scanner.branch': 'ветка {branch}',
       'scanner.detached': 'отсоединён HEAD: {sha}',
+      'scanner.history': 'Последние сканирования',
+      'scanner.historyMore': 'и ещё {count} более ранних',
+      'scanner.diffAgainst': 'С момента сканирования {when}:',
+      'scanner.diffCounts': '{resolved} больше не встречаются · {stillOpen} остаются · {new} новых',
+      'scanner.diffPartial': 'сравнение невозможно ({reason})',
+      'scanner.diffFirst': 'Следующее сканирование будет сравнено с этим',
+      'scanner.diffRetired': '{count} по снятым правилам',
+      'scanner.lastSeen': 'последний раз {when}',
       'scanner.rules': 'Сработавшие правила',
       'scanner.lifetime': 'Итоги за всё время, а не за {days} дн.',
       'scanner.guides': 'Подсказки, которые стоит открыть',
@@ -291,6 +309,14 @@ window.__ModuleLoader__.load({
       'scanner.cut': '已截断',
       'scanner.branch': '分支 {branch}',
       'scanner.detached': '游离 HEAD：{sha}',
+      'scanner.history': '最近的扫描',
+      'scanner.historyMore': '另有 {count} 次更早的',
+      'scanner.diffAgainst': '自 {when} 的扫描以来：',
+      'scanner.diffCounts': '{resolved} 不再出现 · {stillOpen} 仍然存在 · {new} 新增',
+      'scanner.diffPartial': '无法比较（{reason}）',
+      'scanner.diffFirst': '下一次扫描将与此比较',
+      'scanner.diffRetired': '已停用规则 {count} 条',
+      'scanner.lastSeen': '最近 {when}',
       'scanner.rules': '命中的规则',
       'scanner.lifetime': '累计总数，不是最近 {days} 天的窗口',
       'scanner.guides': '需要打开的指引',
@@ -536,6 +562,22 @@ window.__ModuleLoader__.load({
       return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : text
     }
 
+    /**
+     * A stored timestamp as `YYYY-MM-DD HH:MM`, in UTC like every date the counters print.
+     *
+     * A day-only value (the rule day maps store `YYYY-MM-DD`) renders as its date, so one formatter
+     * serves both a scan's `at` and a rule's first/last-seen day. Anything else falls back to the
+     * date part, because a malformed stamp should not become a second format.
+     *
+     * @param {unknown} value
+     * @returns {string}
+     */
+    function scanWhen(value) {
+      const text = asText(value)
+      const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(text)
+      return match === null ? dayOf(text) : `${match[1]} ${match[2]}`
+    }
+
     /** A query on one line: whitespace folded, length capped like the text report does. */
     function queryText(value) {
       const query = asText(value).replace(/\s+/g, ' ').trim()
@@ -764,6 +806,61 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The comparison the latest scan made against the previous one, or null when there is none.
+     *
+     * A comparison that ran names the scan it compared against and carries three numbers; one that
+     * was skipped carries a guard token instead and **no numbers** (§4.5), so the token is what the
+     * panel prints, raw like a skip reason. A report from before phase B has no `scanDiff` key, and
+     * a diff with neither a token nor a date is not a comparison: both read as null, which is what
+     * keeps the line off the panel instead of printing a zero nobody measured.
+     *
+     * @param {unknown} value
+     * @returns {{ against: string, partial: string, resolved: number, stillOpen: number, new: number, retired: number }|null}
+     */
+    function readScanDiff(value) {
+      if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value)) return null
+      const against = asText(value.against)
+      const partial = asText(value.partial)
+      if (against === '' && partial === '') return null
+      return {
+        against,
+        partial,
+        resolved: asCount(value.resolved),
+        stillOpen: asCount(value.stillOpen),
+        new: asCount(value.new),
+        // Baseline sites whose rule this version no longer ships. Counted apart, never as resolved.
+        retired: asCount(value.retired),
+      }
+    }
+
+    /**
+     * The recent scans, newest first, as the panel's rows need them.
+     *
+     * Only the members a row renders are kept: the entry's `diff`, `skipped`, `truncated` and
+     * `outcome` belong to the JSON and to the text report. The `rules` map arrives as
+     * `{ 'ls-13': 4 }` and is ranked by the same helper the counters use, so a row's rule list is in
+     * count-desc order whatever the host sent.
+     *
+     * @param {unknown} value
+     * @returns {Array<{ at: string, files: number, findings: number, rules: Array<{ name: string, calls: number }>, branch: object|null }>}
+     */
+    function readScanHistory(value) {
+      const entries = []
+      for (const entry of asRows(value)) {
+        const at = asText(entry.at)
+        if (at === '') continue
+        entries.push({
+          at,
+          files: asCount(entry.files),
+          findings: asCount(entry.findings),
+          rules: rankedEntries(entry.rules),
+          branch: readBranch(entry.branch),
+        })
+      }
+      return entries
+    }
+
+    /**
      * Validate one `/guidance-stats --json` report and normalize it for rendering. The panel never
      * renders a partially parsed report: a missing or mistyped field raises instead.
      *
@@ -832,13 +929,25 @@ window.__ModuleLoader__.load({
         },
         legacyScan: firstCount(tools['legacy-scan'], byTool['legacy-scan']),
         findings: firstCount(payload.findings, totals.findings),
-        topRules: rankedIds(asRows(payload.topRules), 'ruleId', ['message', 'confidence', 'guideId']).slice(0, MAX_SCAN_RULES),
+        topRules: rankedIds(asRows(payload.topRules), 'ruleId', [
+          'message',
+          'confidence',
+          'guideId',
+          // The dates ride on the ranked row only in the described path; a host without them reads
+          // them as '' and the row renders exactly the row it rendered before (no suffix, no hint).
+          'firstSeen',
+          'lastSeen',
+        ]).slice(0, MAX_SCAN_RULES),
         topScanGuides: rankedIds(asRows(payload.topScanGuides), 'guideId', ['description']).slice(0, MAX_SCAN_RULES),
         // Which window the ranked rule counts cover. `'lifetime'` says they are not the {days} the
         // rest of the panel shows; an older report has no such field, and then the section stays
         // silent rather than claiming either way.
         scanCountsScope: asText(payload.scanCountsScope),
         lastScan: readLastScan(payload.lastScan),
+        // The scan story, additive like everything else in this block: a pre-B host sends neither,
+        // and null / [] is what keeps the comparison line and the history block off the panel.
+        scanDiff: readScanDiff(payload.scanDiff),
+        scanHistory: readScanHistory(payload.scanHistory),
         // Whose numbers these are, and whose are on offer. Both are additive: a 0.9.0 host sends
         // neither, and null / [] is the panel's own "no attribution to show" state.
         workspace: readWorkspace(payload.workspace),
@@ -1386,6 +1495,16 @@ window.__ModuleLoader__.load({
       scanName: { flex: '0 0 auto', fontSize: '12px', fontWeight: 500 },
       scanConfidence: { flex: '0 0 auto', fontSize: '11px', color: 'var(--dsw-alias-label-caption)' },
       scanCount: { flex: '0 0 auto', fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)' },
+      // When a rule was last seen: one more fact on the row's head, quieter than its count because
+      // the count is what the row ranks by and the date is what the reader came to the history for.
+      scanSeen: { flex: '0 0 auto', fontSize: '11px', color: 'var(--dsw-alias-label-caption)' },
+      // A recent-scan row is one wrapped line of facts: `date time · files · findings · rules`.
+      historyText: {
+        fontSize: '11px',
+        color: 'var(--dsw-alias-label-tertiary)',
+        lineHeight: 1.45,
+        overflowWrap: 'anywhere',
+      },
       // Two lines of the rule's own text, clamped here rather than sliced by the client so the whole
       // sentence stays in the element (and in its title); the panel stays a summary, not a manual.
       // `-webkit-line-clamp` takes an integer, hence the string: a number would be sent as `2px`.
@@ -1678,6 +1797,62 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The comparison line under the last scan, or null when the report carries no comparison.
+     *
+     * Three states and one silence. A comparison that ran names the scan it compared against and the
+     * numbers it measured — "no longer present", never "fixed": the panel can prove absence, not a
+     * fix. A first scan says the next one will be compared. A skipped comparison prints its guard
+     * token raw, like a skip reason, because `fewer-files` is the scanner's word and not a locale
+     * key. Retired sites are a fourth number and appear only when there are any: they left because
+     * the rule did, not because the code changed.
+     *
+     * @param {Function} t bound translator.
+     * @param {object|null} diff the report's `scanDiff`.
+     * @returns {string|null}
+     */
+    function diffLine(t, diff) {
+      if (diff === null) return null
+      if (diff.partial !== '') {
+        return diff.partial === 'no-baseline'
+          ? t('scanner.diffFirst')
+          : t('scanner.diffPartial', { reason: diff.partial })
+      }
+      const counts = t('scanner.diffCounts', { resolved: diff.resolved, stillOpen: diff.stillOpen, new: diff.new })
+      const retired = diff.retired > 0 ? ` · ${t('scanner.diffRetired', { count: diff.retired })}` : ''
+      return `${t('scanner.diffAgainst', { when: scanWhen(diff.against) })} ${counts}${retired}`
+    }
+
+    /**
+     * One row of the recent-scans block: when, how big, what it found, and what it was measured on.
+     *
+     * `date time · files · findings · rule×count` — the rules are the entry's own top list, raw ids
+     * with a `×` and their counts, never translated, and the branch label rides along through
+     * ADR-0002's two keys when the scan recorded one. The entry's diff is deliberately absent: three
+     * more numbers in a rail this narrow is noise, and the JSON keeps them for a reader who asks.
+     *
+     * @param {Function} t bound translator.
+     * @param {object} entry one normalized history entry.
+     * @param {number} index the row's position: zero draws no separator above it.
+     * @returns {object} the row.
+     */
+    function scanHistoryLine(t, entry, index) {
+      const facts = [scanWhen(entry.at), plural(t, 'file', entry.files), plural(t, 'finding', entry.findings)]
+      if (entry.rules.length > 0) facts.push(entry.rules.map((rule) => `${rule.name}×${rule.calls}`).join(', '))
+      if (entry.branch !== null) {
+        facts.push(
+          entry.branch.kind === 'branch'
+            ? t('scanner.branch', { branch: entry.branch.name })
+            : t('scanner.detached', { sha: entry.branch.sha }),
+        )
+      }
+      return h(
+        'div',
+        { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `history-${index}` },
+        h('span', { style: S.historyText }, facts.join(' · ')),
+      )
+    }
+
+    /**
      * One rule row: `ls-17  high  121 findings` on the first line, the rule's own message clamped to
      * two lines under it — the section has to say what a rule is, not only how often it fired.
      *
@@ -1695,9 +1870,18 @@ window.__ModuleLoader__.load({
       const message = asText(rule.message)
       const confidence = asText(rule.confidence)
       const guideId = asText(rule.guideId)
+      const firstSeen = asText(rule.firstSeen)
+      const lastSeen = asText(rule.lastSeen)
+      // `firstSeen` is secondary detail, so it rides in the row's tooltip beside the message — the
+      // place this panel already keeps what does not fit on the line. An undated row keeps exactly the
+      // tooltip it had; the visible suffix is the last-seen day, because "when did I last see this" is
+      // the question the history exists to answer.
+      const hint = firstSeen === '' ? message : message === '' ? firstSeen : `${message} · ${firstSeen}`
+      const rowProps = { style: first ? S.scanLineFirst : S.scanLine, key: `rule-${rule.name}` }
+      if (firstSeen !== '') rowProps.title = hint
       return h(
         'div',
-        { style: first ? S.scanLineFirst : S.scanLine, key: `rule-${rule.name}` },
+        rowProps,
         h(
           'div',
           { style: S.scanRuleHead },
@@ -1706,8 +1890,9 @@ window.__ModuleLoader__.load({
           h('span', { style: S.scanName, title: guideId === '' ? rule.name : guideId }, rule.name),
           confidence === '' ? null : h('span', { style: S.scanConfidence }, confidence),
           h('span', { style: S.scanCount }, plural(t, 'finding', rule.calls)),
+          lastSeen === '' ? null : h('span', { style: S.scanSeen }, t('scanner.lastSeen', { when: scanWhen(lastSeen) })),
         ),
-        message === '' ? null : h('div', { style: S.scanMessage, title: message }, message),
+        message === '' ? null : h('div', { style: S.scanMessage, title: hint }, message),
       )
     }
 
@@ -1778,6 +1963,10 @@ window.__ModuleLoader__.load({
           lastFacts.length === 0 ? t('scanner.none') : lastFacts.join(' · '),
         ),
       ]
+      // The comparison sits directly under the scan it compares: it is a claim about exactly those
+      // two scans, so it stays next to the second one and never becomes a lifetime number.
+      const comparison = diffLine(t, report.scanDiff)
+      if (comparison !== null) children.push(h('div', { style: S.note, key: 'scan-diff' }, comparison))
       if (report.topRules.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-rules-head' }, t('scanner.rules')))
         // The ranked rules are lifetime counters: they are not the {days} window the tiles above
@@ -1792,6 +1981,22 @@ window.__ModuleLoader__.load({
           )
         }
         for (const [index, rule] of report.topRules.entries()) children.push(scanRuleLine(t, rule, index === 0))
+      }
+      // The ring is depth-bounded, not window-bounded: "did my fix land" must survive the 7/30
+      // switch, which is why this block never claims to cover the window the tiles above show.
+      if (report.scanHistory.length > 0) {
+        children.push(h('div', { style: S.scanHeading, key: 'scan-history-head' }, t('scanner.history')))
+        const shown = report.scanHistory.slice(0, MAX_HISTORY_ROWS)
+        for (const [index, entry] of shown.entries()) children.push(scanHistoryLine(t, entry, index))
+        if (report.scanHistory.length > shown.length) {
+          children.push(
+            h(
+              'div',
+              { style: S.scanCaption, key: 'scan-history-more' },
+              t('scanner.historyMore', { count: report.scanHistory.length - shown.length }),
+            ),
+          )
+        }
       }
       if (report.topScanGuides.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-guides-head' }, t('scanner.guides')))

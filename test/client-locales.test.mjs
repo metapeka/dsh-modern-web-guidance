@@ -393,7 +393,7 @@ test('a rule row names its confidence, its unit and the rule message', () => {
   // when absent, because a live scan answer still carries only an id and a count.
   assert.match(
     CLIENT_SOURCE,
-    /message === '' \? null : h\('div', \{ style: S\.scanMessage, title: message \}, message\)/,
+    /message === '' \? null : h\('div', \{ style: S\.scanMessage, title: hint \}, message\)/,
     'the rule message is not rendered under the row',
   )
   assert.match(CLIENT_SOURCE, /WebkitLineClamp: '2'/, 'the rule message is not clamped to two lines')
@@ -403,9 +403,11 @@ test('a rule row names its confidence, its unit and the rule message', () => {
 })
 
 test('the report hands the rule and guide detail through, and an old host costs only a caption', () => {
+  // The ranked rows carry the rule's dates as well as its words: five optional fields, each read as
+  // '' when the host does not send it.
   assert.match(
     CLIENT_SOURCE,
-    /topRules: rankedIds\(asRows\(payload\.topRules\), 'ruleId', \['message', 'confidence', 'guideId'\]\)\.slice\(0, MAX_SCAN_RULES\)/,
+    /topRules: rankedIds\(asRows\(payload\.topRules\), 'ruleId', \[\s*'message',[\s\S]*?'lastSeen',\s*\]\)\.slice\(0, MAX_SCAN_RULES\)/,
     'the rule detail is not read from the report',
   )
   assert.match(
@@ -927,4 +929,188 @@ test('the branch belongs to the scan, so the workspace chip does not change', as
     }),
   )
   assert.deepEqual(elementIn(tree, (element) => element.props.title === 'app')?.children, ['Workspace: app'])
+})
+
+/** The strings scan history added, in the order the contract names them. */
+const HISTORY_KEYS = [
+  'scanner.history',
+  'scanner.historyMore',
+  'scanner.diffAgainst',
+  'scanner.diffCounts',
+  'scanner.diffPartial',
+  'scanner.diffFirst',
+  'scanner.diffRetired',
+  'scanner.lastSeen',
+]
+
+test('the scan-history strings exist in all three dictionaries, in the contract order', () => {
+  const english = [...EN.keys()]
+  const positions = HISTORY_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the eight keys are out of order')
+  for (const key of HISTORY_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // The claim the contract fixes: absence, never a fix.
+  assert.match(EN.get('scanner.diffCounts'), /no longer present/)
+  assert.match(RU.get('scanner.diffCounts'), /больше не встречаются/)
+  assert.match(ZH.get('scanner.diffCounts'), /不再出现/)
+  for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+    assert.doesNotMatch(dictionary.get('scanner.diffCounts'), /fixed|исправлено|已修复/i, `${name} claims a fix`)
+  }
+  assert.deepEqual(placeholders(EN.get('scanner.diffCounts')), ['new', 'resolved', 'stillOpen'])
+  // The guard token is the scanner's word: it is interpolated raw, never looked up in a dictionary.
+  assert.ok(EN.has('scanner.diffPartial'), 'the partial reason has no sentence to sit in')
+  assert.ok(!EN.has('fewer-files'), 'a guard token was given a locale key')
+})
+
+/** Every rendered text node of one tree, in document order. */
+function textsOf(tree) {
+  return elementsOf(tree).flatMap((element) => element.children.filter((child) => typeof child === 'string'))
+}
+
+/** One stored scan-history entry, as the host writes it. */
+function scanEntry(extra = {}) {
+  return {
+    at: '2026-11-10T22:27:39.749Z',
+    outcome: 'findings',
+    files: 70,
+    findings: 85,
+    rules: { 'ls-13': 4, 'ls-02': 2 },
+    skipped: {},
+    truncated: false,
+    diff: null,
+    ...extra,
+  }
+}
+
+test('the comparison line renders counts, a first scan, and a raw guard token', async () => {
+  const counts = textsOf(
+    (
+      await mountPanel(
+        reportOf({
+          scanDiff: {
+            against: '2026-11-09T08:12:00.000Z',
+            resolved: 3,
+            stillOpen: 82,
+            new: 1,
+            retired: 0,
+            partial: null,
+            rows: [],
+          },
+        }),
+      )
+    ).tree,
+  )
+  assert.ok(
+    counts.includes('Since the scan of 2026-11-09 08:12: 3 no longer present · 82 still open · 1 new'),
+    'the comparison does not name the scan it compared against and its three numbers',
+  )
+  // Retired sites are a fourth number, and only when there are any: they are not "resolved".
+  const retired = textsOf(
+    (
+      await mountPanel(
+        reportOf({
+          scanDiff: { against: '2026-11-09T08:12:00.000Z', resolved: 0, stillOpen: 82, new: 0, retired: 2, partial: null },
+        }),
+      )
+    ).tree,
+  )
+  assert.ok(
+    retired.includes('Since the scan of 2026-11-09 08:12: 0 no longer present · 82 still open · 0 new · 2 under retired rules'),
+    'a retired count is not reported apart from the resolved one',
+  )
+  // A first scan says what happens next, and a skipped comparison prints its token raw.
+  const first = textsOf((await mountPanel(reportOf({ scanDiff: { against: null, partial: 'no-baseline', resolved: null } }))).tree)
+  assert.ok(first.includes(EN.get('scanner.diffFirst')), 'a first scan does not say the next one will be compared')
+  assert.equal(first.some((text) => text.includes('no longer present')), false, 'a first scan printed numbers it cannot have')
+  const partial = textsOf((await mountPanel(reportOf({ scanDiff: { against: '2026-11-09T08:12:00.000Z', partial: 'fewer-files', resolved: null } }))).tree)
+  assert.ok(partial.includes('not comparable (fewer-files)'), 'a guard token is not shown raw')
+  assert.ok(!partial.some((text) => text.includes('no longer present')), 'a skipped comparison printed numbers')
+  // No comparison in the report: no line at all.
+  const absent = textsOf((await mountPanel(reportOf())).tree)
+  assert.equal(absent.some((text) => text.startsWith('Since the scan of ')), false, 'a pre-B report grew a comparison line')
+  assert.equal(absent.includes(EN.get('scanner.diffFirst')), false, 'a pre-B report claims a first scan')
+})
+
+test('the recent-scans block lists five rows and counts the ones it hides', async () => {
+  const history = ['2026-11-10T22:27:39.749Z', '2026-11-09T08:12:00.000Z', '2026-11-08T07:00:00.000Z', '2026-11-07T06:00:00.000Z', '2026-11-06T05:00:00.000Z', '2026-11-05T04:00:00.000Z', '2026-11-04T03:00:00.000Z'].map(
+    (at) => scanEntry({ at }),
+  )
+  history[0] = scanEntry({ at: history[0].at, branch: { kind: 'branch', name: 'main' } })
+  history[1] = scanEntry({ at: history[1].at, branch: { kind: 'detached', sha: 'a1b2c3d' }, rules: {} })
+  history[2] = scanEntry({ at: history[2].at, findings: 0, rules: {} })
+  const texts = textsOf((await mountPanel(reportOf({ scanHistory: history }))).tree)
+  assert.ok(texts.includes(EN.get('scanner.history')), 'the block has no heading')
+  const rows = texts.filter((text) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} · /.test(text))
+  assert.equal(rows.length, 5, 'the block does not cap at five rows')
+  assert.equal(rows[0], '2026-11-10 22:27 · 70 files · 85 findings · ls-13×4, ls-02×2 · branch main')
+  assert.equal(rows[1], '2026-11-09 08:12 · 70 files · 85 findings · detached at a1b2c3d')
+  assert.equal(rows[2], '2026-11-08 07:00 · 70 files · 0 findings')
+  assert.ok(texts.includes('and 2 earlier'), 'the hidden rows are not counted')
+  assert.equal(texts.some((text) => text.startsWith('2026-11-05 04:00')), false, 'a row past the cap is still drawn')
+  // The block is silent without a ring, so a pre-B host renders no heading and no rows.
+  const legacy = textsOf((await mountPanel(reportOf())).tree)
+  assert.equal(legacy.includes(EN.get('scanner.history')), false, 'a pre-B report grew a history block')
+})
+
+test('a ranked rule row carries its last-seen day, and only when the host dated it', async () => {
+  const dated = textsOf(
+    (
+      await mountPanel(
+        reportOf({
+          topRules: [
+            {
+              ruleId: 'ls-13',
+              count: 4,
+              message: 'Position the anchor instead of nudging',
+              confidence: 'high',
+              guideId: 'anchor-positioning',
+              firstSeen: '2026-10-01',
+              lastSeen: '2026-11-10',
+            },
+          ],
+        }),
+      )
+    ).tree,
+  )
+  assert.ok(dated.includes('last 2026-11-10'), 'the rule row has no last-seen suffix')
+  // The first sighting is secondary detail: it rides in the row title beside the message.
+  const titled = elementIn(
+    (await mountPanel(reportOf({ topRules: [{ ruleId: 'ls-13', count: 4, message: 'M', firstSeen: '2026-10-01', lastSeen: '2026-11-10' }] }))).tree,
+    (element) => element.props.title === 'M · 2026-10-01',
+  )
+  assert.equal(typeof titled, 'object', 'the first-seen day is not in the row title')
+  // A row the host never dated renders exactly the row it rendered before: no suffix, plain tooltip.
+  const legacy = (await mountPanel(reportOf({ topRules: [{ ruleId: 'ls-13', count: 4, message: 'M' }] }))).tree
+  const legacyTexts = textsOf(legacy)
+  assert.equal(legacyTexts.some((text) => text.startsWith('last ')), false, 'an undated row grew a suffix')
+  assert.equal(
+    typeof elementIn(legacy, (element) => element.props.title === 'M'),
+    'object',
+    'an undated row lost its message tooltip',
+  )
+})
+
+test('scanSeries is data for a later chart, so the panel draws none', async () => {
+  assert.equal(CLIENT_SOURCE.includes('scanSeries'), false, 'the panel reads a series this phase does not draw')
+  const series = [
+    { day: '2026-11-09', scans: 2, files: 140, findings: 168 },
+    { day: '2026-11-10', scans: 1, files: 70, findings: 85 },
+  ]
+  const withSeries = textsOf((await mountPanel(reportOf({ scanSeries: series, lastScan: { at: '2026-11-10', files: 70, findings: 85, rules: [] } }))).tree)
+  const without = textsOf((await mountPanel(reportOf({ lastScan: { at: '2026-11-10', files: 70, findings: 85, rules: [] } }))).tree)
+  assert.deepEqual(withSeries, without, 'a scanSeries changed the panel')
 })

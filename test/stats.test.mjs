@@ -22,7 +22,7 @@ async function isolatedHome() {
 
 /** A context with just enough of the host surface for the plugin: registry, events, command lookup. */
 function createContext() {
-  const registered = { tools: [], skills: [], commands: [], listeners: [] }
+  const registered = { tools: [], skills: [], commands: [], listeners: [], disposers: [] }
   const commands = {
     register: (definition) => {
       registered.commands.push(definition)
@@ -47,7 +47,12 @@ function createContext() {
       registered.listeners.push({ event, handler })
     },
     off: () => {},
-    effect: (create) => create(),
+    effect: (create) => {
+      // Disposing the plugin flushes the counters, which is how a test reads what was written down.
+      const dispose = create()
+      if (typeof dispose === 'function') registered.disposers.push(dispose)
+      return dispose
+    },
   }
   return { ctx, registered }
 }
@@ -454,15 +459,22 @@ test('/guidance-stats --json describes the scan ids the host knows', async () =>
     // The flag documents that both lists are lifetime totals, not filtered by --days.
     assert.equal(json.scanCountsScope, 'lifetime')
     // The sentence and confidence come from the rule table, not from the finding the scan raised.
-    assert.deepEqual(json.topRules, [
+    const [ruleRow] = json.topRules
+    assert.deepEqual(
+      { ...ruleRow, firstSeen: '<day>', lastSeen: '<day>' },
       {
         ruleId: 'ls-17',
         count: 1,
         message: rule.message,
         confidence: rule.confidence,
         guideId: rule.guideId,
+        firstSeen: '<day>',
+        lastSeen: '<day>',
       },
-    ])
+    )
+    // One scan saw the rule once, so both days are that scan's day — a real date, not a guess.
+    assert.match(ruleRow.firstSeen, /^\d{4}-\d{2}-\d{2}$/)
+    assert.equal(ruleRow.firstSeen, ruleRow.lastSeen)
     assert.deepEqual(json.topScanGuides, [
       { guideId: 'html', count: 1, description: guide.description },
     ])
@@ -795,3 +807,163 @@ test('two checkouts with one name are refused by name and selected by id or rela
 })
 
 //#endregion
+
+//#region 0.11.0: what the report says about when a scan happened
+
+/** The state document the counters write for the active profile. */
+function countersFile(home) {
+  return join(home, 'storage', 'modern-web-guidance', 'stats.json')
+}
+
+/** The ring rows of a text report, so a block can be compared as rows rather than as a substring. */
+function historyRowsOf(text) {
+  return text.split('\n').filter((line) => /^ {2}\d{4}-\d{2}-\d{2} \d{2}:\d{2} - /.test(line))
+}
+
+test('a scan call still returns the value and the text it always did, byte for byte', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-shape')
+  await writeFile(join(workspace, 'legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+    const value = await tool.execute({ paths: ['.'] }, headerAt(workspace))
+
+    // The whole value, member for member: the scanner is not part of the history work, and a member
+    // gained, lost or renamed by a surface change would fail here rather than at a user's scan.
+    assert.deepEqual({ ...value, cwd: '<workspace>' }, {
+      format: 'summary',
+      cwd: '<workspace>',
+      scanned: {
+        files: 1,
+        bytes: 28,
+        skipped: [],
+        skippedTotal: 0,
+        skippedByReason: {},
+        ignoreProblems: [],
+        truncated: false,
+      },
+      findings: [{
+        path: 'legacy.js',
+        line: 1,
+        column: 1,
+        ruleId: 'ls-17',
+        guideId: 'html',
+        confidence: 'medium',
+        message: 'Build the DOM with createElement/append instead of document.write(), which discards the parsed document.',
+        snippet: 'document.write("<p>hi</p>")',
+        lines: [1],
+        occurrences: 1,
+      }],
+      guides: [{ id: 'html', findings: 1 }],
+      truncated: false,
+    })
+
+    // And the rendered text, character for character, through the one renderer both surfaces share.
+    assert.equal(
+      tool.output.render({ paths: ['.'] }, value)[0].text,
+      'Scanned 1 file(s) (28 B) — 1 finding(s).\n' +
+      '- legacy.js:1:1 ls-17 (medium) Build the DOM with createElement/append instead of document.write(), which discards the parsed document.\n' +
+      'Load with web_guidance_retrieve: html (1).',
+    )
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('two scans of one workspace produce the comparison line and a two-row ring', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-story')
+  const file = join(workspace, 'legacy.js')
+  await writeFile(file, 'document.write("<p>hi</p>")\n', 'utf8')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+    const command = statsCommand(registered)
+    const header = headerAt(workspace)
+    // Each scan is the tool's own value raised through the host's event, so the counters see exactly
+    // what a real scan call produces — nothing is fabricated for the history.
+    const scan = async () => {
+      raiseScan(registered, await tool.execute({ paths: ['.'] }, header))
+      await settle()
+    }
+    const report = async (rawInput = '') => (await command.handler({ rawInput, ...header })).text
+
+    await scan()
+    const first = await report()
+    // A first scan has no baseline, so the report promises the comparison instead of showing zeroes.
+    assert.match(first, /^No earlier scan to compare with; the next scan will be compared\.$/m)
+    assert.match(first, /^Recent scans:$/m)
+    assert.equal(historyRowsOf(first).length, 1)
+    assert.doesNotMatch(first, /no longer present/)
+
+    // The fix that lands: the site is gone, the file is still there and still the only file read.
+    await writeFile(file, 'const p = document.createElement("p")\n', 'utf8')
+    await scan()
+    const second = await report()
+    assert.match(second, /^Since the scan of \d{4}-\d{2}-\d{2} \d{2}:\d{2}: 1 no longer present, 0 still open, 0 new$/m)
+    assert.equal(historyRowsOf(second).length, 2)
+    assert.doesNotMatch(second, /\bfixed\b/i)
+
+    const json = JSON.parse(await report('--json'))
+    assert.equal(json.scanHistory.length, 2)
+    // Newest first: the clean scan is the one that resolved the site.
+    assert.equal(json.scanHistory[0].outcome, 'clean')
+    assert.deepEqual(json.scanHistory[0].diff, { resolved: 1, stillOpen: 0, new: 0 })
+    assert.equal(json.scanDiff.partial, null)
+    assert.equal(json.scanDiff.resolved, 1)
+    assert.equal(json.scanDiff.stillOpen, 0)
+    assert.equal(json.scanDiff.new, 0)
+    assert.equal(json.scanCountsScope, 'lifetime')
+    // The series is windowed data, the ring is not: the report keeps the ring across the 7/30 switch.
+    assert.ok(Array.isArray(json.scanSeries))
+    const wider = JSON.parse(await report('--days 30 --json'))
+    assert.equal(wider.scanHistory.length, 2)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('the counters are given the rule table, so a table change can be detected', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-rules')
+  await writeFile(join(workspace, 'legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+    raiseScan(registered, await tool.execute({ paths: ['.'] }, headerAt(workspace)))
+    await settle()
+
+    // The baseline records the size of the table at scan time. Without `ruleIds` the counters would
+    // claim no table at all, and a plugin upgrade that adds a rule would report every site of it as
+    // new instead of suppressing the comparison.
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    const stored = JSON.parse(await readFile(countersFile(home), 'utf8'))
+    const buckets = Object.values(stored.workspaces)
+    assert.equal(buckets.length, 1)
+    assert.equal(buckets[0].lastSites.ruleCount, RULES.length)
+    assert.equal(buckets[0].scanHistory.length, 1)
+  } finally {
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+//#endregion
+

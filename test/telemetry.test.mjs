@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { branchLabel, classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
+import { branchLabel, classifyCall, createTelemetry, siteId, workspaceId } from '../lib/telemetry.js'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -287,6 +287,11 @@ function lastScanOf({ at, files, findings, rules, skipped = {}, truncated = fals
   return { at, files, findings, rules, skipped, truncated }
 }
 
+/** One ranked rule row as the snapshot hands it out: the count plus the days the rule was seen. */
+function ruleRow(ruleId, count, firstSeen = null, lastSeen = null) {
+  return { ruleId, count, firstSeen, lastSeen }
+}
+
 test('a scan classifies which rules and guides fired, deduped and sorted', () => {
   const entry = scanEntry([
     finding('ls-13', 'customize-scrollbar'),
@@ -350,7 +355,7 @@ test('one scan counts findings while the id list names each rule once', async ()
   })
 
   const snapshot = await telemetry.snapshot()
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 3 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 3)])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'customize-scrollbar', count: 3 }])
   // The last-scan summary lists presence once, even though the counter saw three findings.
   assert.deepEqual(snapshot.lastScan, lastScanOf({
@@ -377,7 +382,7 @@ test('the same rule accumulates across scans while the last scan is replaced', a
   await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-13', 'customize-scrollbar')], 2) })
 
   const snapshot = await telemetry.snapshot()
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 3 }, { ruleId: 'ls-02', count: 1 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 3), ruleRow('ls-02', 1)])
   assert.deepEqual(snapshot.topScanGuides, [
     { guideId: 'customize-scrollbar', count: 3 },
     { guideId: 'dialog', count: 1 },
@@ -402,9 +407,9 @@ test('the top lists rank by findings and break ties by id', async () => {
 
   const snapshot = await telemetry.snapshot()
   assert.deepEqual(snapshot.topRules, [
-    { ruleId: 'ls-10', count: 2 },
-    { ruleId: 'ls-20', count: 2 },
-    { ruleId: 'ls-30', count: 1 },
+    ruleRow('ls-10', 2),
+    ruleRow('ls-20', 2),
+    ruleRow('ls-30', 1),
   ])
   assert.deepEqual(snapshot.topScanGuides, [
     { guideId: 'guide-a', count: 2 },
@@ -429,10 +434,7 @@ test('the top lists show ten rows no matter how many rules fired', async () => {
   assert.equal(snapshot.topScanGuides.length, 10)
   assert.deepEqual(
     snapshot.topRules,
-    Array.from({ length: 10 }, (_, index) => ({
-      ruleId: `ls-${String(index + 1).padStart(2, '0')}`,
-      count: 12 - index,
-    })),
+    Array.from({ length: 10 }, (_, index) => ruleRow(`ls-${String(index + 1).padStart(2, '0')}`, 12 - index)),
   )
   assert.deepEqual(
     snapshot.topScanGuides.map((row) => row.count),
@@ -477,8 +479,8 @@ test('a scan with no findings keeps the counters and records an empty rule list'
 
   const snapshot = await telemetry.snapshot()
   assert.deepEqual(snapshot.topRules, [
-    { ruleId: 'ls-02', count: 1 },
-    { ruleId: 'ls-13', count: 1 },
+    ruleRow('ls-02', 1),
+    ruleRow('ls-13', 1),
   ])
   assert.deepEqual(snapshot.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 2, findings: 0, rules: [] }))
 })
@@ -506,7 +508,7 @@ test('a document written before the scan counters loads and starts its blocks em
   await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-13', 'customize-scrollbar')]) })
   const after = await telemetry.snapshot()
   assert.equal(after.totals.byTool['legacy-scan'], 1)
-  assert.deepEqual(after.topRules, [{ ruleId: 'ls-13', count: 1 }])
+  assert.deepEqual(after.topRules, [ruleRow('ls-13', 1)])
 })
 
 test('a last scan older than the window is dropped while the lifetime counters stay', async () => {
@@ -520,14 +522,14 @@ test('a last scan older than the window is dropped while the lifetime counters s
 
   const stale = await telemetry.snapshot()
   assert.equal(stale.lastScan, null)
-  assert.deepEqual(stale.topRules, [{ ruleId: 'ls-13', count: 2 }])
+  assert.deepEqual(stale.topRules, [ruleRow('ls-13', 2)])
 
   await telemetry.record({ at: NOW, tool: 'legacy-scan', ...scanEntry([finding('ls-02', 'dialog')], 3) })
   const fresh = await telemetry.snapshot()
   assert.deepEqual(fresh.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 3, findings: 1, rules: ['ls-02'] }))
   assert.deepEqual(fresh.topRules, [
-    { ruleId: 'ls-13', count: 2 },
-    { ruleId: 'ls-02', count: 1 },
+    ruleRow('ls-13', 2),
+    ruleRow('ls-02', 1),
   ])
 })
 
@@ -549,7 +551,7 @@ test('the stored scan block is rebuilt defensively from a hand-edited document',
   const { telemetry } = telemetryWith({ store: memoryStore(seed) })
 
   const snapshot = await telemetry.snapshot()
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-02', count: 2 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-02', 2)])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'dialog', count: 1 }])
   assert.deepEqual(snapshot.lastScan, lastScanOf({
     at: new Date(NOW - 1000).toISOString(),
@@ -578,7 +580,7 @@ test('aggregation ignores a garbage scan entry instead of throwing', async () =>
   })
 
   const snapshot = await telemetry.snapshot()
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 2 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 2)])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'ok-guide', count: 1 }])
   assert.deepEqual(snapshot.lastScan.rules, [])
 })
@@ -608,7 +610,7 @@ test('a failed scan is counted but does not become the last scan', async () => {
     findings: 1,
     rules: ['ls-13'],
   }))
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 1 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 1)])
   assert.equal(snapshot.totals.byTool['legacy-scan'], 2)
 })
 
@@ -668,7 +670,7 @@ test('a truncated scan is stored as such and survives a reload', async () => {
   assert.equal(snapshot.lastScan.truncated, true)
   assert.deepEqual(snapshot.lastScan.skipped, { 'too-many': 341 })
   // The lifetime counters are untouched by truncation: they count what the scan did see.
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-02', count: 1 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-02', 1)])
 })
 
 test('the last scan keeps the top four skip reasons, ranked by count then name', async () => {
@@ -739,7 +741,7 @@ test('a last scan stored before the audit fields existed normalises without loss
     findings: 97,
     rules: ['ls-02', 'ls-13'],
   }))
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 4 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 4)])
 })
 
 test('malformed skip fields are dropped instead of reaching the snapshot', async () => {
@@ -809,7 +811,7 @@ test('a document written before workspace scoping keeps every counter and its la
 
   const snapshot = await telemetry.snapshot({ days: 7 })
   assert.equal(snapshot.workspace, null)
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 4 }, { ruleId: 'ls-02', count: 2 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
   assert.deepEqual(snapshot.lastScan, lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
   // The pre-partition numbers surface as one synthetic bucket instead of disappearing.
   assert.deepEqual(snapshot.workspaces, [
@@ -832,7 +834,7 @@ test('two workspaces keep their scan counters disjoint while calls stay profile-
 
   const alpha = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
   assert.deepEqual(alpha.workspace, ALPHA)
-  assert.deepEqual(alpha.topRules, [{ ruleId: 'ls-13', count: 1 }])
+  assert.deepEqual(alpha.topRules, [ruleRow('ls-13', 1, localDay(NOW - 1000), localDay(NOW - 1000))])
   assert.deepEqual(alpha.lastScan, lastScanOf({ at: new Date(NOW - 1000).toISOString(), files: 1, findings: 1, rules: ['ls-13'] }))
   // Guidance counters are profile-wide, so a selected workspace still sees every call.
   assert.equal(alpha.totals.calls, 2)
@@ -840,7 +842,7 @@ test('two workspaces keep their scan counters disjoint while calls stay profile-
 
   const beta = await telemetry.snapshot({ days: 7, workspace: BETA.id })
   assert.deepEqual(beta.workspace, BETA)
-  assert.deepEqual(beta.topRules, [{ ruleId: 'ls-02', count: 2 }])
+  assert.deepEqual(beta.topRules, [ruleRow('ls-02', 2, localDay(NOW), localDay(NOW))])
   assert.deepEqual(beta.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 4, findings: 2, rules: ['ls-02'] }))
 
   // The roots that 0.9.0 read as its scan debt are untouched by attributed scans.
@@ -854,6 +856,22 @@ test('two workspaces keep their scan counters disjoint while calls stay profile-
     scanRules: { 'ls-13': 1 },
     scanGuides: { 'guide-a': 1 },
     lastScan: lastScanOf({ at: new Date(NOW - 1000).toISOString(), files: 1, findings: 1, rules: ['ls-13'] }),
+    // The 0.11.0 members are written by the same completed scan. These findings carry no path or
+    // snippet (the helper reports ids only), so the site map is incomplete and nothing is compared.
+    scanByDay: { [localDay(NOW - 1000)]: { scans: 1, files: 1, findings: 1 } },
+    ruleFirstSeen: { 'ls-13': localDay(NOW - 1000) },
+    ruleLastSeen: { 'ls-13': localDay(NOW - 1000) },
+    scanHistory: [{
+      at: new Date(NOW - 1000).toISOString(),
+      outcome: 'findings',
+      files: 1,
+      findings: 1,
+      rules: { 'ls-13': 1 },
+      skipped: {},
+      truncated: false,
+    }],
+    lastSites: null,
+    scanDiff: { against: null, partial: 'sites-unknown' },
   })
   assert.deepEqual(store.state.workspaces[BETA.id].scanRules, { 'ls-02': 2 })
   assert.deepEqual(Object.keys(store.state.workspaces).sort(), [ALPHA.id, BETA.id].sort())
@@ -877,7 +895,12 @@ test("aggregating 'all' sums every bucket plus the legacy root counters", async 
 
   const all = await telemetry.snapshot({ days: 7 })
   assert.equal(all.workspace, null)
-  assert.deepEqual(all.topRules, [{ ruleId: 'ls-13', count: 6 }, { ruleId: 'ls-02', count: 3 }])
+  // An aggregate takes the earliest and latest day of the buckets it sums; the legacy root's rows
+  // carry no date of their own, so a rule only it knows reads as null.
+  assert.deepEqual(all.topRules, [
+    ruleRow('ls-13', 6, localDay(NOW - 2000), localDay(NOW - 2000)),
+    ruleRow('ls-02', 3, localDay(NOW), localDay(NOW)),
+  ])
   assert.deepEqual(all.topScanGuides, [{ guideId: 'dialog', count: 4 }, { guideId: 'guide-a', count: 2 }, { guideId: 'guide-b', count: 1 }])
   // A last scan cannot be summed, so the aggregate shows the newest one rather than the root's.
   assert.deepEqual(all.lastScan, lastScanOf({ at: new Date(NOW).toISOString(), files: 2, findings: 1, rules: ['ls-02'] }))
@@ -900,7 +923,7 @@ test("selecting '_unattributed' reads only the legacy root counters", async () =
   const legacy = await telemetry.snapshot({ days: 7, workspace: '_unattributed' })
   assert.deepEqual(legacy.workspace, { id: '_unattributed', name: '' })
   // The root's rules, not the union with the bucket that exists beside it.
-  assert.deepEqual(legacy.topRules, [{ ruleId: 'ls-13', count: 4 }, { ruleId: 'ls-02', count: 2 }])
+  assert.deepEqual(legacy.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
   assert.deepEqual(legacy.lastScan, lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
 })
 
@@ -947,7 +970,7 @@ test('garbage workspace entries are dropped and an incomplete bucket is complete
     { id: 'eeee5555', name: 'workspace', findings: 0, rules: 0, lastScanAt: null },
   ])
   // The aggregate only counted the readable bucket.
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 2 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 2)])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'guide-a', count: 2 }, { guideId: 'dialog', count: 1 }])
 })
 
@@ -958,7 +981,9 @@ test('retention drops an expired workspace last scan but never the bucket or its
 
   const snapshot = await telemetry.snapshot({ days: 7 })
   assert.deepEqual(snapshot.workspaces, [{ id: ALPHA.id, name: 'app', findings: 2, rules: 1, lastScanAt: null }])
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 2 }])
+  // The bucket still knows when its rule was seen, so the row can be dated even though the last-scan
+  // pointer expired with the window.
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 2, localDay(NOW - 200 * DAY), localDay(NOW - 200 * DAY))])
   assert.equal(snapshot.lastScan, null)
 
   await telemetry.flush()
@@ -1008,7 +1033,7 @@ test('partitioning keeps version 1, so a reload finds the buckets rather than er
   const reloaded = createTelemetry({ store, clock: () => NOW, catalog: CATALOG })
   const snapshot = await reloaded.snapshot({ days: 7, workspace: ALPHA.id })
   assert.deepEqual(snapshot.workspace, ALPHA)
-  assert.deepEqual(snapshot.topRules, [{ ruleId: 'ls-13', count: 1 }])
+  assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 1, localDay(NOW), localDay(NOW))])
   assert.deepEqual(snapshot.workspaces, [
     { id: ALPHA.id, name: 'app', findings: 1, rules: 1, lastScanAt: new Date(NOW).toISOString() },
   ])
@@ -1149,4 +1174,508 @@ test('branchLabel accepts exactly the two shapes and rebuilds them', () => {
   assert.equal(branchLabel([]), null)
 })
 
+// --- Scan history (0.11.0): when a scan ran, and whether the sites it found are still there -------
 
+/** One finding with everything a site key needs: a path, a rule id and a snippet. */
+function site(ruleId = 'ls-13', snippet = '::-webkit-scrollbar', path = 'src/app.css') {
+  return { path, ruleId, snippet }
+}
+
+/** A scan entry as the tool path builds it: classified, with real site identity. */
+function recordedScan({ at = NOW, files = 4, truncated = false, branch = null, findings = [], workspace = ALPHA } = {}) {
+  const classified = classifyCall({
+    tool: 'web_guidance_legacy_scan',
+    value: { cwd: '/work/app', scanned: { files }, truncated, findings },
+  })
+  return {
+    at,
+    tool: 'legacy-scan',
+    workspace,
+    ...(branch === null ? {} : { branch }),
+    ...classified,
+  }
+}
+
+/** A refusal, classified: a call that ran no scan and can testify about nothing. */
+function refusedScan(at = NOW, workspace = ALPHA) {
+  return {
+    at,
+    tool: 'legacy-scan',
+    workspace,
+    ...classifyCall({ tool: 'web_guidance_legacy_scan', value: { error: 'path-absolute', message: 'absolute path' } }),
+  }
+}
+
+test('scanByDay counts completed scans only, one row per local day', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW + 1000, files: 2 }))
+  // A refusal is a call, never a scan: it appends no row and no history entry.
+  await telemetry.record(refusedScan(NOW + 2000))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(bucket.scanByDay, { [localDay(NOW)]: { scans: 2, files: 6, findings: 1 } })
+  assert.equal(bucket.scanHistory.length, 2)
+  // The call series at the root still counts all three calls; the scan series is additive.
+  assert.equal(store.state.byDay[localDay(NOW)].calls, 3)
+})
+
+test('each workspace keeps its own scan series and history', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW, files: 1, findings: [site('ls-02', 'dialog', 'src/b.css')], workspace: BETA }))
+  await telemetry.flush()
+
+  assert.deepEqual(store.state.workspaces[ALPHA.id].scanByDay, { [localDay(NOW)]: { scans: 1, files: 4, findings: 1 } })
+  assert.deepEqual(store.state.workspaces[BETA.id].scanByDay, { [localDay(NOW)]: { scans: 1, files: 1, findings: 1 } })
+  assert.equal(store.state.workspaces[ALPHA.id].scanHistory.length, 1)
+  assert.deepEqual(store.state.workspaces[ALPHA.id].ruleFirstSeen, { 'ls-13': localDay(NOW) })
+  assert.deepEqual(store.state.workspaces[BETA.id].ruleFirstSeen, { 'ls-02': localDay(NOW) })
+})
+
+test('the scan series is pruned with the call series', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ at: NOW - 200 * DAY, files: 4, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site()] }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(Object.keys(bucket.scanByDay), [localDay(NOW)])
+  assert.equal(bucket.scanHistory.length, 1)
+  // The lifetime bounds are not a window: the earliest day a rule was ever seen survives the prune.
+  assert.equal(bucket.ruleFirstSeen['ls-13'], localDay(NOW - 200 * DAY))
+  assert.equal(bucket.ruleLastSeen['ls-13'], localDay(NOW))
+})
+
+test('ruleFirstSeen only moves earlier and ruleLastSeen only later', async () => {
+  const { telemetry, store } = telemetryWith({ options: { ruleIds: ['ls-02', 'ls-13'] } })
+
+  await telemetry.record(recordedScan({ at: NOW - 5 * DAY, findings: [site('ls-13'), site('ls-13', 'other-code', 'src/b.css')] }))
+  await telemetry.record(recordedScan({ at: NOW, findings: [site('ls-13')] }))
+  // A clock that jumped backwards must not rewind either bound.
+  await telemetry.record(recordedScan({ at: NOW - 2 * DAY, findings: [site('ls-13')] }))
+  await telemetry.record(recordedScan({ at: NOW, findings: [site('ls-02')] }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.equal(bucket.ruleFirstSeen['ls-13'], localDay(NOW - 5 * DAY))
+  assert.equal(bucket.ruleLastSeen['ls-13'], localDay(NOW))
+  assert.equal(bucket.ruleFirstSeen['ls-02'], localDay(NOW))
+  // The key set is the lifetime counter's, so the three views of one rule agree.
+  assert.deepEqual(Object.keys(bucket.ruleFirstSeen).sort(), Object.keys(bucket.scanRules).sort())
+})
+
+test('a bucket written before scan history loads with every new member empty', async () => {
+  const seed = legacyDocument()
+  seed.workspaces = {
+    [ALPHA.id]: { name: 'app', since: NOW - 10 * DAY, scanRules: { 'ls-13': 2 }, scanGuides: { dialog: 2 }, lastScan: null },
+  }
+  const { telemetry, store } = telemetryWith({ store: memoryStore(seed) })
+
+  await telemetry.flush()
+
+  assert.equal(store.state.version, 1)
+  const bucket = store.state.workspaces[ALPHA.id]
+  // Member order is the writer's: the six 0.11.0 fields follow the five 0.10.0 ones.
+  assert.deepEqual(Object.keys(bucket), [
+    'name', 'since', 'scanRules', 'scanGuides', 'lastScan',
+    'scanByDay', 'ruleFirstSeen', 'ruleLastSeen', 'scanHistory', 'lastSites', 'scanDiff',
+  ])
+  assert.deepEqual(bucket.scanByDay, {})
+  assert.deepEqual(bucket.ruleFirstSeen, {})
+  assert.deepEqual(bucket.ruleLastSeen, {})
+  assert.deepEqual(bucket.scanHistory, [])
+  assert.equal(bucket.lastSites, null)
+  assert.equal(bucket.scanDiff, null)
+  assert.deepEqual(bucket.scanRules, { 'ls-13': 2 })
+
+  // The root is not a bucket: the legacy counters gain no scan-history member.
+  for (const key of ['scanByDay', 'ruleFirstSeen', 'ruleLastSeen', 'scanHistory', 'lastSites', 'scanDiff']) {
+    assert.equal(key in store.state, false, `${key} must not appear at the root`)
+  }
+})
+
+test('corrupt scan-history members are dropped or rebuilt instead of shown', async () => {
+  const seed = legacyDocument()
+  seed.workspaces = {
+    [ALPHA.id]: {
+      name: 'app',
+      since: NOW,
+      scanRules: {},
+      scanGuides: {},
+      lastScan: null,
+      scanByDay: {
+        [localDay(NOW)]: { scans: 2, files: 'many', findings: 3 },
+        'not-a-day': { scans: 9 },
+        [localDay(NOW - DAY)]: { scans: 0 },
+      },
+      ruleFirstSeen: { 'ls-13': localDay(NOW), '': localDay(NOW), 'ls-02': 'nope' },
+      ruleLastSeen: { 'ls-13': localDay(NOW - 3 * DAY) },
+      scanHistory: [
+        {
+          at: new Date(NOW).toISOString(),
+          outcome: 'findings',
+          files: 1,
+          findings: 2,
+          rules: { 'ls-01': 12, 'ls-02': 11, 'ls-03': 10, 'ls-04': 9, 'ls-05': 8, 'ls-06': 7, 'ls-07': 6, 'ls-08': 5, 'ls-09': 4, 'ls-10': 3, 'ls-11': 2, 'ls-12': 1 },
+          skipped: { extension: 9, binary: 2, large: 1, fifth: 1 },
+          truncated: false,
+          branch: { kind: 'branch', name: 'main' },
+          diff: { resolved: 2, stillOpen: 1, new: 0 },
+        },
+        { at: 'not a date', outcome: 'findings' },
+        { at: NOW, outcome: 'error' },
+        'nonsense',
+      ],
+      lastSites: {
+        at: new Date(NOW).toISOString(),
+        files: 4,
+        ruleCount: 2,
+        rules: { 'ls-13': ['96cb61de', '96cb61de', 'not-a-key', 7], 'ls-02': ['0519e373'] },
+      },
+      scanDiff: { against: new Date(NOW - DAY).toISOString(), partial: 'not-a-token', resolved: 1 },
+    },
+  }
+  const { telemetry, store } = telemetryWith({ store: memoryStore(seed) })
+
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(bucket.scanByDay, { [localDay(NOW)]: { scans: 2, files: 0, findings: 3 } })
+  assert.deepEqual(bucket.ruleFirstSeen, { 'ls-13': localDay(NOW) })
+  assert.deepEqual(bucket.ruleLastSeen, { 'ls-13': localDay(NOW - 3 * DAY) })
+
+  // Only the completed scan survives; its rule map and skip reasons are re-capped on the way in.
+  assert.equal(bucket.scanHistory.length, 1)
+  const entry = bucket.scanHistory[0]
+  assert.equal(Object.keys(entry.rules).length, 10)
+  assert.deepEqual(entry.skipped, { extension: 9, binary: 2, fifth: 1, large: 1 })
+  assert.deepEqual(entry.branch, { kind: 'branch', name: 'main' })
+  assert.deepEqual(entry.diff, { resolved: 2, stillOpen: 1, new: 0 })
+
+  // An unrepresentable key is dropped, not guessed at; a duplicate is one site.
+  assert.deepEqual(bucket.lastSites.rules, {
+    'ls-02': ['0519e373'],
+    'ls-13': ['96cb61de'],
+  })
+  // An unknown partial token makes the whole comparison unreadable: no numbers, no rows, nothing.
+  assert.equal(bucket.scanDiff, null)
+})
+
+test('the history ring keeps the newest twenty completed scans', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  for (let index = 0; index < 25; index += 1) {
+    await telemetry.record(recordedScan({ at: NOW + index * 1000 }))
+  }
+  await telemetry.flush()
+
+  const history = store.state.workspaces[ALPHA.id].scanHistory
+  assert.equal(history.length, 20)
+  assert.equal(history[0].at, new Date(NOW + 5 * 1000).toISOString())
+  assert.equal(history.at(-1).at, new Date(NOW + 24 * 1000).toISOString())
+})
+
+test('one history entry keeps the top ten rules, count desc then id', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  const findings = []
+  for (let index = 1; index <= 12; index += 1) {
+    const ruleId = `ls-${String(index).padStart(2, '0')}`
+    for (let repetition = 0; repetition < 13 - index; repetition += 1) {
+      findings.push(site(ruleId, `snippet ${index}-${repetition}`, `src/f${index}-${repetition}.css`))
+    }
+  }
+  await telemetry.record(recordedScan({ files: 12, findings }))
+  await telemetry.flush()
+
+  const entry = store.state.workspaces[ALPHA.id].scanHistory[0]
+  assert.deepEqual(entry.rules, {
+    'ls-01': 12, 'ls-02': 11, 'ls-03': 10, 'ls-04': 9, 'ls-05': 8,
+    'ls-06': 7, 'ls-07': 6, 'ls-08': 5, 'ls-09': 4, 'ls-10': 3,
+  })
+  assert.equal(entry.findings, findings.length)
+})
+
+test('a clean scan is a history entry with no rules and no findings', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ findings: [] }))
+  await telemetry.flush()
+
+  const entry = store.state.workspaces[ALPHA.id].scanHistory[0]
+  assert.equal(entry.outcome, 'clean')
+  assert.deepEqual(entry.rules, {})
+  assert.equal(entry.findings, 0)
+})
+
+test('each history entry carries the branch label of its own scan', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ at: NOW, branch: { kind: 'branch', name: 'main' } }))
+  await telemetry.record(recordedScan({ at: NOW + 1000, branch: { kind: 'detached', sha: 'a1b2c3d' } }))
+  await telemetry.record(recordedScan({ at: NOW + 2000 }))
+  await telemetry.flush()
+
+  const history = store.state.workspaces[ALPHA.id].scanHistory
+  assert.deepEqual(history[0].branch, { kind: 'branch', name: 'main' })
+  assert.deepEqual(history[1].branch, { kind: 'detached', sha: 'a1b2c3d' })
+  assert.equal('branch' in history[2], false)
+  // The last scan has no label either: the member is absent, never a placeholder.
+  assert.equal('branch' in store.state.workspaces[ALPHA.id].lastScan, false)
+})
+
+test('the first completed scan stores a baseline and reports nothing to compare', async () => {
+  const { telemetry, store } = telemetryWith({ options: { ruleIds: ['ls-13'] } })
+
+  await telemetry.record(recordedScan({ files: 4, findings: [site()] }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(bucket.scanDiff, { against: null, partial: 'no-baseline' })
+  assert.deepEqual(bucket.lastSites, {
+    at: new Date(NOW).toISOString(),
+    files: 4,
+    ruleCount: 1,
+    rules: { 'ls-13': [siteId('src/app.css', 'ls-13', '::-webkit-scrollbar')] },
+  })
+  // A skipped comparison stores no numbers and no diff on the entry: never zeros.
+  assert.equal('diff' in bucket.scanHistory[0], false)
+  for (const key of ['resolved', 'stillOpen', 'new', 'retired', 'rows']) {
+    assert.equal(key in bucket.scanDiff, false, `${key} must not appear on a partial comparison`)
+  }
+})
+
+test('a repaired site is resolved, a survivor is still open, and a new hit is new', async () => {
+  const { telemetry, store } = telemetryWith({ options: { ruleIds: ['ls-02', 'ls-13'] } })
+
+  const survives = siteId('src/b.css', 'ls-02', 'dialog')
+  const added = siteId('src/app.css', 'ls-13', '::-webkit-scrollbar {')
+
+  await telemetry.record(recordedScan({
+    at: NOW,
+    files: 4,
+    findings: [site('ls-13', '::-webkit-scrollbar'), site('ls-02', 'dialog', 'src/b.css')],
+  }))
+  await telemetry.record(recordedScan({
+    at: NOW + 1000,
+    files: 4,
+    findings: [site('ls-02', 'dialog', 'src/b.css'), site('ls-13', '::-webkit-scrollbar {')],
+  }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(bucket.scanDiff, {
+    against: new Date(NOW).toISOString(),
+    resolved: 1,
+    stillOpen: 1,
+    new: 1,
+    retired: 0,
+    partial: null,
+    rows: [
+      { ruleId: 'ls-13', resolved: 1, stillOpen: 0, new: 1 },
+      { ruleId: 'ls-02', resolved: 0, stillOpen: 1, new: 0 },
+    ],
+  })
+  // The numbers describe two scans, not a lifetime: 2 previous sites in, 2 current sites out.
+  assert.equal(bucket.scanDiff.resolved + bucket.scanDiff.stillOpen + bucket.scanDiff.retired, 2)
+  assert.equal(bucket.scanDiff.stillOpen + bucket.scanDiff.new, 2)
+  // The entry keeps the compact copy; the first entry had no baseline so it has none.
+  assert.deepEqual(bucket.scanHistory.at(-1).diff, { resolved: 1, stillOpen: 1, new: 1 })
+  assert.equal('diff' in bucket.scanHistory[0], false)
+  // And the baseline is now the current scan, not the previous one.
+  assert.equal(bucket.lastSites.at, new Date(NOW + 1000).toISOString())
+  assert.deepEqual(bucket.lastSites.rules, {
+    'ls-02': [survives],
+    'ls-13': [added],
+  })
+})
+
+test('a duplicate or moved site stays open instead of inventing a fix', async () => {
+  const { telemetry, store } = telemetryWith({ options: { ruleIds: ['ls-13'] } })
+
+  // Two byte-identical sites are one site, and a re-run after a line insertion is the same site.
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site(), site()] }))
+  await telemetry.record(recordedScan({ at: NOW + 1000, files: 4, findings: [site()] }))
+  await telemetry.flush()
+
+  const diff = store.state.workspaces[ALPHA.id].scanDiff
+  assert.equal(diff.resolved, 0)
+  assert.equal(diff.stillOpen, 1)
+  assert.equal(diff.new, 0)
+  assert.deepEqual(diff.rows, [{ ruleId: 'ls-13', resolved: 0, stillOpen: 1, new: 0 }])
+})
+
+test('a rule the current table no longer ships is retired, never resolved', async () => {
+  const store = memoryStore()
+  const before = createTelemetry({ store, clock: () => NOW, retentionDays: 90, catalog: CATALOG, ruleIds: ['ls-02', 'ls-13'] })
+  await before.record(recordedScan({ at: NOW, files: 4, findings: [site('ls-13'), site('ls-02', 'dialog', 'src/b.css')] }))
+  await before.flush()
+
+  // Same rule count, one id swapped: the table guard passes, so the comparison runs and retires ls-13.
+  const after = createTelemetry({ store, clock: () => NOW, retentionDays: 90, catalog: CATALOG, ruleIds: ['ls-02', 'ls-33'] })
+  await after.record(recordedScan({ at: NOW + 1000, files: 4, findings: [site('ls-02', 'dialog', 'src/b.css')] }))
+  await after.flush()
+
+  const diff = store.state.workspaces[ALPHA.id].scanDiff
+  assert.equal(diff.resolved, 0)
+  assert.equal(diff.retired, 1)
+  assert.equal(diff.stillOpen, 1)
+  assert.equal(diff.new, 0)
+  // A retired rule's row is all zeros, so it is not a row at all.
+  assert.deepEqual(diff.rows, [{ ruleId: 'ls-02', resolved: 0, stillOpen: 1, new: 0 }])
+})
+
+test('every comparison refusal is stored as its token with no numbers', async () => {
+  const rules = ['ls-02', 'ls-13']
+
+  // sites-unknown: a finding without a snippet cannot be hashed, so nothing may be compared.
+  const unknown = telemetryWith({ options: { ruleIds: rules } })
+  await unknown.telemetry.record(recordedScan({ findings: [site('ls-13'), { path: 'src/a.css', ruleId: 'ls-02' }] }))
+  await unknown.telemetry.flush()
+  assert.deepEqual(unknown.store.state.workspaces[ALPHA.id].scanDiff, { against: null, partial: 'sites-unknown' })
+
+  // truncated: the cap cut the finding list, so sites past the cut would read as fixed.
+  const truncated = telemetryWith({ options: { ruleIds: rules } })
+  await truncated.telemetry.record(recordedScan({ truncated: true, findings: [site('ls-13')] }))
+  await truncated.telemetry.flush()
+  assert.deepEqual(truncated.store.state.workspaces[ALPHA.id].scanDiff, { against: null, partial: 'truncated' })
+
+  // no-files: an empty walk proves nothing about absence.
+  const empty = telemetryWith({ options: { ruleIds: rules } })
+  await empty.telemetry.record(recordedScan({ files: 0 }))
+  await empty.telemetry.flush()
+  assert.deepEqual(empty.store.state.workspaces[ALPHA.id].scanDiff, { against: null, partial: 'no-files' })
+
+  // fewer-files: a narrower scan cannot prove the missing sites were fixed, and keeps the old baseline.
+  const narrower = telemetryWith({ options: { ruleIds: rules } })
+  await narrower.telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site('ls-13')] }))
+  await narrower.telemetry.record(recordedScan({ at: NOW + 1000, files: 2 }))
+  await narrower.telemetry.flush()
+  const narrowBucket = narrower.store.state.workspaces[ALPHA.id]
+  assert.deepEqual(narrowBucket.scanDiff, { against: new Date(NOW).toISOString(), partial: 'fewer-files' })
+  assert.equal(narrowBucket.lastSites.files, 4)
+
+  // branch-changed: two checkouts differ by their tree, not by a fix, and the new branch is the baseline.
+  const branched = telemetryWith({ options: { ruleIds: rules } })
+  await branched.telemetry.record(recordedScan({ at: NOW, files: 4, branch: { kind: 'branch', name: 'main' }, findings: [site('ls-13')] }))
+  await branched.telemetry.record(recordedScan({ at: NOW + 1000, files: 4, branch: { kind: 'branch', name: 'feature/x' } }))
+  await branched.telemetry.flush()
+  assert.deepEqual(branched.store.state.workspaces[ALPHA.id].scanDiff, {
+    against: new Date(NOW).toISOString(),
+    partial: 'branch-changed',
+  })
+  assert.deepEqual(branched.store.state.workspaces[ALPHA.id].lastSites.branch, { kind: 'branch', name: 'feature/x' })
+
+  // rule-table-changed: a release added a rule, so this comparison would call every new id new.
+  const store = memoryStore()
+  const before = createTelemetry({ store, clock: () => NOW, retentionDays: 90, catalog: CATALOG, ruleIds: rules })
+  await before.record(recordedScan({ at: NOW, files: 4, findings: [site('ls-13')] }))
+  await before.flush()
+  const after = createTelemetry({ store, clock: () => NOW, retentionDays: 90, catalog: CATALOG, ruleIds: [...rules, 'ls-33'] })
+  await after.record(recordedScan({ at: NOW + 1000, files: 4, findings: [site('ls-13')] }))
+  await after.flush()
+  assert.deepEqual(store.state.workspaces[ALPHA.id].scanDiff, {
+    against: new Date(NOW).toISOString(),
+    partial: 'rule-table-changed',
+  })
+  assert.equal(store.state.workspaces[ALPHA.id].lastSites.ruleCount, 3)
+})
+
+test('a truncated or empty scan never becomes the next comparison yardstick', async () => {
+  const { telemetry, store } = telemetryWith({ options: { ruleIds: ['ls-13'] } })
+
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW + 1000, files: 9, truncated: true, findings: [site('ls-13', 'other', 'src/b.css')] }))
+  await telemetry.record(recordedScan({ at: NOW + 2000, files: 0 }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  // The baseline is still the first scan: neither later scan may testify.
+  assert.equal(bucket.lastSites.at, new Date(NOW).toISOString())
+  assert.deepEqual(bucket.lastSites.rules, { 'ls-13': [siteId('src/app.css', 'ls-13', '::-webkit-scrollbar')] })
+  // The refusals are named on their own scans, in order.
+  const history = bucket.scanHistory
+  assert.equal(history.length, 3)
+  assert.deepEqual(bucket.scanDiff, { against: new Date(NOW).toISOString(), partial: 'no-files' })
+})
+
+test('a baseline and comparison older than the window read as absent', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record(recordedScan({ at: NOW - 200 * DAY, files: 4, findings: [site()] }))
+  await telemetry.flush()
+
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.equal(bucket.lastScan, null)
+  assert.equal(bucket.lastSites, null)
+  assert.equal(bucket.scanDiff, null)
+  assert.deepEqual(bucket.scanByDay, {})
+  assert.deepEqual(bucket.scanHistory, [])
+  // The lifetime counters are not a window: they keep the scan the window forgot.
+  assert.deepEqual(bucket.scanRules, { 'ls-13': 1 })
+  assert.equal(bucket.ruleFirstSeen['ls-13'], localDay(NOW - 200 * DAY))
+})
+
+// --- What the snapshot exposes: series, history, comparison and the dates on a rule row ----------
+
+test('the snapshot series covers the window with zeros and is absent for a pre-B document', async () => {
+  const preB = telemetryWith({ store: memoryStore(legacyDocument()) })
+  // No `scanByDay` anywhere: the key is absent, so a consumer draws no chart rather than a flat line.
+  assert.equal('scanSeries' in (await preB.telemetry.snapshot({ days: 7 })), false)
+
+  const { telemetry } = telemetryWith()
+  await telemetry.record(recordedScan({ at: NOW - 2 * DAY, files: 4, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW, files: 2 }))
+
+  const snapshot = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal(snapshot.scanSeries.length, 7)
+  assert.deepEqual(snapshot.scanSeries[0], { day: localDay(NOW - 6 * DAY), scans: 0, files: 0, findings: 0 })
+  assert.deepEqual(snapshot.scanSeries.at(-3), { day: localDay(NOW - 2 * DAY), scans: 1, files: 4, findings: 1 })
+  assert.deepEqual(snapshot.scanSeries.at(-1), { day: localDay(NOW), scans: 1, files: 2, findings: 0 })
+})
+
+test('history is newest first, labelled only when the aggregate merges buckets', async () => {
+  const { telemetry } = telemetryWith()
+  await telemetry.record(recordedScan({ at: NOW - 1000, findings: [site()] }))
+  await telemetry.record(recordedScan({ at: NOW, files: 2, findings: [site()], workspace: BETA }))
+
+  // A selected bucket keeps the rows as stored and names the scope once, in `workspace`.
+  const alpha = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal(alpha.scanHistory.length, 1)
+  assert.equal('workspace' in alpha.scanHistory[0], false)
+  assert.equal(alpha.scanDiff.partial, 'no-baseline')
+
+  const all = await telemetry.snapshot({ days: 7 })
+  assert.deepEqual(all.scanHistory.map((row) => row.at), [
+    new Date(NOW).toISOString(),
+    new Date(NOW - 1000).toISOString(),
+  ])
+  assert.deepEqual(all.scanHistory.map((row) => row.workspace), [BETA, ALPHA])
+  // Comparing two projects would compare two trees, so an aggregate carries no comparison at all.
+  assert.equal(all.scanDiff, null)
+
+  // The legacy root is not a bucket: it answers empty rather than borrowing a workspace's history.
+  const root = await telemetry.snapshot({ days: 7, workspace: '_unattributed' })
+  assert.deepEqual(root.scanHistory, [])
+  assert.equal(root.scanDiff, null)
+  assert.equal('scanSeries' in root, false)
+})
+
+test('ranked rule rows carry the days the rule was seen, null when the scope has none', async () => {
+  const { telemetry } = telemetryWith({ store: memoryStore(legacyDocument()) })
+
+  // The legacy root's rules have no bucket behind them, so their dates are unknown, never invented.
+  const root = await telemetry.snapshot({ days: 7, workspace: '_unattributed' })
+  assert.deepEqual(root.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
+
+  await telemetry.record(recordedScan({ at: NOW - 3 * DAY, findings: [site('ls-13')] }))
+  await telemetry.record(recordedScan({ at: NOW, findings: [site('ls-13')] }))
+
+  const bucket = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.deepEqual(bucket.topRules, [ruleRow('ls-13', 2, localDay(NOW - 3 * DAY), localDay(NOW))])
+})
