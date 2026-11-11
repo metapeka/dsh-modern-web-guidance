@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { mkdtemp, mkdir, readFile, readdir, rm as remove, stat as statFile, writeFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 import { test } from 'node:test'
 
 import { renderJson, renderReport } from '../lib/report.js'
@@ -10,6 +10,79 @@ import { createFileStore } from '../lib/store.js'
 import { classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
 
 const scratch = join(import.meta.dirname, '..', '.tmp')
+
+/**
+ * How many times a teardown retries, and the pause before the next attempt: 25, 50, 75, 100 ms.
+ *
+ * Five attempts and a quarter of a second of patience covers the whole class this fixed — a Windows
+ * handle released a moment late — without turning a genuinely broken teardown into a four-second
+ * stall that hides the real error.
+ */
+const CLEAN_ATTEMPTS = 5
+const CLEAN_PAUSE_MS = 25
+/** The codes a retry can win: the handle is released and the directory goes. Others are raised at once. */
+const CLEAN_RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
+/** The throwaway roots this file owns in `.tmp`, by the prefixes its own `mkdtemp` calls use. */
+const OWNED_PREFIXES = ['stats-home-', 'stats-legacy-']
+/** How long `settle` keeps watching a write in flight: 25 polls of 10 ms after the debounce's window. */
+const SETTLE_POLLS = 25
+const SETTLE_POLL_MS = 10
+
+/**
+ * Remove one throwaway path, retrying the way Windows needs.
+ *
+ * `rm -rf` is not one atomic step on this platform: after a write or a rename a directory can stay
+ * busy for a moment — the OS indexer, a virus scanner, or a handle the previous `rename` has not
+ * released yet — so a single attempt fails with `EBUSY` on a path that is gone a millisecond later.
+ * That is exactly how one full-suite run in twenty went red, inside a teardown, with the product
+ * assertions underneath it green.
+ *
+ * The retry lives here, in the harness, and nowhere else: `lib/` must not grow retry logic to make a
+ * test happy. A code that cannot heal (`ENOENT` is already swallowed by `force`) is raised on the
+ * first attempt, and the final failure names the path that stayed locked, so a red run says which
+ * directory to look at instead of only which line.
+ */
+async function removeTree(path, options = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await remove(path, { recursive: true, force: true, ...options })
+      return
+    } catch (error) {
+      if (!CLEAN_RETRY_CODES.has(error.code)) throw error
+      if (attempt >= CLEAN_ATTEMPTS) {
+        throw new Error(
+          `the temp path ${path} stayed locked (${error.code}) after ${CLEAN_ATTEMPTS} attempts`,
+          { cause: error },
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, CLEAN_PAUSE_MS * attempt))
+    }
+  }
+}
+
+/** `rm -rf` with that retry: every teardown in this file goes through one implementation. */
+const rm = (path, options) => removeTree(path, options)
+
+/**
+ * Sweep what an earlier failed teardown left behind, before any test in this file makes a root.
+ *
+ * A directory that survived a flake must not be inherited by the next run: it is a phantom profile,
+ * and the counters hash real paths, so it would quietly join a run it has nothing to do with. Only
+ * the prefixes this file's own `mkdtemp` calls use are swept — `.tmp` also holds `store-test-*` roots
+ * from `store.test.mjs` and files that belong to other tests, and a wildcard over `.tmp` is not this
+ * file's to run.
+ */
+async function sweepOwnedRoots() {
+  await mkdir(scratch, { recursive: true })
+  const entries = await readdir(scratch, { withFileTypes: true })
+  const stale = entries
+    .filter((entry) => entry.isDirectory() && OWNED_PREFIXES.some((prefix) => entry.name.startsWith(prefix)))
+    .map((entry) => join(scratch, entry.name))
+  for (const path of stale) await removeTree(path)
+  return stale.length
+}
+
+await sweepOwnedRoots()
 
 /** Point the counters at a throwaway profile before the plugin resolves its state path. */
 async function isolatedHome() {
@@ -57,9 +130,46 @@ function createContext() {
   return { ctx, registered }
 }
 
-/** Let the fire-and-forget recording chain settle before reading the counters. */
+/**
+ * Let the fire-and-forget recording chain settle before reading the counters.
+ *
+ * The plugin debounces its write and `void`s the promise (`scheduleSave` in `index.js`), so nothing in
+ * a test can await the flush — a fixed sleep is a guess, and at suite load it lost about once in
+ * twenty runs: the read found no `stats.json` yet, or the teardown raced the write's `rename` and
+ * answered `EBUSY`. So the wait is adaptive rather than a guess. It still gives the debounce its
+ * window, then stops as soon as the counters file has stopped changing; while the write is in flight
+ * (its `storage` directory already made, its file not yet renamed into place) it keeps waiting, and a
+ * profile that is never written returns at once instead of burning the deadline.
+ */
 async function settle() {
   await new Promise((resolve) => setTimeout(resolve, 20))
+  const home = process.env.DSH_PROFILE_DIR
+  if (typeof home !== 'string' || home === '') return
+  const file = countersFile(home)
+  let previous = null
+  for (let attempt = 0; attempt < SETTLE_POLLS; attempt += 1) {
+    const size = await sizeOf(file)
+    if (size !== null && size === previous) return
+    // A save makes the directory before it renames the file into place, so a missing file beside an
+    // existing `storage/` is a write in progress; a missing `storage/` is a write that never came.
+    if (size === null && !(await exists(dirname(file)))) return
+    previous = size
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
+  }
+}
+
+/** One path's size, or null when it does not exist — the one fact `settle` compares between polls. */
+async function sizeOf(path) {
+  try {
+    return (await statFile(path)).size
+  } catch {
+    return null
+  }
+}
+
+/** Whether a path exists, without caring what it is. */
+async function exists(path) {
+  return (await sizeOf(path)) !== null
 }
 
 test('the plugin registers four tools, two skills and one human command', async () => {
