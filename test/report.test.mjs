@@ -1384,3 +1384,38 @@ test('renderJson carries the suppressed members on lastScan and never at the top
   assert.equal(zero.lastScan.suppressed, 0)
   assert.doesNotMatch(renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressed: 0 } }), /Suppressed:/)
 })
+
+test('renderJson carries the review on the last scan, clamped, and says nothing without one', () => {
+  const json = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressions: { entries: 4, matching: 2, unused: ['bbbbbbbb', 'aaaaaaaa'] } },
+  })
+  // The block rides inside `lastScan`, beside the counts it qualifies, and its ids are sorted so two
+  // reports of one document are the same string.
+  assert.deepEqual(json.lastScan.suppressions, { entries: 4, matching: 2, unused: ['aaaaaaaa', 'bbbbbbbb'] })
+  assert.equal('suppressions' in json, false, 'a review of one scan never rides on the document')
+
+  // `null` means "this scan could not prove absence", and the report repeats it instead of drawing
+  // an empty list — the difference the whole phase exists to keep.
+  const unknown = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: { entries: 4, matching: 2, unused: null } } })
+  assert.deepEqual(unknown.lastScan.suppressions, { entries: 4, matching: 2, unused: null })
+
+  // Three numbers that cannot all be true keep the counts and lose the ids.
+  const contradictory = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressions: { entries: 4, matching: 2, unused: ['aaaaaaaa'] } },
+  })
+  assert.deepEqual(contradictory.lastScan.suppressions, { entries: 4, matching: 2, unused: null })
+
+  // A pre-0.12.0 document, or one whose block is unreadable, renders exactly the object it always did:
+  // no member, and never three zeros standing in for a file nobody has read.
+  for (const bad of [undefined, null, {}, { entries: 4 }, { entries: '4', matching: 2, unused: [] }]) {
+    const bare = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: bad } })
+    assert.equal('suppressions' in bare.lastScan, false, JSON.stringify(bad))
+  }
+
+  // The text report does not grow a line for it: a review is the stats surface's statement about the
+  // file, and the text report is still the 0.11.0 report, character for character.
+  const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: { entries: 4, matching: 2, unused: [] } } })
+  assert.doesNotMatch(text, /[Ss]uppression/)
+})

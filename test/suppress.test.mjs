@@ -32,6 +32,8 @@ import {
   MAX_SUPPRESS_BYTES,
   MAX_SUPPRESS_PROBLEMS,
   parseSuppressions,
+  removeSuppression,
+  reviewSuppressions,
   serializeSuppressions,
   SUPPRESS_FILE,
 } from '../lib/suppress.js'
@@ -867,4 +869,275 @@ test('the tool and the command render one suppressed scan identically', async (t
   const answer = await scanCommand.handler({ rawInput: 'src', agent: { session: { header: { cwd: root } } } })
   assert.equal(answer.text, toolText)
   assert.ok(toolText.includes(', 1 suppressed'))
+})
+
+// ---------------------------------------------------------------------------------------------
+// ADR-0004: the review that joins the file against one scan, and the one confirmed removal.
+// ---------------------------------------------------------------------------------------------
+
+/** A key no fixture site can produce: the entry a review exists to find, and a removal to retire. */
+const STALE_KEY = siteId('src/legacy.js', 'ls-17', `${WRITE} // edited since`)
+
+/** The three-entry canonical document the removal tests cut, in map order. */
+function threeEntries() {
+  return new Map([
+    ['aaaaaaaa', { reason: 'first', at: '2026-01-01' }],
+    ['bbbbbbbb', { reason: 'middle', at: '2026-01-02' }],
+    ['cccccccc', { reason: 'last', at: '2026-01-03' }],
+  ])
+}
+
+test('a review joins one scan against the file, and an incomplete scan claims nothing', () => {
+  const entries = new Map([
+    [WRITE_KEY, { reason: 'muted on purpose', at: '2026-11-01' }],
+    [STALE_KEY, { reason: 'stale', at: '2026-02-02' }],
+  ])
+
+  // The shape ADR-0004 fixes: three numbers, and the ids of the entries this scan did not see.
+  assert.deepEqual(reviewSuppressions(entries, new Set([WRITE_KEY]), { complete: true }), {
+    entries: 2,
+    matching: 1,
+    unused: [STALE_KEY],
+  })
+  // Every way of saying "these are the sites I saw" joins the same.
+  assert.deepEqual(reviewSuppressions(entries, [WRITE_KEY], { complete: true }), {
+    entries: 2,
+    matching: 1,
+    unused: [STALE_KEY],
+  })
+  assert.deepEqual(reviewSuppressions(entries, { 'ls-17': [WRITE_KEY] }, { complete: true }), {
+    entries: 2,
+    matching: 1,
+    unused: [STALE_KEY],
+  })
+
+  // The invariant a careless implementation breaks: `null`, never `[]`, when absence is unproven.
+  // `[]` would say "every entry still matches", which is a claim no incomplete scan has earned.
+  for (const seen of [new Set([WRITE_KEY]), [WRITE_KEY], { 'ls-17': [WRITE_KEY] }]) {
+    assert.deepEqual(reviewSuppressions(entries, seen, { complete: false }), {
+      entries: 2,
+      matching: 1,
+      unused: null,
+    })
+  }
+
+  // A malformed entry never reaches a review: the parser drops it and reports it, so no code path
+  // can ever call it unused — the second lie the phase exists to prevent.
+  const parsed = parseSuppressions('{"version":1,"entries":{"not-a-key":{"reason":"x","at":"y"},"aaaaaaaa":{"reason":"r","at":"d"}}}')
+  assert.equal(parsed.problems.length, 1)
+  assert.deepEqual(reviewSuppressions(parsed.entries, new Set(), { complete: true }), {
+    entries: 1,
+    matching: 0,
+    unused: ['aaaaaaaa'],
+  })
+})
+
+test('a removal cuts one member out of the text and keeps the canonical bytes around it', () => {
+  const canonical = serializeSuppressions(threeEntries())
+  for (const [id, rest] of [
+    ['aaaaaaaa', new Map([['bbbbbbbb', threeEntries().get('bbbbbbbb')], ['cccccccc', threeEntries().get('cccccccc')]])],
+    ['bbbbbbbb', new Map([['aaaaaaaa', threeEntries().get('aaaaaaaa')], ['cccccccc', threeEntries().get('cccccccc')]])],
+    ['cccccccc', new Map([['aaaaaaaa', threeEntries().get('aaaaaaaa')], ['bbbbbbbb', threeEntries().get('bbbbbbbb')]])],
+  ]) {
+    const answer = removeSuppression(canonical, id)
+    assert.equal(answer.kind, 'removed', id)
+    // Byte equality with the file the serialiser would have written: a cut, not a rewrite.
+    assert.equal(answer.text, serializeSuppressions(rest), id)
+    assert.deepEqual(answer.entry, threeEntries().get(id))
+  }
+
+  // The only entry: the object's interior goes with it, and the document stays canonical.
+  const single = serializeSuppressions(new Map([['aaaaaaaa', { reason: 'only', at: '2026-01-01' }]]))
+  assert.equal(removeSuppression(single, 'aaaaaaaa').text, serializeSuppressions(new Map()))
+
+  // A hand-formatted file keeps its formatting, its unknown member and its malformed entry: the
+  // removal owns one member's bytes and nothing else (ADR-0003 §6, applied to a cut).
+  const hand = '{"version":1,"generator":"hand","entries":{"aaaaaaaa":{"reason":"r","at":"d"},"bbbbbbbb":{"reason":"s","at":"e"},"not-a-key":{}}}'
+  const cut = removeSuppression(hand, 'aaaaaaaa')
+  assert.equal(cut.kind, 'removed')
+  assert.equal(cut.text, '{"version":1,"generator":"hand","entries":{"bbbbbbbb":{"reason":"s","at":"e"},"not-a-key":{}}}')
+  assert.deepEqual(parseSuppressions(cut.text).problems, [{ key: 'not-a-key', reason: 'invalid' }])
+})
+
+test('a removal names its three answers: removed, absent, and refused', () => {
+  const canonical = serializeSuppressions(threeEntries())
+  assert.equal(removeSuppression(canonical, 'dddddddd').kind, 'absent')
+  // A file-level failure is a refusal with its own token: there is no structure to cut.
+  for (const [text, code] of [
+    ['{"version":2,"entries":{}}', 'version'],
+    ['not json at all', 'malformed'],
+    ['{"version":1,"entries":[]}', 'malformed'],
+  ]) {
+    assert.deepEqual(removeSuppression(text, 'aaaaaaaa'), { kind: 'refused', code })
+  }
+})
+
+test('every scan carries the review it can prove, and the scan text stays about the scan', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n`, 'src/styles.css': `${MODAL}\n` })
+  const first = await scan({ cwd: root, paths: ['src'] })
+  const target = first.findings.find((finding) => finding.ruleId === 'ls-17')
+  await writeSuppress(root, new Map([
+    [target.siteId, { reason: 'one page only', at: '2026-11-11' }],
+    [STALE_KEY, { reason: 'stale', at: '2026-02-02' }],
+  ]))
+
+  const { value, text } = await runScan(root, { paths: ['src'] })
+  assert.deepEqual(value.suppressions, { entries: 2, matching: 1, unused: [STALE_KEY] })
+  // The review is a statement about the file, not about this scan, so it is carried in the value the
+  // counters store and the panel reads — and the scan's own text does not grow a line for it.
+  assert.ok(!text.includes('Suppressions:'), text)
+
+  // The other half of the same rule lives in `test/scan-command.test.mjs`, where the counters give
+  // a scan a baseline to be narrower than: there, one file of two must report unknown instead.
+  // A workspace with no file at all carries no block: there is nothing to review, and a zero would
+  // ride on every scan of every project that never muted anything.
+  const noFile = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  const bare = await runScan(noFile, { paths: ['src'] })
+  assert.equal(bare.value.suppressions, undefined)
+  assert.ok(!bare.text.includes('Suppressions:'))
+})
+
+test('--review lists every entry, says what it cannot prove, and never writes', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  await writeSuppress(root, new Map([
+    [WRITE_KEY, { reason: 'one page only', at: '2026-11-11' }],
+    [STALE_KEY, { reason: 'stale', at: '2026-02-02' }],
+  ]))
+  const before = await digestTree(root)
+
+  const answer = await runSuppress(root, '--review')
+  assert.equal(answer.kind, 'success')
+  assert.match(answer.text, /^Suppression review for .*\.suppress: 2 entries\./)
+  assert.ok(answer.text.includes(WRITE_KEY))
+  assert.ok(answer.text.includes('one page only'))
+  assert.ok(answer.text.includes(STALE_KEY))
+  assert.ok(answer.text.includes('2026-02-02'))
+  // No counters in this host, so there is no evidence at all — and no entry is called unused.
+  assert.match(answer.text, /No completed scan is recorded for this workspace/)
+  assert.match(answer.text, /none is reported unused/)
+  assert.ok(answer.text.endsWith('Nothing was written.'))
+
+  // The read half, proven by the tree: no write, no temp file, no mtime moved.
+  assert.deepEqual(await digestTree(root), before)
+})
+
+test('--review reports a file it cannot parse, and never calls the unreadable entries unused', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  await writeRawSuppress(root, '{"version":1,"entries":{"not-a-key":{"reason":"x","at":"y"},"aaaaaaaa":{"reason":"kept","at":"2026-01-01"}}}')
+  const before = await digestTree(root)
+
+  const answer = await runSuppress(root, '--review')
+  assert.equal(answer.kind, 'success')
+  assert.ok(answer.text.includes('1 entry in the file cannot be read (not-a-key)'), answer.text)
+  assert.ok(answer.text.includes('never as unused'))
+  assert.deepEqual(await digestTree(root), before)
+
+  await writeRawSuppress(root, 'not json')
+  const broken = await runSuppress(root, '--review')
+  assert.equal(broken.kind, 'success')
+  assert.match(broken.text, /cannot be read \(malformed\)/)
+  assert.match(broken.text, /no entry in it can be judged/)
+})
+
+test('a removal is planned first, and the plan alone writes nothing', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  await writeSuppress(root, new Map([
+    ['aaaaaaaa', { reason: 'first', at: '2026-01-01' }],
+    ['bbbbbbbb', { reason: 'middle', at: '2026-01-02' }],
+  ]))
+  const before = await digestTree(root)
+
+  const plan = await runSuppress(root, '--remove bbbbbbbb --dry-run')
+  assert.equal(plan.kind, 'success')
+  assert.match(plan.text, /^Removal plan for bbbbbbbb: remove 1 entry from .*\.suppress, which would go from 2 to 1 entry, dropping the entry it recorded \(reason "middle", recorded 2026-01-02\)\./)
+  assert.match(plan.text, /Nothing has been written; run the same line without --dry-run to remove it\.$/)
+  assert.deepEqual(await digestTree(root), before)
+})
+
+test('the confirmation removes exactly one entry, and the next scan counts the site again', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  const first = await scan({ cwd: root, paths: ['src'] })
+  const target = first.findings.find((finding) => finding.ruleId === 'ls-17')
+  await writeSuppress(root, new Map([
+    [target.siteId, { reason: 'one page only', at: '2026-11-11' }],
+    [STALE_KEY, { reason: 'stale', at: '2026-02-02' }],
+  ]))
+  const muted = await runScan(root, { paths: ['src'] })
+  assert.equal(muted.value.suppressed, 1)
+
+  const applied = await runSuppress(root, `--remove ${STALE_KEY}`)
+  assert.equal(applied.kind, 'success')
+  assert.match(applied.text, /^Removed [0-9a-f]{8} from .*\.suppress; the file now holds 1 entry\./)
+  // The sentence the ADR requires: un-muted, never "fixed".
+  assert.match(applied.text, /The site is no longer muted, so the next scan counts it as a finding again/)
+  assert.match(applied.text, /A removal is not a fix: it does not mean the finding went away, and no counter has changed\.$/)
+
+  // The other entry is byte-identical, and the removed one is gone from the parsed file.
+  const left = parseSuppressions(await readFile(join(root, SUPPRESS_FILE), 'utf8'))
+  assert.deepEqual([...left.entries.keys()], [target.siteId])
+  assert.deepEqual(left.entries.get(target.siteId), { reason: 'one page only', at: '2026-11-11' })
+
+  // Removing the mute that was still matching un-mutes the finding: same site id, no suppressed flag,
+  // and the outcome says "no longer muted", never "fixed".
+  const unmuted = await runSuppress(root, `--remove ${target.siteId}`)
+  assert.equal(unmuted.kind, 'success')
+  assert.match(unmuted.text, /The site is no longer muted, so the next scan counts it as a finding again/)
+  const after = await runScan(root, { paths: ['src'] })
+  assert.equal(after.value.suppressed, 0)
+  const finding = after.value.findings.find((entry) => entry.ruleId === 'ls-17')
+  assert.equal(finding.siteId, target.siteId)
+  assert.notEqual(finding.suppressed, true)
+})
+
+test('an absent entry is a named no-op, and a removal it cannot finish writes nothing', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  await writeSuppress(root, new Map([['aaaaaaaa', { reason: 'first', at: '2026-01-01' }]]))
+  const before = await digestTree(root)
+
+  const absent = await runSuppress(root, '--remove bbbbbbbb')
+  assert.equal(absent.kind, 'success')
+  assert.match(absent.text, /^Nothing to remove: bbbbbbbb is not in .*\.suppress, which holds 1 entry; nothing was written\.$/)
+  assert.deepEqual(await digestTree(root), before)
+
+  // Refusals: an id that is not a site id, a file whose structure cannot be cut, a target that is
+  // not a regular file. Each is an error, and each leaves the tree exactly as it found it.
+  const notAnId = await runSuppress(root, '--remove nope')
+  assert.equal(notAnId.kind, 'error')
+  assert.match(notAnId.text, /^Not a site id: "nope"/)
+
+  await writeRawSuppress(root, '{"version":2,"entries":{"aaaaaaaa":{"reason":"x","at":"y"}}}')
+  const future = await digestTree(root)
+  const refused = await runSuppress(root, '--remove aaaaaaaa')
+  assert.equal(refused.kind, 'error')
+  assert.match(refused.text, /^Refused \(version\): .* cannot be read as a suppression file/)
+  assert.deepEqual(await digestTree(root), future)
+
+  // A missing file is a no-op too: there is nothing to remove, and the answer says which file.
+  await rm(join(root, SUPPRESS_FILE))
+  const missing = await runSuppress(root, '--remove aaaaaaaa')
+  assert.equal(missing.kind, 'success')
+  assert.match(missing.text, /^Nothing to remove: .*\.suppress does not exist, so aaaaaaaa is not in it; nothing was written\.$/)
+  assert.deepEqual(await readdir(root), ['src'])
+})
+
+test('the two new forms refuse every ambiguous line, each with its own sentence', async (t) => {
+  const root = await workspace(t, { 'src/legacy.js': `${WRITE}\n` })
+  await writeSuppress(root, new Map([['aaaaaaaa', { reason: 'first', at: '2026-01-01' }]]))
+  const before = await digestTree(root)
+
+  for (const [line, pattern] of [
+    ['--review --remove aaaaaaaa', /^Refused: --review and --remove are two different actions/],
+    ['--review aaaaaaaa', /^Refused: --review takes no site id/],
+    ['--review --reason nope', /^Refused: --review takes no --reason/],
+    ['--review --dry-run', /^Refused: --review writes nothing, so --dry-run is not a mode to ask for/],
+    ['--remove aaaaaaaa --reason nope', /^Refused: --remove takes no --reason/],
+    ['--remove aaaaaaaa bbbbbbbb', /^Refused: --remove takes one site id/],
+    ['--remove', /^No site id after --remove/],
+  ]) {
+    const answer = await runSuppress(root, line)
+    assert.equal(answer.kind, 'error', line)
+    assert.match(answer.text, pattern, line)
+  }
+  // A refusal is a refusal: not one byte moved between the first line and the last.
+  assert.deepEqual(await digestTree(root), before)
 })

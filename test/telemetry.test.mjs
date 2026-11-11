@@ -275,10 +275,10 @@ test('flush persists what a later instance can read back', async () => {
 const finding = (ruleId, guideId = null) => ({ ruleId, guideId })
 
 /** A scan call classified exactly the way `index.js` classifies a real tool result. */
-function scanEntry(findings, files = 1, scanned = {}, truncated = false) {
+function scanEntry(findings, files = 1, scanned = {}, truncated = false, extra = {}) {
   return classifyCall({
     tool: 'web_guidance_legacy_scan',
-    value: { scanned: { files, ...scanned }, findings, truncated },
+    value: { scanned: { files, ...scanned }, findings, truncated, ...extra },
   })
 }
 
@@ -1893,6 +1893,73 @@ test('a muted count is written by a scan, clamped to its findings, and never by 
   assert.equal(muted.lastScan.findings, 2, 'the muted findings are still findings')
   assert.equal(muted.scanHistory[0].suppressed, 2)
   assert.equal(muted.scanHistory[1].suppressed, 0)
+})
+
+test('a scan carries the suppression review it was given, and no review it cannot make out', () => {
+  const sites = [finding('ls-17', 'guide-a')]
+  const withReview = (suppressions) => scanEntry(sites, 1, {}, false, { suppressions })
+
+  // A complete review: three numbers and the entries this scan did not see.
+  assert.deepEqual(withReview({ entries: 2, matching: 1, unused: ['bbbbbbbb'] }).suppressions,
+    { entries: 2, matching: 1, unused: ['bbbbbbbb'] })
+  // `null` is the value an incomplete scan sends, and it must not become `[]` on the way in: the
+  // whole point of the member is that an incomplete scan proves nothing about the entries it missed.
+  assert.deepEqual(withReview({ entries: 2, matching: 1, unused: null }).suppressions,
+    { entries: 2, matching: 1, unused: null })
+  // Ids are re-validated and sorted: the counters store an identity, never a word from the file.
+  assert.deepEqual(
+    withReview({ entries: 3, matching: 1, unused: ['bbbbbbbb', 'aaaaaaaa', 'nope', 'aaaaaaaa'] }).suppressions,
+    { entries: 3, matching: 1, unused: ['aaaaaaaa', 'bbbbbbbb'] },
+  )
+  // A block that cannot be read is dropped whole: never `entries: 0`, which would claim an empty file
+  // the same way an invented `since` claims a start the counters never had.
+  for (const bad of [null, {}, { entries: 2 }, { entries: '2', matching: 1 }, { entries: 2, matching: 1, unused: 'x' }]) {
+    assert.equal('suppressions' in withReview(bad), false, JSON.stringify(bad))
+  }
+  // Three numbers that contradict each other keep the counts and lose the ids, so a report can still
+  // say how many entries matched while naming none of them.
+  assert.deepEqual(withReview({ entries: 2, matching: 1, unused: [] }).suppressions,
+    { entries: 2, matching: 1, unused: null })
+  // A refused scan read no file, so it carries no review at all.
+  assert.equal('suppressions' in classifyCall({ tool: 'web_guidance_legacy_scan', value: { error: 'no' }, isError: true }), false)
+})
+
+test('a review is stored on the last scan additively, and a corrupt one is dropped on load', async () => {
+  const { telemetry, store } = telemetryWith()
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    workspace: ALPHA,
+    ...scanEntry([{ ...finding('ls-17', 'guide-a'), suppressed: true }], 1, {}, false, {
+      suppressions: { entries: 2, matching: 1, unused: ['bbbbbbbb'] },
+    }),
+  })
+
+  const snapshot = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.deepEqual(snapshot.lastScan.suppressions, { entries: 2, matching: 1, unused: ['bbbbbbbb'] })
+  // The snapshot hands out a copy: a caller that edits the list must not edit what was stored.
+  snapshot.lastScan.suppressions.unused.push('cccccccc')
+  assert.deepEqual((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).lastScan.suppressions.unused, ['bbbbbbbb'])
+
+  await telemetry.flush()
+  assert.equal(store.state.version, 1, 'the member is additive, so the version never moves')
+  const bucket = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(bucket.lastScan.suppressions, { entries: 2, matching: 1, unused: ['bbbbbbbb'] })
+
+  // A document written by hand with a block that does not add up reads as though it had no block —
+  // never as three zeros — and the next flush writes the clamp back, the way `since` is repaired.
+  bucket.lastScan.suppressions = { entries: 'two', matching: 1, unused: [] }
+  const second = createTelemetry({ store, clock: () => NOW, catalog: CATALOG })
+  const reloaded = await second.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal('suppressions' in reloaded.lastScan, false)
+  await second.flush()
+  assert.equal('suppressions' in store.state.workspaces[ALPHA.id].lastScan, false)
+
+  // An `unused` list that contradicts its own counts keeps the counts and loses the ids.
+  store.state.workspaces[ALPHA.id].lastScan.suppressions = { entries: 2, matching: 2, unused: ['aaaaaaaa'] }
+  const third = createTelemetry({ store, clock: () => NOW, catalog: CATALOG })
+  assert.deepEqual((await third.snapshot({ days: 7, workspace: ALPHA.id })).lastScan.suppressions,
+    { entries: 2, matching: 2, unused: null })
 })
 
 //#region 0.12.0: a reset erases what it names, and never the counters it does not

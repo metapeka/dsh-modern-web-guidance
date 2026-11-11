@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { after, test } from 'node:test'
 
 import { apply } from '../index.js'
+import { siteId } from '../lib/site.js'
 import { PACKAGE_DIR } from './paths.mjs'
 
 const DIRTY = 'test/fixtures/scan/dirty'
@@ -684,4 +685,53 @@ test('a target that is not a regular file is refused, and a symlink is never fol
   assert.equal(refused.kind, 'error')
   assert.match(refused.text, /^Refused: .*is not a regular file\./)
   assert.equal(await readFile(target, 'utf8'), 'kept/\n', 'a symlinked target was written through')
+})
+
+test('a narrower scan calls nothing unused, and the counters keep that answer with the counts', async (t) => {
+  await isolatedProfile(t, 'suppress-review')
+  const workspace = await tempWorkspace(t)
+  await mkdir(join(workspace, 'src'), { recursive: true })
+  const write = 'document.write("<p>hi</p>")'
+  await writeFile(join(workspace, 'src/legacy.js'), `${write}\n`, 'utf8')
+  await writeFile(join(workspace, 'src/page.html'), '<marquee>hi</marquee>\n', 'utf8')
+  // One entry this workspace's only muted site produces, and one key nothing can: the pair a review
+  // exists to tell apart.
+  const muted = siteId('src/legacy.js', 'ls-17', write)
+  await writeFile(
+    join(workspace, '.suppress'),
+    `${JSON.stringify({ version: 1, entries: { aaaaaaaa: { reason: 'stale', at: '2026-02-02' }, [muted]: { reason: 'one page only', at: '2026-11-01' } } }, null, 2)}\n`,
+    'utf8',
+  )
+
+  const { ctx, registered, dispose } = createContext({ events: true })
+  apply(ctx, {})
+  const scan = scanCommand(registered)
+  const stats = registered.commands.find((entry) => entry.name === 'guidance-stats')
+  const suppress = registered.commands.find((entry) => entry.name === 'guidance-suppress')
+
+  // A wide scan proves the stale key is dead, and the counters store that proof — not a list the
+  // report would have to recompute from numbers that cannot carry ids.
+  assert.equal((await scan.handler(invocation('src', workspace))).kind, 'success')
+  await settle()
+  const wide = (await counters(stats)).lastScan.suppressions
+  assert.deepEqual(wide, { entries: 2, matching: 1, unused: ['aaaaaaaa'] })
+
+  // One file of two is the narrower scan B refuses to compare with, so the review inherits the rule:
+  // the stale key is NOT called unused, because this scan saw less than the one before it.
+  assert.equal((await scan.handler(invocation('src/legacy.js', workspace))).kind, 'success')
+  await settle()
+  const narrow = (await counters(stats)).lastScan.suppressions
+  assert.deepEqual(narrow, { entries: 2, matching: 1, unused: null })
+
+  // And `--review` reads that stored block: a matching count, then the absence said in so many words,
+  // never a list of entries the scan could not clear.
+  const review = await suppress.handler(invocation('--review', workspace))
+  assert.equal(review.kind, 'success')
+  assert.match(review.text, /^Suppression review for .*\.suppress: 2 entries, of which the last scan matched 1\./)
+  assert.match(review.text, /That scan could not prove which of the others it did not see, so this review reports none of them unused\./)
+  assert.ok(review.text.includes(muted))
+  assert.ok(review.text.includes('aaaaaaaa'))
+  assert.ok(review.text.endsWith('Nothing was written.'))
+  dispose()
+  await settle()
 })

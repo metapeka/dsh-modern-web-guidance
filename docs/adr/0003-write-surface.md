@@ -178,6 +178,11 @@ Never an automatic suppression, a bulk suppression, or a suppression the model a
 write during a scan or a report. Never a project write issued by the counters path. A later request for
 any of these is a new ADR.
 
+**One exception, and it is a named one:** [ADR-0004](0004-suppression-removal.md) licenses the removal
+of exactly one suppression entry, by one confirmed human command — no bulk, no automatic, never during
+a scan or a report. It is a cut from the file, and every other byte survives; nothing in this section
+moves for any other record.
+
 ## Consequences
 
 ### The promises this costs, and whether they survive

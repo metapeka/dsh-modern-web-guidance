@@ -227,7 +227,7 @@ function legacyDocument() {
 }
 
 /** A successful scan result, shaped like `lib/scan.js` returns it. */
-function scanResult({ files, findings }) {
+function scanResult({ files, findings, muted = 0 }) {
   return {
     format: 'summary',
     cwd: 'C:/work',
@@ -241,6 +241,9 @@ function scanResult({ files, findings }) {
       confidence: 'high',
       message: 'Use the modern API instead.',
       snippet: 'legacy()',
+      // A muted finding is still a finding: only the flag differs, which is what makes the
+      // "a removal moves no counter" test meaningful — the counters counted it either way.
+      ...(index >= findings - muted ? { suppressed: true } : {}),
     })),
     guides: [{ id: 'css-anchor', findings }],
     truncated: false,
@@ -507,8 +510,8 @@ function headerAt(cwd) {
 }
 
 /** A scan value as `runScanRequest` returns it, attributed to one real workspace. */
-function scanAt(cwd, { files, findings }) {
-  return { ...scanResult({ files, findings }), cwd }
+function scanAt(cwd, options) {
+  return { ...scanResult(options), cwd }
 }
 
 /** Raise one finished scan the way the host does, so the counters record it. */
@@ -1258,6 +1261,89 @@ test('a window reset through the command erases the window and keeps the lifetim
     assert.equal(bucket.lastScan, null)
     // Lifetime members carry no day, so a window cannot claim them: the rule totals are still exact.
     assert.deepEqual(bucket.scanRules, { 'ls-01': 1, 'ls-02': 1 })
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+//#endregion
+
+//#region 0.12.0 / ADR-0004: a removal is not a fix, and it moves no counter
+
+/**
+ * The test ADR-0004 §5 exists for. A removal edits one file and one file only: the `.suppress` it
+ * was told to shrink. Every number the product keeps must survive it untouched — the lifetime
+ * counters, the last-scan block, the history rings, the site baseline — because "the entry is gone"
+ * is a statement about a mute, never about a finding.
+ *
+ * It is a *file* test, not a return-value test: the counters are flushed to disk before and after the
+ * removal, across a wait long enough for the debounced save to have fired either way, so a removal
+ * that quietly recorded an event would be visible as a byte. The report is compared too, because the
+ * document is what a person reads.
+ */
+test('a removal changes the suppression file and no counter anywhere else', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('remove-counters')
+  const { apply } = await import('../index.js')
+  const { serializeSuppressions } = await import('../lib/suppress.js')
+  const { ctx, registered } = createContext()
+  // Longer than the counters' own save debounce, so a write that was going to happen has happened.
+  const pastDebounce = () => new Promise((resolve) => setTimeout(resolve, 2200))
+
+  try {
+    await mkdir(join(workspace, 'src'), { recursive: true })
+    await writeFile(join(workspace, 'src/legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+    const suppressionFile = join(workspace, '.suppress')
+    await writeFile(suppressionFile, serializeSuppressions({
+      aaaaaaaa: { reason: 'stale', at: '2026-02-02' },
+      bbbbbbbb: { reason: 'kept', at: '2026-03-03' },
+    }), 'utf8')
+
+    apply(ctx, {})
+    // One completed scan, muted or not: the counters now hold a last scan, a history row, a day row
+    // and a site baseline, which is every member a removal could conceivably disturb.
+    raiseScan(registered, scanAt(workspace, { files: 1, findings: 1, muted: 1 }))
+    await settle()
+    const command = statsCommand(registered)
+    const suppress = registered.commands.find((entry) => entry.name === 'guidance-suppress')
+
+    const reportBefore = (await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text
+    const textBefore = (await command.handler({ rawInput: '', ...headerAt(workspace) })).text
+    await pastDebounce()
+    const bytesBefore = await readFile(countersFile(home), 'utf8')
+
+    // The removal itself: one entry, confirmed, no --dry-run.
+    const removed = await suppress.handler({ rawInput: '--remove aaaaaaaa', ...headerAt(workspace) })
+    assert.equal(removed.kind, 'success')
+    assert.match(removed.text, /A removal is not a fix: it does not mean the finding went away, and no counter has changed\.$/)
+    // The one file that was allowed to change, changed — so the assertions below are about a real
+    // removal and not about a refusal that never ran.
+    const after = await readFile(suppressionFile, 'utf8')
+    assert.ok(!after.includes('aaaaaaaa'))
+    assert.ok(after.includes('bbbbbbbb'))
+
+    // The report is the document a person reads. The JSON is compared byte for byte; the text has
+    // exactly one member that moves on its own — the generation stamp on the period line — so only
+    // that fragment is masked, and everything else must still be character-identical.
+    assert.equal((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text, reportBefore)
+    const undated = (text) => text.replace(/\(generated [^)]*\)/, '(generated …)')
+    const textAfter = (await command.handler({ rawInput: '', ...headerAt(workspace) })).text
+    assert.equal(undated(textAfter), undated(textBefore))
+
+    // And the bytes on disk are the same bytes, after long enough for any save to have fired.
+    await pastDebounce()
+    assert.equal(await readFile(countersFile(home), 'utf8'), bytesBefore)
+
+    // The last scan still claims its mute: the anchor, in case the byte comparison ever gets
+    // normalised into meaninglessness by a future format change.
+    const document = JSON.parse(bytesBefore)
+    assert.equal(document.version, 1)
+    const bucket = document.workspaces[workspaceId(realpathSync(workspace))]
+    assert.equal(bucket.lastScan.suppressed, 1)
+    assert.equal(bucket.lastScan.suppressions, undefined)
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()

@@ -10,7 +10,7 @@
  */
 
 import { readFileSync, realpathSync, statSync } from 'node:fs'
-import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -24,6 +24,8 @@ import {
   MAX_SUPPRESSIONS,
   MAX_SUPPRESS_BYTES,
   parseSuppressions,
+  removeSuppression,
+  reviewSuppressions,
   serializeSuppressions,
   SUPPRESS_FILE,
 } from './lib/suppress.js'
@@ -260,6 +262,11 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
     )
   }
 
+  // The review of the suppression file is NOT a scan line: the scan's own text answers "what did this
+  // scan find", while a review is a statement about the file, and it belongs to the stats surface and
+  // the JSON the panel reads. The value still carries `suppressions` for that reader, and
+  // `/guidance-suppress --review` prints the same join for a person — two surfaces, one number.
+
   if (findings.length === 0) {
     lines.push('No rule in the table matched. That is not proof of modern code: the scanner works line by line and sees markers, not behaviour.')
   } else {
@@ -397,21 +404,70 @@ function buildListTool(guidance) {
 }
 
 /**
+ * Attach the review of `.suppress` to a completed scan's value.
+ *
+ * This is the one place a scan's site ids and the file's keys are both in hand, so the join happens
+ * here and travels with the value: the tool, the command and (from 0.12.0) the counters' `lastScan`
+ * all carry the same three numbers rather than each recomputing a version of the truth.
+ *
+ * Completeness is B's absence rule, reused rather than re-derived: a truncated scan, a scan that read
+ * no files, a scan whose findings carry no identity, or one that read fewer files than the previous
+ * scan all mean *unknown*, and {@link reviewSuppressions} turns that into `unused: null` — never an
+ * empty list, which would read as "every entry still matches".
+ *
+ * An unreadable, absent or unparsable file attaches nothing at all. The scan already reports that
+ * state through `suppressProblems`, and a review block of zeros would be exactly the claim this
+ * phase exists to prevent.
+ *
+ * @param {object} value the scan value being returned, mutated in place like the rest of the pipeline.
+ * @param {string} cwd the session workspace the scan was confined to.
+ * @param {{ telemetry?: object | null } | null} counters the lazy counters seam, for the file baseline.
+ * @returns {Promise<void>}
+ */
+async function attachSuppressionReview(value, cwd, counters) {
+  if (value === null || typeof value !== 'object' || value.error !== undefined) return
+  const directory = workspaceDirectory(cwd)
+  if (directory === null) return
+  const read = await readSuppressionText(join(directory, SUPPRESS_FILE))
+  if (read.kind !== 'text') return
+  const parsed = parseSuppressions(read.text)
+  if (parsed.problems.some((problem) => problem.key === null)) return
+  const findings = Array.isArray(value.findings) ? value.findings : []
+  const seen = new Set()
+  let identified = true
+  for (const finding of findings) {
+    const siteId = finding !== null && typeof finding === 'object' ? finding.siteId : undefined
+    if (isSiteKey(siteId)) seen.add(siteId)
+    else identified = false
+  }
+  const files = Number(value.scanned?.files) || 0
+  let complete = identified && files > 0 && value.truncated !== true
+  if (complete) {
+    const previous = await lastScanOf(counters, directory)
+    const previousFiles = Number.isFinite(previous?.files) ? previous.files : null
+    if (previousFiles !== null && files < previousFiles) complete = false
+  }
+  value.suppressions = reviewSuppressions(parsed.entries, seen, { complete })
+}
+
+/**
  * Run one scan request and return the value the tool renders.
  *
  * This is the single place a refusal becomes a value instead of a throw: the model-facing tool and
  * the human command read the same shape and print the same text. Nothing here re-implements a path
  * check — resolution, containment and every cap belong to `lib/scan.js`, and its `ScanError` codes
- * are passed through verbatim.
+ * are passed through verbatim. A completed scan also leaves with its `.suppress` review attached,
+ * so neither surface can render an unreviewed file.
  *
  * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
  * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
  * @param {{ paths?: readonly string[], rules?: readonly string[], format?: string }} args the caller's arguments.
  * @param {string} cwd session workspace, already resolved by the caller.
  * @param {AbortSignal | undefined} signal optional cancellation.
+ * @param {{ telemetry?: object | null } | null} [counters] the lazy counters seam, for the file baseline.
  * @returns {Promise<object>} the tool's value, or an `{ error, subject, message }` refusal.
  */
-async function runScanRequest(scanner, ruleSet, args, cwd, signal) {
+async function runScanRequest(scanner, ruleSet, args, cwd, signal, counters = null) {
   const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
   const selected = ruleSet.selectRules(args?.rules)
   // Unknown ids are named back rather than thrown: a typo should cost one retry, and the scan
@@ -421,7 +477,9 @@ async function runScanRequest(scanner, ruleSet, args, cwd, signal) {
   }
   try {
     const result = await scanner.scan({ cwd, paths: args?.paths, rules: selected.rules, signal })
-    return { format: args?.format === 'json' ? 'json' : 'summary', cwd, ...result }
+    const value = { format: args?.format === 'json' ? 'json' : 'summary', cwd, ...result }
+    await attachSuppressionReview(value, cwd, counters)
+    return value
   } catch (error) {
     // A refusal (absolute path, escape, missing target, bad rule set) is an answer, not a crash.
     if (error instanceof scanner.ScanError) {
@@ -437,9 +495,10 @@ async function runScanRequest(scanner, ruleSet, args, cwd, signal) {
  * (`apply`), and a test can drive the tool without reaching into the modules directly.
  * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
  * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
+ * @param {{ telemetry?: object | null } | null} [counters] the lazy counters seam, read for the file baseline.
  * @returns {object} a tool definition.
  */
-function buildScanTool(scanner, ruleSet) {
+function buildScanTool(scanner, ruleSet, counters = null) {
   const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
   return {
     name: 'web_guidance_legacy_scan',
@@ -463,7 +522,7 @@ function buildScanTool(scanner, ruleSet) {
     async execute(args, exec) {
       exec?.signal?.throwIfAborted?.()
       const cwd = exec?.agent?.session?.header?.cwd ?? process.cwd()
-      return runScanRequest(scanner, ruleSet, args, cwd, exec?.signal)
+      return runScanRequest(scanner, ruleSet, args, cwd, exec?.signal, counters)
     },
   }
 }
@@ -703,9 +762,10 @@ function renderScanText(args, value, ruleIds) {
  * @param {{ scan: Function, ScanError: Function }} scanner the `lib/scan.js` module.
  * @param {{ RULES: readonly { id: string }[], selectRules: Function }} ruleSet the `lib/scan-rules.js` module.
  * @param {ReturnType<typeof createUsageRecorder>} usage the counters' recorder, a no-op while they are off.
+ * @param {{ telemetry?: object | null } | null} [counters] the lazy counters seam, read for the file baseline.
  * @returns {object} a CommandDefinition.
  */
-function buildScanCommand(scanner, ruleSet, usage) {
+function buildScanCommand(scanner, ruleSet, usage, counters = null) {
   const allRuleIds = ruleSet.RULES.map((rule) => rule.id)
   return {
     name: 'guidance-scan',
@@ -725,7 +785,7 @@ function buildScanCommand(scanner, ruleSet, usage) {
       try {
         // Same pre-flight as the tool: an aborted call must not touch the filesystem.
         invocation?.signal?.throwIfAborted?.()
-        const value = await runScanRequest(scanner, ruleSet, args, commandCwd(invocation), invocation?.signal)
+        const value = await runScanRequest(scanner, ruleSet, args, commandCwd(invocation), invocation?.signal, counters)
         // A command scan is a scan: it goes through the same reporter the `tools/result` listener
         // uses, with the same tool name and the same payload, so the counters cannot tell the two
         // apart. A refusal arrives as a value with an `error` key, which the classifier counts as an
@@ -746,28 +806,48 @@ function buildScanCommand(scanner, ruleSet, usage) {
 }
 
 /**
- * Parse a `/guidance-suppress` line: `<siteId> [--dry-run] [--reason <text>]`.
+ * Parse a `/guidance-suppress` line. Three forms share one command, because ADR-0003's one-door rule
+ * survives ADR-0004: the review and the removal are that door's read half and its retract half, not
+ * two more writers.
+ *
+ *   <siteId> [--dry-run] [--reason <text>]   append one entry
+ *   --review                                 list what the file holds and what the last scan saw
+ *   --remove <siteId> [--dry-run]            remove exactly one entry
  *
  * The site id is positional and there is exactly one; `--dry-run` may appear anywhere; `--reason`
  * takes the rest of its token, quoted or not. Nothing here checks that the id names a real finding:
- * the id is a hash of a site the caller was shown, and the file only ever gains one key.
+ * the id is a hash of a site the caller was shown, and the file only ever gains or loses one key.
+ * A conflicting pair is reported by the handler as its own refusal rather than resolved here, because
+ * each one has a different sentence to say and "the line was ambiguous" is a worse answer than why.
  *
  * @param {string} line raw arguments after the command name.
- * @returns {{ siteId: string, dryRun: boolean, reason: string }}
+ * @returns {{ siteId: string, dryRun: boolean, reason: string, review: boolean, removeFlag: boolean, remove: string | null }}
  */
 function parseSuppressArguments(line) {
   const text = String(line ?? '')
-  const dryRun = /(?:^|\s)--dry-run(?:\s|$)/.test(text)
+  const dryRun = /(?:^|\s)--dry-run(?=\s|$)/.test(text)
+  const review = /(?:^|\s)--review(?=\s|$)/.test(text)
+  const removeFlag = /--remove(?=\s|$|=)/.test(text)
+  const removeMatch = text.match(/--remove(?:\s+|=)(?:"([^"]*)"|'([^']*)'|(\S+))/)
   const reasonMatch = text.match(/--reason(?:\s+|=)(?:"([^"]*)"|'([^']*)'|(\S+))/)
   const siteId = text
     .replace(/(?:^|\s)--dry-run(?=\s|$)/g, ' ')
+    .replace(/(?:^|\s)--review(?=\s|$)/g, ' ')
+    .replace(/--remove(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g, ' ')
     .replace(/--reason(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g, ' ')
     .split(/\s+/)
     .map((token) => token.trim())
     .filter((token) => token.length > 0 && !token.startsWith('--'))
     .join(' ')
   const reason = reasonMatch === null ? '' : clampReason(reasonMatch[1] ?? reasonMatch[2] ?? reasonMatch[3] ?? '')
-  return { siteId, dryRun, reason }
+  return {
+    siteId,
+    dryRun,
+    reason,
+    review,
+    removeFlag,
+    remove: removeMatch === null ? null : String(removeMatch[1] ?? removeMatch[2] ?? removeMatch[3] ?? ''),
+  }
 }
 
 /** Today's date as the suppression file records it: the day the mute was confirmed, in UTC. */
@@ -834,14 +914,22 @@ async function readSuppressionsForWrite(file) {
  *
  * @returns {object} a CommandDefinition.
  */
-function buildSuppressCommand() {
+function buildSuppressCommand(counters) {
   return {
     name: 'guidance-suppress',
-    description: 'Mute one code site by its siteId so later scans report it as suppressed instead of counting it as fixed. Shows the plan with --dry-run and writes only without it.',
-    input: { hint: '<siteId> [--dry-run] [--reason <text>]' },
+    description: 'Mute one code site by its siteId so later scans report it as suppressed instead of counting it as fixed; --review lists the file against the last scan without writing, and --remove <siteId> retracts one entry. Every write shows its plan with --dry-run first and happens only without it.',
+    input: { hint: '<siteId> [--dry-run] [--reason <text>] | --review | --remove <siteId> [--dry-run]' },
     recordInput: false,
     async handler(invocation) {
       const args = parseSuppressArguments(invocation?.rawInput)
+      const conflict = suppressConflict(args)
+      if (conflict !== null) return { kind: 'error', text: conflict }
+      const file = join(workspaceDirectory(commandCwd(invocation)), SUPPRESS_FILE)
+      // The review and the removal are the same door's read half and retract half, and they answer
+      // before the append path runs: neither can reach the writer below, so the append's texts and
+      // protocol cannot drift while the two new forms are added around them.
+      if (args.review) return reviewSuppressionOutcome(file, counters)
+      if (args.removeFlag) return removeSuppressionOutcome(file, args)
       const id = args.siteId.trim().toLowerCase()
       if (id === '') {
         return {
@@ -856,8 +944,6 @@ function buildSuppressCommand() {
         }
       }
 
-      const directory = workspaceDirectory(commandCwd(invocation))
-      const file = join(directory, SUPPRESS_FILE)
       const current = await readSuppressionsForWrite(file)
       if (!(current.entries instanceof Map)) {
         return { kind: 'error', text: current.refusal }
@@ -913,6 +999,294 @@ function buildSuppressCommand() {
         text: `Suppressed ${id} in ${file}; the file now holds ${count + 1} ${count + 1 === 1 ? 'entry' : 'entries'}. The site is muted, not fixed: the next scan still counts it as a finding and reports it as suppressed.`,
       }
     },
+  }
+}
+
+/**
+ * The refusals a `/guidance-suppress` line can earn before anything is read.
+ *
+ * Each names the pair it found, because a person who typed two modes needs to know which two, and the
+ * three forms share one command precisely so there is no second writer to guess between. `null` means
+ * the line is exactly one of the three forms and the handler may proceed.
+ *
+ * @param {{ siteId: string, reason: string, dryRun: boolean, review: boolean, removeFlag: boolean, remove: string | null }} args
+ * @returns {string | null}
+ */
+function suppressConflict(args) {
+  if (args.review && args.removeFlag) {
+    return 'Refused: --review and --remove are two different actions in one line; run one of them.'
+  }
+  if (args.review) {
+    if (args.siteId !== '') {
+      return `Refused: --review takes no site id ("${args.siteId}"); it reviews the whole file, and every entry in it is listed.`
+    }
+    if (args.reason !== '') {
+      return 'Refused: --review takes no --reason; a review writes nothing to attach a reason to.'
+    }
+    if (args.dryRun) {
+      return 'Refused: --review writes nothing, so --dry-run is not a mode to ask for.'
+    }
+    return null
+  }
+  if (args.removeFlag) {
+    if (args.remove === null || args.remove.trim() === '') {
+      return 'No site id after --remove: pass the 8-character id the file holds, for example /guidance-suppress --remove 96cb61de --dry-run.'
+    }
+    if (args.siteId !== '') {
+      return `Refused: --remove takes one site id and "${args.siteId}" is a second; remove one entry per line.`
+    }
+    if (args.reason !== '') {
+      return 'Refused: --remove takes no --reason; a removal deletes an entry rather than recording one.'
+    }
+  }
+  return null
+}
+
+/** One entry named the way a review prints it: its reason and its date, or exactly what is missing. */
+function describeSuppressionEntry(entry) {
+  const when = entry.at === '' ? 'with no date' : `recorded ${entry.at}`
+  return entry.reason === '' ? `${when} and no reason` : `reason "${entry.reason}", ${when}`
+}
+
+/**
+ * Read the suppression file without deciding anything about it.
+ *
+ * Stricter than the scan's reader about *how* it may be read (regular file, not a symlink, inside the
+ * size guard) and looser about *what* it says: the review and the removal report a broken file rather
+ * than refusing to look at it, because "the file is unparsable" is exactly what a reviewer needs to
+ * hear. The three answers are distinct states, never an error: absence is a fact, unreadability is a
+ * token, and only text can be reviewed.
+ *
+ * @param {string} file absolute path of the workspace suppression file.
+ * @returns {Promise<{ kind: 'missing' } | { kind: 'unreadable', token: string, detail: string } | { kind: 'text', text: string }>}
+ */
+async function readSuppressionText(file) {
+  let info
+  try {
+    info = await lstat(file)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { kind: 'missing' }
+    return { kind: 'unreadable', token: 'unreadable', detail: `${file} could not be read.` }
+  }
+  if (!info.isFile() || info.isSymbolicLink()) {
+    return { kind: 'unreadable', token: 'unreadable', detail: `${file} is not a regular file.` }
+  }
+  if (info.size > MAX_SUPPRESS_BYTES) {
+    return { kind: 'unreadable', token: 'too-large', detail: `${file} is larger than the ${MAX_SUPPRESS_BYTES}-byte limit.` }
+  }
+  try {
+    return { kind: 'text', text: await readFile(file, 'utf8') }
+  } catch {
+    return { kind: 'unreadable', token: 'unreadable', detail: `${file} could not be read.` }
+  }
+}
+
+/**
+ * The workspace's last completed scan as the counters hand it out, or null.
+ *
+ * Best-effort by design: a counter that cannot answer is *no evidence*, which the review prints as
+ * unknown, never as an error in a read and never as a zero. A counters document written before
+ * 0.12.0 has a `lastScan` without a `suppressions` block, so this returns the scan and the review
+ * falls back to what a count can prove.
+ *
+ * @param {{ telemetry?: object | null } | null | undefined} counters the plugin's lazy counters seam.
+ * @param {string} directory the resolved workspace root.
+ * @returns {Promise<object | null>}
+ */
+async function lastScanOf(counters, directory) {
+  const telemetry = counters?.telemetry
+  if (telemetry === null || telemetry === undefined) return null
+  const workspace = workspaceOfDirectory(directory)
+  if (workspace === null) return null
+  try {
+    const overview = await telemetry.snapshot({ days: 7, workspace: workspace.id })
+    const lastScan = overview?.lastScan
+    return lastScan !== null && typeof lastScan === 'object' ? lastScan : null
+  } catch {
+    return null
+  }
+}
+
+/** The stored review block, when the counters have one this reader recognises, or null. */
+function storedReviewOf(lastScan) {
+  const stored = lastScan?.suppressions
+  if (stored === null || typeof stored !== 'object') return null
+  if (!Number.isFinite(stored.entries) || !Number.isFinite(stored.matching)) return null
+  if (stored.unused !== null && !Array.isArray(stored.unused)) return null
+  return {
+    entries: stored.entries,
+    matching: stored.matching,
+    unused: stored.unused === null ? null : stored.unused.filter((id) => isSiteKey(id)),
+  }
+}
+
+/**
+ * The review's one paragraph: what the file holds, and what the counters can prove about each entry.
+ *
+ * Every branch ends with the same two promises in words — no entry is reported unused on evidence
+ * that cannot see, and nothing was written. `unused: null` is why the first one exists: a truncated
+ * scan, a scan of no files, a narrower scan and a counters document that keeps no site ids are four
+ * ways to reach this sentence, and a review that guessed would be wrong in all four.
+ *
+ * @param {string} file absolute path of the workspace suppression file.
+ * @param {{ entries: Map<string, {reason: string, at: string}>, problems: {key: string|null, reason: string}[] }} parsed
+ * @param {object | null} lastScan the scope's last completed scan, or null.
+ * @returns {string}
+ */
+function suppressionReviewText(file, parsed, lastScan) {
+  const fatal = parsed.problems.find((problem) => problem.key === null)
+  if (fatal !== undefined) {
+    return `Suppression review for ${file}: the file cannot be read (${fatal.reason}), so nothing in it mutes anything and no entry in it can be judged. Nothing was written.`
+  }
+  const count = parsed.entries.size
+  const plural = count === 1 ? 'entry' : 'entries'
+  const broken = parsed.problems.filter((problem) => problem.key !== null)
+  const brokenNote = broken.length === 0
+    ? ''
+    : ` ${broken.length} ${broken.length === 1 ? 'entry' : 'entries'} in the file cannot be read (${broken.map((problem) => problem.key).join(', ')}); ${broken.length === 1 ? 'it is' : 'they are'} reported as a problem and never as unused.`
+  if (count === 0) {
+    return `Suppression review for ${file}: the file holds no entries.${brokenNote} Nothing was written.`
+  }
+  const named = (ids) => ids.map((id) => `${id} (${describeSuppressionEntry(parsed.entries.get(id))})`).join('; ')
+  const all = [...parsed.entries.keys()].sort()
+  const stored = storedReviewOf(lastScan)
+  if (stored !== null && Array.isArray(stored.unused)) {
+    const unused = new Set(stored.unused)
+    const matching = all.filter((id) => !unused.has(id))
+    const head = `Suppression review for ${file}: ${count} ${plural}, ${matching.length} matching, ${unused.size} unused.`
+    const unusedLine = unused.size === 0 ? '' : ` Unused: ${named([...unused].sort())}.`
+    const matchingLine = matching.length === 0 ? '' : ` Matching the last scan: ${named(matching)}.`
+    return `${head}${unusedLine}${matchingLine}${brokenNote} Nothing was written.`
+  }
+  const listLine = ` Entries: ${named(all)}.`
+  if (stored !== null) {
+    return `Suppression review for ${file}: ${count} ${plural}, of which the last scan matched ${stored.matching}. That scan could not prove which of the others it did not see, so this review reports none of them unused.${listLine}${brokenNote} Nothing was written.`
+  }
+  if (lastScan !== null) {
+    const muted = Number.isFinite(lastScan.suppressed) ? lastScan.suppressed : null
+    const evidence = muted === null
+      ? `The last scan (${lastScan.at}) records no muted count, and the site ids it saw are not kept`
+      : `The last scan (${lastScan.at}) muted ${muted} of them, but which entries it did not see is unknown: the counters keep that count, not the site ids`
+    return `Suppression review for ${file}: ${count} ${plural}. ${evidence}, so no entry is reported unused here.${listLine}${brokenNote} Nothing was written.`
+  }
+  return `Suppression review for ${file}: ${count} ${plural}. No completed scan is recorded for this workspace, so there is no evidence about which entries still match, and none is reported unused.${listLine}${brokenNote} Nothing was written.`
+}
+
+/**
+ * `--review`: the read half of the one write door. It never writes — not the file, not the counters,
+ * not a cache — which is why it takes no `--dry-run` and why every one of its texts says so.
+ *
+ * @param {string} file absolute path of the workspace suppression file.
+ * @param {{ telemetry?: object | null } | null | undefined} counters the plugin's lazy counters seam.
+ * @returns {Promise<{ kind: 'success' | 'error', text: string }>}
+ */
+async function reviewSuppressionOutcome(file, counters) {
+  const read = await readSuppressionText(file)
+  if (read.kind === 'unreadable') return { kind: 'error', text: `Cannot review: ${read.detail}` }
+  if (read.kind === 'missing') {
+    return {
+      kind: 'success',
+      text: `Nothing to review: ${file} does not exist, so no site is muted in this workspace. Nothing was written.`,
+    }
+  }
+  const directory = dirname(file)
+  return { kind: 'success', text: suppressionReviewText(file, parseSuppressions(read.text), await lastScanOf(counters, directory)) }
+}
+
+/**
+ * `--remove <siteId> [--dry-run]`: one entry, one invocation, one confirmed rewrite.
+ *
+ * ADR-0004's rules are all visible here: the plan names the absolute file and the entry it would
+ * drop (its date and reason, so the confirmation is of a payload), the rewrite is a byte-preserving
+ * cut produced by `lib/suppress.js` and verified by re-parsing what actually landed on disk, an
+ * absent target is a named no-op, and a removal is never a "fix" — no counter moves, and the outcome
+ * says so.
+ *
+ * @param {string} file absolute path of the workspace suppression file.
+ * @param {{ remove: string | null, dryRun: boolean }} args the parsed command arguments.
+ * @returns {Promise<{ kind: 'success' | 'error', text: string }>}
+ */
+async function removeSuppressionOutcome(file, args) {
+  const id = String(args.remove ?? '').trim().toLowerCase()
+  if (!isSiteKey(id)) {
+    return {
+      kind: 'error',
+      text: `Not a site id: "${args.remove}" must be 8 lowercase hex characters, exactly as the file keys an entry and a scan result prints it after the rule id.`,
+    }
+  }
+  const read = await readSuppressionText(file)
+  if (read.kind === 'unreadable') return { kind: 'error', text: `Refused: ${read.detail}` }
+  if (read.kind === 'missing') {
+    return {
+      kind: 'success',
+      text: `Nothing to remove: ${file} does not exist, so ${id} is not in it; nothing was written.`,
+    }
+  }
+  const before = parseSuppressions(read.text)
+  const removal = removeSuppression(read.text, id)
+  if (removal.kind === 'refused') {
+    return {
+      kind: 'error',
+      text: removal.code === 'unwritable'
+        ? `Refused: removing ${id} from ${file} would disturb another entry or leave text this format cannot read back, so the file was left exactly as it was.`
+        : `Refused (${removal.code}): ${file} cannot be read as a suppression file, so there is no entry to remove; fix it by hand first.`,
+    }
+  }
+  if (removal.kind === 'absent') {
+    const count = before.entries.size
+    return {
+      kind: 'success',
+      text: `Nothing to remove: ${id} is not in ${file}, which holds ${count} ${count === 1 ? 'entry' : 'entries'}; nothing was written.`,
+    }
+  }
+  const count = before.entries.size
+  const after = count - 1
+  const afterPlural = after === 1 ? 'entry' : 'entries'
+  const ignored = before.problems.length
+  const ignoredNote = ignored === 0
+    ? ''
+    : ` ${ignored} other ${ignored === 1 ? 'entry' : 'entries'} in the file cannot be read and ${ignored === 1 ? 'is' : 'are'} left exactly as ${ignored === 1 ? 'it is' : 'they are'}.`
+  if (args.dryRun) {
+    return {
+      kind: 'success',
+      text: `Removal plan for ${id}: remove 1 entry from ${file}, which would go from ${count} to ${after} ${afterPlural}, dropping the entry it recorded (${describeSuppressionEntry(removal.entry)}).${ignoredNote} Nothing has been written; run the same line without --dry-run to remove it.`,
+    }
+  }
+  const temporary = `${file}.tmp`
+  try {
+    await writeFile(temporary, removal.text, 'utf8')
+    // The guard ADR-0004 §3 fixes: the bytes that landed must re-parse through the file's own reader
+    // to exactly the old set minus one entry, with the old problems untouched. Anything else is a
+    // refusal, and the original is still the only thing worth having.
+    const landed = await readFile(temporary, 'utf8')
+    const check = parseSuppressions(landed)
+    const sameProblems = check.problems.length === before.problems.length
+      && check.problems.every((problem, index) => problem.key === before.problems[index].key
+        && problem.reason === before.problems[index].reason)
+    const sameEntries = check.entries.size === after
+      && !check.entries.has(id)
+      && [...before.entries.keys()].every((key) => key === id
+        || (check.entries.has(key)
+          && check.entries.get(key).reason === before.entries.get(key).reason
+          && check.entries.get(key).at === before.entries.get(key).at))
+    if (landed !== removal.text || !sameProblems || !sameEntries) {
+      await unlink(temporary).catch(() => {})
+      return {
+        kind: 'error',
+        text: `Refused: the rewrite of ${file} did not re-read as the same file minus ${id}, so the original was left exactly as it was.`,
+      }
+    }
+    await rename(temporary, file)
+  } catch (error) {
+    await unlink(temporary).catch(() => {})
+    return {
+      kind: 'error',
+      text: `Refused: the write to ${file} failed (${error instanceof Error ? error.message : String(error)}); the file was left as it was.`,
+    }
+  }
+  return {
+    kind: 'success',
+    text: `Removed ${id} from ${file}; the file now holds ${after} ${afterPlural}.${ignoredNote} The site is no longer muted, so the next scan counts it as a finding again. A removal is not a fix: it does not mean the finding went away, and no counter has changed.`,
   }
 }
 
@@ -1657,9 +2031,10 @@ function createUsageRecorder() {
  * @param {import('@deepseek-ai/cordis').Context} ctx host plugin context.
  * @param {{ enabled?: boolean, retentionDays?: number }} config plugin row configuration.
  * @param {ReturnType<typeof createUsageRecorder>} usage the recorder both entry points share.
+ * @param {{ telemetry: object | null }} counters the seam the read surfaces reach the counters through.
  * @returns {void}
  */
-function startUsageCounters(ctx, config, usage) {
+function startUsageCounters(ctx, config, usage, counters = { telemetry: null }) {
   if (config?.enabled === false) return
   // A bare test context has no event bus; without it there is nothing to count.
   if (typeof ctx.on !== 'function') return
@@ -1682,6 +2057,10 @@ function startUsageCounters(ctx, config, usage) {
   } catch {
     return
   }
+  // The seam the read half reaches the counters through, filled as soon as they exist: a scan's
+  // review baseline and `--review` read it at call time, and a host with counting disabled leaves it
+  // null, which every reader treats as "no evidence" rather than as a zero.
+  counters.telemetry = telemetry
 
   const save = () => Promise.resolve(telemetry.flush()).catch(() => {})
   let pending
@@ -1773,6 +2152,12 @@ export function apply(ctx, config = {}) {
   // Warm the index in the background; a failed warm-up is retried by the first tool call.
   void guidance.ready().catch(() => {})
 
+  // The counters are created last, so the surfaces that must read them when they *run* — the scan's
+  // review baseline, `--review`, and later the panel row — get this one mutable seam rather than a
+  // second construction order. Through 0.11.0 nothing read it; an absent telemetry means "no
+  // evidence", which every reader prints as unknown rather than as a zero.
+  const counters = { telemetry: null }
+
   for (const build of [buildSearchTool, buildRetrieveTool, buildListTool]) {
     const tool = build(guidance)
     ctx.effect(() => ctx.tools.register(tool), `modern-web-guidance ${tool.name}`)
@@ -1780,7 +2165,7 @@ export function apply(ctx, config = {}) {
 
   // The scanner is registered beside the loop rather than through it: its two modules are injected
   // explicitly instead of being derived from `guidance`.
-  const scanTool = buildScanTool({ scan, ScanError }, { RULES, selectRules })
+  const scanTool = buildScanTool({ scan, ScanError }, { RULES, selectRules }, counters)
   ctx.effect(() => ctx.tools.register(scanTool), `modern-web-guidance ${scanTool.name}`)
 
   // A person gets the same scan through a command, because the panel can only execute commands.
@@ -1789,11 +2174,12 @@ export function apply(ctx, config = {}) {
   const usage = createUsageRecorder()
   const commands = typeof ctx.get === 'function' ? ctx.get('commands') : undefined
   if (commands !== undefined && commands !== null && typeof commands.register === 'function') {
-    const scanCommand = buildScanCommand({ scan, ScanError }, { RULES, selectRules }, usage)
+    const scanCommand = buildScanCommand({ scan, ScanError }, { RULES, selectRules }, usage, counters)
     ctx.effect(() => commands.register(scanCommand), `modern-web-guidance /${scanCommand.name}`)
     // The one writer in the product, and the only way the panel can mute a finding: two lines, one
-    // plan and one apply, so a single click can never write.
-    const suppressCommand = buildSuppressCommand()
+    // plan and one apply, so a single click can never write. ADR-0004 adds its read half
+    // (`--review`, which never writes) and its retract half (`--remove`), under the same protocol.
+    const suppressCommand = buildSuppressCommand(counters)
     ctx.effect(() => commands.register(suppressCommand), `modern-web-guidance /${suppressCommand.name}`)
     // The second and last write: one `.scanignore` line, under the same plan-then-apply protocol, so
     // an exclusion cannot be added by a single click either.
@@ -1823,7 +2209,7 @@ export function apply(ctx, config = {}) {
 
   // Last, so the counters can reuse the recorder the scan command already holds: the command is
   // registered before them, and both write through one sink.
-  startUsageCounters(ctx, config, usage)
+  startUsageCounters(ctx, config, usage, counters)
 }
 
 export const name = 'modern-web-guidance'

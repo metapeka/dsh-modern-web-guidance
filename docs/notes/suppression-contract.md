@@ -281,8 +281,15 @@ Additive, after `truncated` so the existing member order is untouched:
   truncated: false,
   suppressed: 3,                                    // always, 0 included
   suppressProblems: [ { key: null, reason: 'malformed' } ],   // only when non-empty
+  suppressions: { entries: 5, matching: 2, unused: ['96cb61de', '0a1b2c3d'] },  // 0.12.0, ADR-0004
 }
 ```
+
+- **`suppressions` is the review, and it is attached only when one could be computed** (0.12.0, §22):
+  absent when there is no suppression file, when the file cannot be read, or when the value is an
+  error. Present when a file was read and joined against this scan. `unused` is **`null`, never `[]`**,
+  for a scan that could not prove absence (truncated, hit a cap, zero files, or fewer files than the
+  baseline), so "0 unused" stays a claim a complete scan earns and nothing else gets for free.
 
 - **The same word at two depths**: a number on the result, a boolean on the finding. `suppressed === 3`
   at the top, `suppressed === true` on a finding; never a count on a finding and never a boolean at the
@@ -316,6 +323,10 @@ Three additions, each absent on a pre-C value, so a pre-C scan renders byte-iden
 back into the flag (§12); therefore it goes **after** the message, never inside it, and the message is
 never reworded to mention it.
 
+**0.12.0 adds no fourth line here.** A review is a statement about the *file*, not about the scan the
+text is describing, so the scan text stays byte-identical to 0.11.0 and the review is read on the stats
+surface (§9, §22) and in `--review`. `test/suppress.test.mjs` fails if a `Suppressions:` line appears.
+
 ## 8. The counters
 
 - **`classifyCall`** (`lib/telemetry.js:895-970`): on a completed scan, count
@@ -342,6 +353,11 @@ never reworded to mention it.
   not a total of every workspace's. One scan's count is not a total.
 - **A refusal writes nothing**: an errored or refused call never touches `lastScan`
   (`lib/telemetry.js:646-658`), so it cannot add or clear a suppression count.
+- **The review rides on `lastScan` too** (0.12.0, `suppressionReviewOf()`): `suppressions: { entries,
+  matching, unused }`, validated at the door and clamped on read. `unused: null` survives as `null` —
+  it is the value that says "this scan could not prove absence", and `[]` is a different, stronger
+  claim. A block that cannot be read is dropped **whole**, never turned into three zeros, and the
+  version stays `1`: a pre-0.12.0 document renders exactly what it rendered before the member existed.
 
 ## 9. The report
 
@@ -365,8 +381,16 @@ Suppressed: 3 in the last scan (ls-13 2, ls-08 1) - muted, still findings
 
 ```js
 lastScan: { at, files, findings, rules, skipped, truncated, branch?, suppressed: 3,
-            suppressedRules: { 'ls-13': 2, 'ls-08': 1 } }
+            suppressedRules: { 'ls-13': 2, 'ls-08': 1 },
+            suppressions: { entries: 5, matching: 2, unused: ['96cb61de'] } }   // 0.12.0
 ```
+
+- **`suppressions` is the review, and it is the only 0.12.0 addition** (`lib/report.js:487`,
+  `:503`): three members, `unused` a sorted list of eight-hex ids or `null`. It rides inside
+  `lastScan` beside the counts it qualifies — the report has no top-level suppression block, for the
+  same reason it has no top-level `suppressed`. The text report gains no line: a review is a
+  statement about a file, and the row that shows it is `--review` (and, when the panel grows one, the
+  panel). A pre-C document has no member and renders exactly as 0.11.0 did.
 
 - **No top-level `suppressed`.** One number, one place: the snapshot's `lastScan` is a spread
   (`lib/telemetry.js:1612`), so a second copy would be a second thing to keep in step. The scan's own
@@ -383,10 +407,11 @@ lastScan: { at, files, findings, rules, skipped, truncated, branch?, suppressed:
 
 | surface | a suppressed finding shows as | a pre-C input shows |
 | --- | --- | --- |
-| scan result (JSON) | `findings[i].suppressed: true`, `findings[i].siteId`, top-level `suppressed: N`, `suppressProblems` when non-empty | no `siteId`, no flags, no count |
+| scan result (JSON) | `findings[i].suppressed: true`, `findings[i].siteId`, top-level `suppressed: N`, `suppressProblems` when non-empty, and (0.12.0) `suppressions: { entries, matching, unused }` | no `siteId`, no flags, no count, no review |
 | `/guidance-scan` text | `— 85 finding(s), 3 suppressed.` and ` (suppressed)` on the row | the same text as 0.11.0, byte for byte |
 | `/guidance-stats` text | `Suppressed: 3 in the last scan (ls-13 2, ls-08 1) - muted, still findings` | no line |
-| report JSON | `lastScan.suppressed`, `lastScan.suppressedRules` | no members |
+| report JSON | `lastScan.suppressed`, `lastScan.suppressedRules`, and (0.12.0) `lastScan.suppressions` | no members |
+| `/guidance-suppress --review` | one block: every entry with its date and reason, then `Matching the last scan:` / `Unused:` | `No completed scan is recorded…`, and no entry called unused |
 | panel, scanner section | the same `Suppressed: 3 (…)` line under the last scan | no line |
 | panel, own scan result | the count in the summary, and the tag on the finding's row | no count, no tag |
 | chat tool row | the tag `muted` in the rule cell, the row dimmed | no tag, the row as today |
@@ -631,13 +656,66 @@ Measured by building the shapes and serialising them (`node`, 2026-11-11):
 
 ## 21. Not in this phase
 
-- **Unmuting from the panel, or deleting entries** — the write surface is ADR-0003's, and it is
-  append-only; unmuting is a hand edit in C-1.
+- **Unmuting from the panel** — the write surface is ADR-0003's, and the one deletion ADR-0004 licenses
+  is a confirmed command, one entry per line (§22). A panel button that removes would be a second
+  entry point to the same write, and phase E deliberately keeps the panel read-only.
+- **Bulk removal, a `--remove --all`, or a prune** — refused by ADR-0004: one entry, one invocation, one
+  confirmation, because a bulk rewrite is exactly the "delete something a human wrote" the ADR has to
+  licence per action rather than per session.
 - **Any list management** (prune, rename, merge, inspect, export) — the file is small, JSON and in the
   repository; a UI for it is C-4 material.
 - **Muting a whole rule, a file or a line** — forbidden by ADR-0003:45-47 and by §18.
 - **Suppression across workspaces** — a file is per workspace, like the counters' buckets.
-- **TTL, expiry, auto-pruning of unmatched entries** — refused by §15 and §18.
-- **Counting writes in telemetry** — forbidden by ADR-0003:150-152.
-- **The write command's own grammar** (`--dry-run`, the confirmation, the refusal codes) — ADR-0003.
+- **TTL, expiry, auto-pruning of unmatched entries** — still refused by §15 and §18. An entry is
+  retired by a human who has seen the evidence, never by a timer or by a scan that did not see it.
+- **Counting writes in telemetry** — forbidden by ADR-0003:150-152, and §22 restates it for the removal.
+- **The append command's own grammar** (`--dry-run`, the confirmation, the refusal codes) — ADR-0003;
+  the two new forms are ADR-0004 and §22.
 - **C-2 (a `.scanignore` writer), C-3 (reset granularity), C-4 (export)** — their own contracts.
+
+## 22. ADR-0004: the review, and the one confirmed removal
+
+ADR-0004 amends ADR-0003's "a write is never a delete" with the narrowest widening it can: **one entry,
+one invocation, one confirmed rewrite.** The ADR is the licence; this section is the shape.
+
+### The review (read, `--review`)
+
+```js
+suppressions: { entries: 5, matching: 2, unused: ['96cb61de', '0a1b2c3d'] }   // complete scan
+suppressions: { entries: 5, matching: 2, unused: null }                      // unproven
+```
+
+- `entries` counts every readable entry in the file; `matching` counts the entries whose site id this
+  scan produced; `unused` is the rest — **and `null`, never `[]`, when absence is unproven**: a truncated
+  scan, a scan that hit a cap, a scan with no files, or a scan that read fewer files than its baseline.
+  The rule is phase B's, reused verbatim (`docs/notes/scan-history-contract.md`), because "this scan did
+  not see it" is not "it is dead" in either place.
+- **A malformed entry is never `unused`.** It is a parse problem, it is reported as one, and it is
+  excluded from all three numbers — a line the reader cannot read is not evidence about a site.
+- The join happens in `index.js` where the site ids exist (`attachSuppressionReview`), not in
+  `lib/scan.js`: the scanner stays a pure reader, and the counters only ever see counts and ids.
+- **`--review` prints the file, never a diff.** With a stored review it prints `Matching the last
+  scan:` and, when the list is non-null, `Unused:`. Without one it says which evidence is missing and
+  reports no entry as unused. It always ends `Nothing was written.` and it takes no `--dry-run`: the
+  read half has no mode to ask for.
+
+### The removal (write, `--remove <siteId>`)
+
+- **Grammar:** `/guidance-suppress --remove <siteId>` plans; the same line without `--dry-run` applies.
+  Exactly one id, exactly one entry, exactly one confirmed rewrite. Any other combination is a refusal
+  with its own sentence: `--review` with `--remove`, `--review` with a site id, `--review` with
+  `--reason`, `--review` with `--dry-run`, `--remove` with no id, `--remove` with a second id,
+  `--remove` with `--reason`.
+- **A cut, not a rewrite.** The member's bytes and exactly one separator are removed from the text; every
+  other byte, the file's formatting, its unknown members and its malformed entries survive untouched.
+  The result is re-parsed through the file's own parser before the rename, so a cut that would leave a
+  file the reader cannot read is refused (`unwritable`) rather than written. Temp file + rename, one
+  fixed path, no symlink followed — the same writer discipline as the append path.
+- **Three answers, and the third is the point:** `removed` (the site is no longer muted; the next scan
+  counts it as a finding again), **`absent`** (a named no-op: `Nothing to remove: <id> is not in
+  <file>, which holds N entries; nothing was written.` — not an error, not silence), and a **refusal**
+  (`malformed`, `version`, `too-large`, `unreadable`, `unwritable`) which leaves the file byte-identical.
+- **A removal is not a fix, and it moves no counter.** It un-mutes a finding; it says nothing about
+  whether the finding went away, and nothing about what a previous scan reported. No counter, no
+  `lastScan` member, no history row changes — `test/stats.test.mjs` compares the counters document byte
+  for byte across a removal, and `test/suppress.test.mjs` compares the file before and after.
