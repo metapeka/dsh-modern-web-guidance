@@ -29,9 +29,9 @@ import { removeTree } from './tmp.mjs'
 import {
   clampReason,
   MAX_REASON_CHARS,
-  MAX_SUPPRESSIONS,
   MAX_SUPPRESS_BYTES,
   MAX_SUPPRESS_PROBLEMS,
+  MAX_SUPPRESSIONS,
   parseSuppressions,
   removeSuppression,
   reviewSuppressions,
@@ -894,31 +894,48 @@ test('a review joins one scan against the file, and an incomplete scan claims no
     [STALE_KEY, { reason: 'stale', at: '2026-02-02' }],
   ])
 
-  // The shape ADR-0004 fixes: three numbers, and the ids of the entries this scan did not see.
+  // The shape ADR-0004 fixes, plus `items`: three numbers, the ids this scan did not see, and one row
+  // per honoured entry so a surface that can only read JSON shows what the text review prints.
+  // Rows are sorted by site id, and `matched` is the row-level form of `unused`.
+  const rows = [
+    { siteId: STALE_KEY, date: '2026-02-02', reason: 'stale', matched: false },
+    { siteId: WRITE_KEY, date: '2026-11-01', reason: 'muted on purpose', matched: true },
+  ]
   assert.deepEqual(reviewSuppressions(entries, new Set([WRITE_KEY]), { complete: true }), {
     entries: 2,
     matching: 1,
     unused: [STALE_KEY],
+    items: rows,
   })
   // Every way of saying "these are the sites I saw" joins the same.
   assert.deepEqual(reviewSuppressions(entries, [WRITE_KEY], { complete: true }), {
     entries: 2,
     matching: 1,
     unused: [STALE_KEY],
+    items: rows,
   })
   assert.deepEqual(reviewSuppressions(entries, { 'ls-17': [WRITE_KEY] }, { complete: true }), {
     entries: 2,
     matching: 1,
     unused: [STALE_KEY],
+    items: rows,
   })
 
   // The invariant a careless implementation breaks: `null`, never `[]`, when absence is unproven.
   // `[]` would say "every entry still matches", which is a claim no incomplete scan has earned.
+  // The rows say the same thing in their own member: `matched: null`, never a `false` about a site
+  // a partial scan simply did not reach.
   for (const seen of [new Set([WRITE_KEY]), [WRITE_KEY], { 'ls-17': [WRITE_KEY] }]) {
-    assert.deepEqual(reviewSuppressions(entries, seen, { complete: false }), {
+    const review = reviewSuppressions(entries, seen, { complete: false })
+    assert.equal(review.unused, null)
+    assert.deepEqual(review, {
       entries: 2,
       matching: 1,
       unused: null,
+      items: [
+        { siteId: STALE_KEY, date: '2026-02-02', reason: 'stale', matched: null },
+        { siteId: WRITE_KEY, date: '2026-11-01', reason: 'muted on purpose', matched: null },
+      ],
     })
   }
 
@@ -930,7 +947,43 @@ test('a review joins one scan against the file, and an incomplete scan claims no
     entries: 1,
     matching: 0,
     unused: ['aaaaaaaa'],
+    items: [{ siteId: 'aaaaaaaa', date: 'd', reason: 'r', matched: false }],
   })
+})
+
+test('a review row carries what the file stores and no opinion it cannot support', () => {
+  // What a `.suppress` entry actually holds: a key (the identity), a reason and a date. It does not
+  // hold the rule the site belonged to, and the id is a one-way hash — so no row may carry a rule id,
+  // a path or a snippet, and a row that seemed to have one would be invented.
+  const bare = new Map([['aaaaaaaa', { reason: '', at: '' }]])
+  const [row] = reviewSuppressions(bare, new Set(), { complete: false }).items
+  assert.deepEqual(row, { siteId: 'aaaaaaaa', matched: null })
+  assert.deepEqual(Object.keys(row), ['siteId', 'matched'])
+
+  // A member the file does not carry is omitted, not sent as an empty string: "no reason written" and
+  // "a reason of nothing" are different facts, and only one of them happened.
+  const partial = new Map([['bbbbbbbb', { reason: 'kept until the redesign', at: '' }]])
+  assert.deepEqual(reviewSuppressions(partial, new Set(), { complete: true }).items, [
+    { siteId: 'bbbbbbbb', reason: 'kept until the redesign', matched: false },
+  ])
+
+  // The source members are copied, not reworded: no "recorded …" prose, no "(no reason)" token — that
+  // formatting belongs to the text review in `index.js`, which reads the same data.
+  const dated = new Map([['cccccccc', { reason: 'r', at: '2026-11-11' }]])
+  const [{ date, reason }] = reviewSuppressions(dated, new Set(), { complete: true }).items
+  assert.equal(date, '2026-11-11')
+  assert.equal(reason, 'r')
+
+  // The list is bounded by what a file may hold: past the writer's cap the rows are absent rather than
+  // a truncated prefix that would read as the whole file. The counts and `unused` still tell the truth.
+  const many = new Map()
+  for (let index = 0; index < MAX_SUPPRESSIONS + 1; index += 1) {
+    many.set(index.toString(16).padStart(8, '0'), { reason: '', at: '' })
+  }
+  const review = reviewSuppressions(many, new Set(), { complete: true })
+  assert.equal(review.entries, MAX_SUPPRESSIONS + 1)
+  assert.equal(review.items, undefined)
+  assert.equal(review.unused.length, MAX_SUPPRESSIONS + 1)
 })
 
 test('a removal cuts one member out of the text and keeps the canonical bytes around it', () => {
@@ -983,7 +1036,19 @@ test('every scan carries the review it can prove, and the scan text stays about 
   ]))
 
   const { value, text } = await runScan(root, { paths: ['src'] })
-  assert.deepEqual(value.suppressions, { entries: 2, matching: 1, unused: [STALE_KEY] })
+  assert.deepEqual(value.suppressions, {
+    entries: 2,
+    matching: 1,
+    unused: [STALE_KEY],
+    // The panel's half of the same review: the entry that still matches is the one a person wants to
+    // reconsider, so it must be listed with everything the file knows about it — and with no rule id,
+    // because the file stores none and the hash is one-way.
+    items: [
+      { siteId: STALE_KEY, date: '2026-02-02', reason: 'stale', matched: false },
+      { siteId: target.siteId, date: '2026-11-11', reason: 'one page only', matched: true },
+    ],
+  })
+  assert.ok(value.suppressions.items.every((row) => !('ruleId' in row) && !('path' in row)))
   // The review is a statement about the file, not about this scan, so it is carried in the value the
   // counters store and the panel reads — and the scan's own text does not grow a line for it.
   assert.ok(!text.includes('Suppressions:'), text)

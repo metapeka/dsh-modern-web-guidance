@@ -10,19 +10,25 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, stat as statFile, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 
 import { apply } from '../index.js'
 import { siteId } from '../lib/site.js'
 import { PACKAGE_DIR } from './paths.mjs'
+import { makeScratchDir, removeTree, sweepStale } from './tmp.mjs'
 
 const DIRTY = 'test/fixtures/scan/dirty'
 const CLEAN = 'test/fixtures/scan/clean'
 
-const scratch = join(import.meta.dirname, '..', '.tmp')
+/** Sweep the profiles an earlier failed run left behind, before this run creates any of its own. */
+await sweepStale(['scan-command'])
+
+/** How long `quiet` keeps watching a flush: 25 polls of 10 ms after the settle window. */
+const SETTLE_POLLS = 25
+const SETTLE_POLL_MS = 10
 
 // The counters are pointed at a throwaway profile by the tests that need them; put the environment
 // back afterwards so this file cannot leak its profile into another file in the same process.
@@ -37,6 +43,17 @@ after(() => {
     else process.env[name] = value
   }
 })
+
+/**
+ * The plugin instances this file has applied and not closed yet.
+ *
+ * The plugin debounces its counters write and `void`s the promise, so an instance left open saves into
+ * the profile directory its teardown removes and re-creates it two seconds later — one
+ * `scan-command-counters-*` every run, from the one test that never called `flush()`. The profile's
+ * teardown closes what is still open before removing the directory, which is the only order that
+ * leaves nothing.
+ */
+const openInstances = []
 
 /**
  * Minimal Cordis context: tool/skill/command registries, command lookup and effects. `events: true`
@@ -80,6 +97,7 @@ function createContext({ events = false } = {}) {
   const dispose = () => {
     for (const release of disposers.splice(0)) release()
   }
+  openInstances.push(dispose)
   return { ctx, registered, dispose }
 }
 
@@ -112,21 +130,24 @@ function scanIgnoreCommand(registered) {
 /** The fixture root under the temp directory a refusal test uses as its workspace. */
 async function tempWorkspace(t) {
   const root = await mkdtemp(join(tmpdir(), 'scan-command-'))
-  t.after(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
+  t.after(() => removeTree(root))
   return root
 }
 
 /**
  * Point the counters at a fresh profile directory. The file store under it is the fake the counting
  * tests read: a throwaway document written by the plugin itself, never the real profile.
+ *
+ * The label stays in the name: two tests read two profiles in one run, and a failure should say which.
  */
 async function isolatedProfile(t, label = 'counters') {
-  await mkdir(scratch, { recursive: true })
-  const home = await mkdtemp(join(scratch, `scan-command-${label}-`))
+  const home = await makeScratchDir(`scan-command-${label}`)
   t.after(async () => {
-    await rm(home, { recursive: true, force: true })
+    // Close what the test left open, then let the flush land, then remove: a save that arrives after
+    // the removal re-creates the very directory this hook exists to delete.
+    for (const dispose of openInstances.splice(0)) dispose()
+    await quiet(home)
+    await removeTree(home)
   })
   process.env.DSH_PROFILE_DIR = home
   process.env.DSH_HOME = home
@@ -136,6 +157,37 @@ async function isolatedProfile(t, label = 'counters') {
 /** The counters document the plugin writes for the active profile. */
 function countersFile(home) {
   return join(home, 'storage', 'modern-web-guidance', 'stats.json')
+}
+
+/** One path's `stat`, or null when it is not there. */
+async function statOf(path) {
+  return statFile(path).then(
+    (value) => value,
+    () => null,
+  )
+}
+
+/**
+ * Wait for a write in flight to land before the directory it writes into goes.
+ *
+ * `dispose()` flushes with `void save()`, so nothing can await it and a fixed sleep is a guess — the
+ * one this file used to lose: the teardown removed the profile while the rename was still running. So
+ * the wait gives the flush its window, then stops as soon as the counters file has stopped changing.
+ * A save makes the directory before it renames the file into place, so a missing file beside an
+ * existing `storage/` is a write in progress, while a missing `storage/` is a write that never came.
+ */
+async function quiet(home) {
+  await settle()
+  const file = countersFile(home)
+  let previous = null
+  for (let attempt = 0; attempt < SETTLE_POLLS; attempt += 1) {
+    const current = await statOf(file)
+    const size = current === null ? null : current.size
+    if (size !== null && size === previous) return
+    if (size === null && (await statOf(dirname(file))) === null) return
+    previous = size
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
+  }
 }
 
 /** Let the fire-and-forget recording chain settle before reading the counters. */
@@ -667,7 +719,7 @@ test('a target that is not a regular file is refused, and a symlink is never fol
   const directory = await command.handler(invocation('src/app.css', workspace))
   assert.equal(directory.kind, 'error')
   assert.match(directory.text, /^Refused: .*\.scanignore is not a regular file\./)
-  await rm(join(workspace, '.scanignore'), { recursive: true, force: true })
+  await removeTree(join(workspace, '.scanignore'))
 
   const outside = await tempWorkspace(t)
   const target = join(outside, 'real.scanignore')
@@ -714,14 +766,34 @@ test('a narrower scan calls nothing unused, and the counters keep that answer wi
   assert.equal((await scan.handler(invocation('src', workspace))).kind, 'success')
   await settle()
   const wide = (await counters(stats)).lastScan.suppressions
-  assert.deepEqual(wide, { entries: 2, matching: 1, unused: ['aaaaaaaa'] })
+  assert.deepEqual(wide, {
+    entries: 2,
+    matching: 1,
+    unused: ['aaaaaaaa'],
+    // The rows a panel draws: both entries with what the file stores, and the verdict this scan
+    // earned. The matching one is listed too — it is the entry a person reconsiders.
+    items: [
+      { siteId: muted, reason: 'one page only', date: '2026-11-01', matched: true },
+      { siteId: 'aaaaaaaa', reason: 'stale', date: '2026-02-02', matched: false },
+    ],
+  })
 
   // One file of two is the narrower scan B refuses to compare with, so the review inherits the rule:
   // the stale key is NOT called unused, because this scan saw less than the one before it.
   assert.equal((await scan.handler(invocation('src/legacy.js', workspace))).kind, 'success')
   await settle()
   const narrow = (await counters(stats)).lastScan.suppressions
-  assert.deepEqual(narrow, { entries: 2, matching: 1, unused: null })
+  assert.deepEqual(narrow, {
+    entries: 2,
+    matching: 1,
+    unused: null,
+    // The row-level form of the same refusal: `null`, never `false`, for a site this scan may simply
+    // not have walked past.
+    items: [
+      { siteId: muted, reason: 'one page only', date: '2026-11-01', matched: null },
+      { siteId: 'aaaaaaaa', reason: 'stale', date: '2026-02-02', matched: null },
+    ],
+  })
 
   // And `--review` reads that stored block: a matching count, then the absence said in so many words,
   // never a list of entries the scan could not clear.

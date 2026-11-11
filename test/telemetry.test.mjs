@@ -1920,6 +1920,45 @@ test('a scan carries the suppression review it was given, and no review it canno
   // say how many entries matched while naming none of them.
   assert.deepEqual(withReview({ entries: 2, matching: 1, unused: [] }).suppressions,
     { entries: 2, matching: 1, unused: null })
+
+  // The rows are re-validated member by member, because a row is what a panel renders: a site id that
+  // is not an identity, a duplicate id, a non-row and a `matched` that is not a real boolean are all
+  // dropped or nulled here rather than stored and drawn. `matched: null` is the row-level "this scan
+  // could not say", so a `1` a careless writer coerced from a boolean becomes an absence of evidence —
+  // never a `false` about a site the scan may have matched.
+  const rows = withReview({
+    entries: 3,
+    matching: 2,
+    unused: ['cccccccc'],
+    items: [
+      { siteId: 'cccccccc', matched: false, reason: 'x'.repeat(250), date: '2026-11-11' },
+      { siteId: 'bbbbbbbb', matched: 1 },
+      { siteId: 'nope', matched: true },
+      null,
+      'row',
+      [],
+      { siteId: 'aaaaaaaa', matched: true, date: 42, reason: 7 },
+      { siteId: 'aaaaaaaa', matched: false },
+    ],
+  }).suppressions
+  assert.deepEqual(rows, {
+    entries: 3,
+    matching: 2,
+    unused: ['cccccccc'],
+    items: [
+      { siteId: 'aaaaaaaa', matched: true },
+      { siteId: 'bbbbbbbb', matched: null },
+      { siteId: 'cccccccc', date: '2026-11-11', reason: 'x'.repeat(200), matched: false },
+    ],
+  })
+  // A row list that is not a list costs the rows and not the counts: the block is still a review, and
+  // the counters must never discard a fact they can keep just because one member is unusable.
+  assert.deepEqual(withReview({ entries: 1, matching: 0, unused: ['aaaaaaaa'], items: 'x' }).suppressions,
+    { entries: 1, matching: 0, unused: ['aaaaaaaa'] })
+  // An empty list is a fact, not an absence: a file with no entries reviewed by a complete scan says
+  // so with `[]`, and that is different from a scan that carries no review at all.
+  assert.deepEqual(withReview({ entries: 0, matching: 0, unused: [], items: [] }).suppressions,
+    { entries: 0, matching: 0, unused: [], items: [] })
   // A refused scan read no file, so it carries no review at all.
   assert.equal('suppressions' in classifyCall({ tool: 'web_guidance_legacy_scan', value: { error: 'no' }, isError: true }), false)
 })
@@ -1931,20 +1970,39 @@ test('a review is stored on the last scan additively, and a corrupt one is dropp
     tool: 'legacy-scan',
     workspace: ALPHA,
     ...scanEntry([{ ...finding('ls-17', 'guide-a'), suppressed: true }], 1, {}, false, {
-      suppressions: { entries: 2, matching: 1, unused: ['bbbbbbbb'] },
+      suppressions: {
+        entries: 2,
+        matching: 1,
+        unused: ['bbbbbbbb'],
+        items: [
+          { siteId: 'aaaaaaaa', reason: 'kept', matched: true },
+          { siteId: 'bbbbbbbb', reason: 'stale', date: '2026-02-02', matched: false },
+        ],
+      },
     }),
   })
 
+  const storedReview = {
+    entries: 2,
+    matching: 1,
+    unused: ['bbbbbbbb'],
+    items: [
+      { siteId: 'aaaaaaaa', reason: 'kept', matched: true },
+      { siteId: 'bbbbbbbb', reason: 'stale', date: '2026-02-02', matched: false },
+    ],
+  }
   const snapshot = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
-  assert.deepEqual(snapshot.lastScan.suppressions, { entries: 2, matching: 1, unused: ['bbbbbbbb'] })
-  // The snapshot hands out a copy: a caller that edits the list must not edit what was stored.
+  assert.deepEqual(snapshot.lastScan.suppressions, storedReview)
+  // The snapshot hands out a copy: a caller that edits the list must not edit what was stored — and
+  // the rows are copied too, because a panel that annotated one in place would be editing the record.
   snapshot.lastScan.suppressions.unused.push('cccccccc')
-  assert.deepEqual((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).lastScan.suppressions.unused, ['bbbbbbbb'])
+  snapshot.lastScan.suppressions.items[0].matched = false
+  assert.deepEqual((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).lastScan.suppressions, storedReview)
 
   await telemetry.flush()
   assert.equal(store.state.version, 1, 'the member is additive, so the version never moves')
   const bucket = store.state.workspaces[ALPHA.id]
-  assert.deepEqual(bucket.lastScan.suppressions, { entries: 2, matching: 1, unused: ['bbbbbbbb'] })
+  assert.deepEqual(bucket.lastScan.suppressions, storedReview)
 
   // A document written by hand with a block that does not add up reads as though it had no block —
   // never as three zeros — and the next flush writes the clamp back, the way `since` is repaired.

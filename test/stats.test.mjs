@@ -1471,4 +1471,107 @@ test('a removal changes the suppression file and no counter anywhere else', asyn
   }
 })
 
+test('the review reaches the panel row by row, and a verdict only where a scan could look', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('review-rows')
+  const { apply } = await import('../index.js')
+  const { serializeSuppressions } = await import('../lib/suppress.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    await mkdir(join(workspace, 'src'), { recursive: true })
+    await writeFile(join(workspace, 'src/legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+    await writeFile(join(workspace, 'src/other.js'), 'const untouched = 1\n', 'utf8')
+
+    const scanTool = registered.tools.find((tool) => tool.name === 'web_guidance_legacy_scan')
+    const runTool = (paths) => scanTool.execute({ paths }, { agent: { session: { header: { cwd: workspace } } } })
+
+    // First scan: no file yet, so there is nothing to join — and the finding's own identity is the only
+    // way to write an entry that will match.
+    const first = await runTool(['src'])
+    const muted = first.findings.find((finding) => finding.ruleId === 'ls-17')
+    assert.ok(muted.siteId, 'the scan value no longer carries the site id the review joins on')
+    await writeFile(join(workspace, '.suppress'), serializeSuppressions(new Map([
+      [muted.siteId, { reason: 'one page only', at: '2026-11-11' }],
+      ['aaaaaaaa', { reason: 'stale', at: '2026-02-02' }],
+    ])), 'utf8')
+
+    // A complete scan of the same two files: both entries are listed with what the file stores, and the
+    // verdict is provable because the scan could have seen either of them.
+    raiseScan(registered, await runTool(['src']))
+    await settle()
+    const command = statsCommand(registered)
+    const wide = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
+    const review = wide.lastScan.suppressions
+    assert.equal(review.entries, 2)
+    assert.equal(review.matching, 1)
+    assert.deepEqual(review.unused, ['aaaaaaaa'])
+    assert.deepEqual(review.items.map((row) => row.siteId), review.items.map((row) => row.siteId).sort())
+    assert.deepEqual(review.items.find((row) => row.siteId === muted.siteId),
+      { siteId: muted.siteId, reason: 'one page only', date: '2026-11-11', matched: true })
+    assert.deepEqual(review.items.find((row) => row.siteId === 'aaaaaaaa'),
+      { siteId: 'aaaaaaaa', reason: 'stale', date: '2026-02-02', matched: false })
+    // The panel's rows and the text review answer the same question from the same data.
+    const suppress = registered.commands.find((entry) => entry.name === 'guidance-suppress')
+    const text = (await suppress.handler({ rawInput: '--review', ...headerAt(workspace) })).text
+    assert.match(text, /one page only/)
+
+    // A scan that read one file of two cannot prove anything about the entry it did not reach: the rows
+    // go `matched: null`, `unused` stays `null` — and the counts keep saying what the scan did see.
+    raiseScan(registered, await runTool(['src/legacy.js']))
+    await settle()
+    const narrow = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
+    const unproven = narrow.lastScan.suppressions
+    assert.equal(unproven.entries, 2)
+    assert.equal(unproven.matching, 1)
+    assert.equal(unproven.unused, null, 'a narrow scan must not call anything unused')
+    assert.deepEqual(unproven.items.map((row) => [row.siteId, row.matched]), [
+      ...unproven.items.map((row) => row.siteId),
+    ].sort().map((siteId) => [siteId, null]))
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await removeHome(home)
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable suppression file is no review, and an empty one is a review with no rows', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('review-states')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    await mkdir(join(workspace, 'src'), { recursive: true })
+    await writeFile(join(workspace, 'src/legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+    const scanTool = registered.tools.find((tool) => tool.name === 'web_guidance_legacy_scan')
+    const runTool = () => scanTool.execute({ paths: ['src'] }, { agent: { session: { header: { cwd: workspace } } } })
+    const command = statsCommand(registered)
+
+    // Readable but empty: the scan did read a file and found no entries, so the block is a fact —
+    // `entries: 0` and an empty row list. That is a different state from "no review at all".
+    await writeFile(join(workspace, '.suppress'), '{"version":1,"entries":{}}\n', 'utf8')
+    raiseScan(registered, await runTool())
+    await settle()
+    const empty = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
+    assert.deepEqual(empty.lastScan.suppressions, { entries: 0, matching: 0, unused: [], items: [] })
+
+    // Unparsable: whatever the file says, this reader cannot honour an entry, so there is no join to
+    // report — and a block of zeros would claim a file that was read and found empty.
+    await writeFile(join(workspace, '.suppress'), '{"version":1,"entries":{\n', 'utf8')
+    raiseScan(registered, await runTool())
+    await settle()
+    const broken = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
+    assert.equal('suppressions' in broken.lastScan, false)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await removeHome(home)
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
 //#endregion

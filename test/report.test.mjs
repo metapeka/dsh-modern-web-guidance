@@ -1469,3 +1469,55 @@ test('renderJson carries the review on the last scan, clamped, and says nothing 
   const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: { entries: 4, matching: 2, unused: [] } } })
   assert.doesNotMatch(text, /[Ss]uppression/)
 })
+
+test('renderJson carries the review rows as the panel needs them, and invents nothing', () => {
+  const items = [
+    { siteId: 'bbbbbbbb', reason: 'stale', date: '2026-02-02', matched: false },
+    { siteId: 'aaaaaaaa', reason: 'kept', matched: true },
+  ]
+  const json = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressions: { entries: 2, matching: 1, unused: ['bbbbbbbb'], items } },
+  })
+  // The rows are the whole reason this member exists: a surface that only reads JSON can say which
+  // entry is dead, when it was written and why — the answer `--review` prints in prose. They are
+  // sorted by site id like the ids beside them, so one document always renders one string.
+  assert.deepEqual(json.lastScan.suppressions.items, [
+    { siteId: 'aaaaaaaa', reason: 'kept', matched: true },
+    { siteId: 'bbbbbbbb', reason: 'stale', date: '2026-02-02', matched: false },
+  ])
+  // No path, no snippet, no rule id: the file stores a hash for exactly that reason, and a row that
+  // carried one would be reconstructing what the hash exists to forget.
+  for (const row of json.lastScan.suppressions.items) {
+    assert.deepEqual(Object.keys(row).filter((key) => !['siteId', 'date', 'reason', 'matched'].includes(key)), [])
+  }
+
+  // An unproven verdict stays unproven: `null` is not `false`, and a report must not turn one into the
+  // other — the entry might match, and this scan simply did not look everywhere.
+  const unproven = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressions: { entries: 2, matching: 1, unused: null, items: [{ siteId: 'aaaaaaaa', matched: null }] } },
+  })
+  assert.deepEqual(unproven.lastScan.suppressions, { entries: 2, matching: 1, unused: null, items: [{ siteId: 'aaaaaaaa', matched: null }] })
+
+  // A row that does not survive re-validation is dropped, and so is a list that is not a list — while
+  // the counts keep standing, because dropping a row never invalidates how many entries were counted.
+  const rotten = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressions: { entries: 3, matching: 2, unused: ['cccccccc'], items: [{ siteId: 'nope' }, null, { siteId: 'aaaaaaaa', matched: 'yes' }] } },
+  })
+  assert.deepEqual(rotten.lastScan.suppressions, {
+    entries: 3,
+    matching: 2,
+    unused: ['cccccccc'],
+    items: [{ siteId: 'aaaaaaaa', matched: null }],
+  })
+  const noList = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: { entries: 1, matching: 0, unused: ['aaaaaaaa'], items: {} } } })
+  assert.deepEqual(noList.lastScan.suppressions, { entries: 1, matching: 0, unused: ['aaaaaaaa'] })
+
+  // A document from before the rows existed renders the 0.12.0 JSON exactly: the member is additive,
+  // and absence of rows must never appear as an empty list the panel could render as "nothing here".
+  const older = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, suppressions: { entries: 1, matching: 0, unused: ['aaaaaaaa'] } } })
+  assert.deepEqual(older.lastScan.suppressions, { entries: 1, matching: 0, unused: ['aaaaaaaa'] })
+  assert.equal('items' in older.lastScan.suppressions, false)
+})
