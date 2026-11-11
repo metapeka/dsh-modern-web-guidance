@@ -238,6 +238,17 @@ languages in the same commit.
   place**: the refresh after a confirmed write restores `scrollTop` and brings the outcome into view,
   because the measured behaviour was a jump to the top with the answer below the fold, which reads as a
   failure to the person who just confirmed. One write block, chosen by `write.target`, never two.
+- **The panel states the slope, and a rise looks like a drop** (0.13.0, F-1 panel): one line under the
+  comparison, wearing the comparison's own style object, so nothing about the line suggests a recovery —
+  `delta` is never read for styling, because the two halves already say the direction. The caption is the
+  host's own words (`Slope:` included) rather than a second phrasing of the same measurement, and it does
+  real work: without it a refused comparison and a refused slope would both read `not comparable (…)` with
+  nothing saying which claim refused. The four tokens (`too-few-scans`, `branch-changed`, `no-files`,
+  `aggregate`) print raw and untranslated like every guard token, `aggregate` included — that is F-1's
+  deliberate deviation from B, and the panel must not filter it. `no-files` names a half when the host
+  sends one and never invents one; `branch-changed` renders the host's branch labels raw, because a
+  disagreement the reader cannot see is a verdict rather than a measurement. An absent member, a `null`, a
+  non-numeric rate or a missing sample renders **nothing** — no caption, no placeholder, no zero.
 - **Every panel action leaves a command row in the conversation, and that is the accepted price** (0.12.0):
   `ctx.remote.commands.execute` renders each `/guidance-stats --format json` and
   `/guidance-scan . --format json` line the panel runs as a truncated JSON block in the transcript, so the
