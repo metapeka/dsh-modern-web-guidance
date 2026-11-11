@@ -4,11 +4,13 @@
  * Three things every test file that writes into `.tmp` needs and none of them should spell its own:
  * a removal that retries the way Windows needs, a sweep for what an earlier failed run left behind,
  * and one directory name the suite owns. A teardown copied into six files is six chances to fix a
- * flake in one of them.
+ * flake in one of them. A fourth arrived later: the wait for the counters write no test can await,
+ * which has to know *which* profile it is waiting for and must never ask the environment.
  */
 import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
+import { defaultStatePath } from '../lib/store.js'
 import { PACKAGE_DIR } from './paths.mjs'
 
 /** The ignored scratch directory at the repo root; every throwaway root the suite makes lives here. */
@@ -33,6 +35,10 @@ const CLEAN_RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
  * could delete a directory another run is using right now.
  */
 const STALE_AFTER_MS = 10 * 60 * 1000
+
+/** How long `settleCounters` watches a write in flight: 25 polls of 10 ms after the debounce's window. */
+const SETTLE_POLLS = 25
+const SETTLE_POLL_MS = 10
 
 /**
  * Remove one path, retrying the way Windows needs.
@@ -121,4 +127,46 @@ async function statOf(path) {
   } catch {
     return null
   }
+}
+
+/**
+ * Wait until the counters write a test cannot await has landed, or until it never will.
+ *
+ * The plugin debounces that write and `void`s the promise (`scheduleSave` in `index.js`), so a test
+ * can neither await it nor be told when it finished: a fixed sleep is a guess, and at suite load it
+ * lost about once in twenty runs — the read found no `stats.json` yet, or a teardown raced the write's
+ * `rename` and answered `EBUSY`. So the wait gives the debounce its window, then stops as soon as the
+ * file has stopped changing. A save makes the directory before it renames the file into place, so a
+ * missing file beside an existing `storage/` is a write still in progress, while a missing `storage/`
+ * is a write that never came — and the wait returns at once instead of burning its poll budget.
+ *
+ * `home` is an argument, never `process.env.DSH_PROFILE_DIR`. Under `--test-isolation=none` one process
+ * serves every file and three of them point that variable at fixtures of their own, so an ambient read
+ * makes a teardown wait on — and then remove — a directory that belongs to another test. Passing the
+ * path also makes the wait readable: it is about *that* profile.
+ *
+ * @param {string} home the profile whose counters write is in flight
+ * @returns {Promise<void>}
+ */
+export async function settleCounters(home) {
+  if (typeof home !== 'string' || home === '') {
+    throw new TypeError('settleCounters() needs the home whose counters write it is waiting for')
+  }
+  // The debounce window: nothing the plugin flushed can land sooner, and polling before it is wasted.
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  const file = defaultStatePath(home)
+  let previous = null
+  for (let attempt = 0; attempt < SETTLE_POLLS; attempt += 1) {
+    const size = await sizeOf(file)
+    if (size !== null && size === previous) return
+    if (size === null && (await statOf(dirname(file))) === null) return
+    previous = size
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
+  }
+}
+
+/** One path's size, or null when it is not there — the one fact `settleCounters` compares between polls. */
+async function sizeOf(path) {
+  const stats = await statOf(path)
+  return stats === null ? null : stats.size
 }

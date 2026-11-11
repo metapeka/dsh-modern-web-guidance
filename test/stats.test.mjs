@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, stat as statFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { test } from 'node:test'
 
@@ -8,13 +8,9 @@ import { renderJson, renderReport } from '../lib/report.js'
 import { RULES } from '../lib/scan-rules.js'
 import { createFileStore } from '../lib/store.js'
 import { classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
-import { makeScratchDir, removeTree, sweepStale, TMP_DIR } from './tmp.mjs'
+import { makeScratchDir, removeTree, settleCounters, sweepStale, TMP_DIR } from './tmp.mjs'
 
 const scratch = TMP_DIR
-
-/** How long `settle` keeps watching a write in flight: 25 polls of 10 ms after the debounce's window. */
-const SETTLE_POLLS = 25
-const SETTLE_POLL_MS = 10
 
 /** Sweep the roots an earlier failed run left behind, before this run creates any of its own. */
 await sweepStale(['stats-home', 'stats-legacy'])
@@ -87,57 +83,16 @@ function createContext() {
 }
 
 /**
- * Close the plugin instances this test applied, so no debounced save outlives its home, then remove
- * the home. Every test in this file ends with this instead of a bare `rm`.
+ * Close the plugin instances this test applied, so no debounced save outlives its home, then wait for
+ * the flush and remove the home. Every test in this file ends with this instead of a bare `rm` —
+ * and the wait is told *which* home it is waiting for, never left to read the process environment.
  */
 async function removeHome(home) {
   for (const registered of openPlugins.splice(0)) {
     for (const dispose of registered.disposers) dispose()
   }
-  await settle()
+  await settleCounters(home)
   await removeTree(home)
-}
-
-/**
- * Let the fire-and-forget recording chain settle before reading the counters.
- *
- * The plugin debounces its write and `void`s the promise (`scheduleSave` in `index.js`), so nothing in
- * a test can await the flush — a fixed sleep is a guess, and at suite load it lost about once in
- * twenty runs: the read found no `stats.json` yet, or the teardown raced the write's `rename` and
- * answered `EBUSY`. So the wait is adaptive rather than a guess. It still gives the debounce its
- * window, then stops as soon as the counters file has stopped changing; while the write is in flight
- * (its `storage` directory already made, its file not yet renamed into place) it keeps waiting, and a
- * profile that is never written returns at once instead of burning the deadline.
- */
-async function settle() {
-  await new Promise((resolve) => setTimeout(resolve, 20))
-  const home = process.env.DSH_PROFILE_DIR
-  if (typeof home !== 'string' || home === '') return
-  const file = countersFile(home)
-  let previous = null
-  for (let attempt = 0; attempt < SETTLE_POLLS; attempt += 1) {
-    const size = await sizeOf(file)
-    if (size !== null && size === previous) return
-    // A save makes the directory before it renames the file into place, so a missing file beside an
-    // existing `storage/` is a write in progress; a missing `storage/` is a write that never came.
-    if (size === null && !(await exists(dirname(file)))) return
-    previous = size
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
-  }
-}
-
-/** One path's size, or null when it does not exist — the one fact `settle` compares between polls. */
-async function sizeOf(path) {
-  try {
-    return (await statFile(path)).size
-  } catch {
-    return null
-  }
-}
-
-/** Whether a path exists, without caring what it is. */
-async function exists(path) {
-  return (await sizeOf(path)) !== null
 }
 
 test('the plugin registers four tools, two skills and one human command', async () => {
@@ -172,7 +127,7 @@ test('a finished search is counted and the command renders the report', async ()
     { name: 'web_guidance_search', arguments: { query: 'dialog light dismiss' } },
     { isError: false, value: { results: [{ id: 'css-anchor', category: 'css' }] } },
   )
-  await settle()
+  await settleCounters(home)
 
   const report = await registered.commands.find((command) => command.name === 'guidance-stats').handler({ rawInput: '' })
 
@@ -215,7 +170,7 @@ test('--reset asks for confirmation, then erases the counters', async () => {
     { name: 'web_guidance_search', arguments: { query: 'nothing matches this' } },
     { isError: false, value: { results: [] } },
   )
-  await settle()
+  await settleCounters(home)
 
   const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
   const refused = await command.handler({ rawInput: '--reset' })
@@ -482,7 +437,7 @@ test('a legacy-scan result is counted through the plugin listener', async () => 
       { name: 'web_guidance_legacy_scan', arguments: { paths: ['src'] } },
       { isError: false, value: scanResult({ files: 12, findings: 2 }) },
     )
-    await settle()
+    await settleCounters(home)
 
     const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
     const report = await command.handler({ rawInput: '' })
@@ -529,7 +484,7 @@ test('/guidance-stats --json describes the scan ids the host knows', async () =>
         },
       },
     )
-    await settle()
+    await settleCounters(home)
 
     const command = registered.commands.find((entry) => entry.name === 'guidance-stats')
     const json = JSON.parse((await command.handler({ rawInput: '--json' })).text)
@@ -618,7 +573,7 @@ test('the default report is the session workspace, and --workspace switches it b
     // The value carries the workspace that was read: that is the only attribution path there is.
     raiseScan(registered, scanAt(first, { files: 3, findings: 2 }))
     raiseScan(registered, scanAt(second, { files: 4, findings: 1 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     // No selector: the session header's workspace, not the aggregate and not the process directory.
@@ -685,7 +640,7 @@ test('without a session header the report aggregates and says why', async () => 
   try {
     apply(ctx, {})
     raiseScan(registered, scanAt(dir, { files: 2, findings: 1 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     // The invocation carries no header at all: process.cwd() must not stand in for the project.
@@ -713,7 +668,7 @@ test('an unknown or ambiguous selector is an error that lists what exists', asyn
   try {
     apply(ctx, {})
     raiseScan(registered, scanAt(first, { files: 1, findings: 1 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     const unknown = await command.handler({ rawInput: '--workspace no-such-project', ...headerAt(second) })
@@ -748,7 +703,7 @@ test('--workspace and --all together are refused before anything is read', async
   try {
     apply(ctx, {})
     raiseScan(registered, scanAt(dir, { files: 1, findings: 1 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     for (const rawInput of [`--workspace ${basename(dir)} --all`, `--all --workspace=${basename(dir)}`]) {
@@ -781,7 +736,7 @@ test('a scan run through the tool is attributed to the workspace it read', async
     // The tool's return value is not the counters' trigger in this fake host: raise the event the
     // host raises, exactly as test/scan-command.test.mjs does.
     raiseScan(registered, value)
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     const report = await command.handler({ rawInput: '', ...headerAt(dir) })
@@ -810,7 +765,7 @@ test('the legacy root counters appear as the _unattributed workspace and stay se
     // A scan whose value carries no cwd is a pre-D caller: its debt stays in the root counters.
     const { cwd: _ignored, ...headerless } = scanResult({ files: 6, findings: 3 })
     raiseScan(registered, headerless)
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     // The aggregate carries the legacy last scan; the session's own scoped report below must not.
@@ -855,7 +810,7 @@ test('two checkouts with one name are refused by name and selected by id or rela
     apply(ctx, {})
     raiseScan(registered, scanAt(left, { files: 2, findings: 1 }))
     raiseScan(registered, scanAt(right, { files: 5, findings: 2 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     const leftId = workspaceId(realpathSync(left))
@@ -955,7 +910,7 @@ test('a scan call still returns the value and the text it always did, byte for b
     )
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -985,10 +940,10 @@ test('the ignore audit is stored as two counts, and no pattern text reaches stat
     ])
 
     raiseScan(registered, value)
-    await settle()
+    await settleCounters(home)
     // Disposing the plugin flushes the counters, which is the only way to read what was written down.
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
 
     const raw = await readFile(countersFile(home), 'utf8')
     assert.equal(raw.includes('very-specific-path'), false, 'stats.json kept a .scanignore pattern')
@@ -1019,7 +974,7 @@ test('two scans of one workspace produce the comparison line and a two-row ring'
     // what a real scan call produces — nothing is fabricated for the history.
     const scan = async () => {
       raiseScan(registered, await tool.execute({ paths: ['.'] }, header))
-      await settle()
+      await settleCounters(home)
     }
     const report = async (rawInput = '') => (await command.handler({ rawInput, ...header })).text
 
@@ -1055,7 +1010,7 @@ test('two scans of one workspace produce the comparison line and a two-row ring'
     assert.equal(wider.scanHistory.length, 2)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1072,13 +1027,13 @@ test('the counters are given the rule table, so a table change can be detected',
     apply(ctx, {})
     const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
     raiseScan(registered, await tool.execute({ paths: ['.'] }, headerAt(workspace)))
-    await settle()
+    await settleCounters(home)
 
     // The baseline records the size of the table at scan time. Without `ruleIds` the counters would
     // claim no table at all, and a plugin upgrade that adds a rule would report every site of it as
     // new instead of suppressing the comparison.
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     const stored = JSON.parse(await readFile(countersFile(home), 'utf8'))
     const buckets = Object.values(stored.workspaces)
     assert.equal(buckets.length, 1)
@@ -1109,7 +1064,7 @@ test('a suppressed finding reaches the report as its own line and never as a fix
       // The value is shaped once and raised through the host event, exactly as a real call would be.
       const value = await tool.execute({ paths: ['.'] }, header)
       raiseScan(registered, value)
-      await settle()
+      await settleCounters(home)
       return value
     }
     const report = async (rawInput = '') => (await command.handler({ rawInput, ...header })).text
@@ -1149,7 +1104,7 @@ test('a suppressed finding reaches the report as its own line and never as a fix
     assert.equal(json.scanDiff.partial, null)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1185,7 +1140,7 @@ test('a scans reset keeps every call counter, and never touches the suppression 
     )
     raiseScan(registered, scanAt(alpha, { files: 4, findings: 2 }))
     raiseScan(registered, scanAt(beta, { files: 1, findings: 1 }))
-    await settle()
+    await settleCounters(home)
     await writeFile(join(alpha, '.suppress'), SUPPRESS_BYTES, 'utf8')
 
     const command = statsCommand(registered)
@@ -1216,7 +1171,7 @@ test('a scans reset keeps every call counter, and never touches the suppression 
     assert.match(report.text, /0 finding/)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(alpha, { recursive: true, force: true })
     await rm(beta, { recursive: true, force: true })
@@ -1239,7 +1194,7 @@ test('a workspace reset erases one bucket and leaves the other workspace standin
     )
     raiseScan(registered, scanAt(alpha, { files: 4, findings: 2 }))
     raiseScan(registered, scanAt(beta, { files: 1, findings: 1 }))
-    await settle()
+    await settleCounters(home)
     await writeFile(join(alpha, '.suppress'), SUPPRESS_BYTES, 'utf8')
 
     const command = statsCommand(registered)
@@ -1266,7 +1221,7 @@ test('a workspace reset erases one bucket and leaves the other workspace standin
     assert.match(gone.text, /^Error: unknown workspace /)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(alpha, { recursive: true, force: true })
     await rm(beta, { recursive: true, force: true })
@@ -1287,7 +1242,7 @@ test('a bare --reset --yes still wipes exactly what it always wiped, and only th
       { isError: false, value: { results: [] } },
     )
     raiseScan(registered, scanAt(workspace, { files: 3, findings: 2 }))
-    await settle()
+    await settleCounters(home)
     await writeFile(join(workspace, '.suppress'), SUPPRESS_BYTES, 'utf8')
 
     const command = statsCommand(registered)
@@ -1308,7 +1263,7 @@ test('a bare --reset --yes still wipes exactly what it always wiped, and only th
     assert.match(empty.text, /No calls recorded in the last 7 days/)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1323,7 +1278,7 @@ test('a reset names one slice, and a selector it cannot honour is refused before
   try {
     apply(ctx, {})
     raiseScan(registered, scanAt(workspace, { files: 2, findings: 1 }))
-    await settle()
+    await settleCounters(home)
 
     const command = statsCommand(registered)
     const conflict = await command.handler({ rawInput: '--reset --yes --scan-only --workspace app', ...headerAt(workspace) })
@@ -1347,7 +1302,7 @@ test('a reset names one slice, and a selector it cannot honour is refused before
     assert.match(report.text, new RegExp(`Workspace: ${basename(workspace)} \\([0-9a-f]{8}\\)`))
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1362,7 +1317,7 @@ test('a window reset through the command erases the window and keeps the lifetim
   try {
     apply(ctx, {})
     raiseScan(registered, scanAt(workspace, { files: 2, findings: 2 }))
-    await settle()
+    await settleCounters(home)
     await writeFile(join(workspace, '.suppress'), SUPPRESS_BYTES, 'utf8')
 
     const command = statsCommand(registered)
@@ -1382,7 +1337,7 @@ test('a window reset through the command erases the window and keeps the lifetim
     assert.deepEqual(bucket.scanRules, { 'ls-01': 1, 'ls-02': 1 })
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1425,7 +1380,7 @@ test('a removal changes the suppression file and no counter anywhere else', asyn
     // One completed scan, muted or not: the counters now hold a last scan, a history row, a day row
     // and a site baseline, which is every member a removal could conceivably disturb.
     raiseScan(registered, scanAt(workspace, { files: 1, findings: 1, muted: 1 }))
-    await settle()
+    await settleCounters(home)
     const command = statsCommand(registered)
     const suppress = registered.commands.find((entry) => entry.name === 'guidance-suppress')
 
@@ -1465,7 +1420,7 @@ test('a removal changes the suppression file and no counter anywhere else', asyn
     assert.equal(bucket.lastScan.suppressions, undefined)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1500,7 +1455,7 @@ test('the review reaches the panel row by row, and a verdict only where a scan c
     // A complete scan of the same two files: both entries are listed with what the file stores, and the
     // verdict is provable because the scan could have seen either of them.
     raiseScan(registered, await runTool(['src']))
-    await settle()
+    await settleCounters(home)
     const command = statsCommand(registered)
     const wide = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
     const review = wide.lastScan.suppressions
@@ -1520,7 +1475,7 @@ test('the review reaches the panel row by row, and a verdict only where a scan c
     // A scan that read one file of two cannot prove anything about the entry it did not reach: the rows
     // go `matched: null`, `unused` stays `null` — and the counts keep saying what the scan did see.
     raiseScan(registered, await runTool(['src/legacy.js']))
-    await settle()
+    await settleCounters(home)
     const narrow = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
     const unproven = narrow.lastScan.suppressions
     assert.equal(unproven.entries, 2)
@@ -1531,7 +1486,7 @@ test('the review reaches the panel row by row, and a verdict only where a scan c
     ].sort().map((siteId) => [siteId, null]))
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
@@ -1555,7 +1510,7 @@ test('an unreadable suppression file is no review, and an empty one is a review 
     // `entries: 0` and an empty row list. That is a different state from "no review at all".
     await writeFile(join(workspace, '.suppress'), '{"version":1,"entries":{}}\n', 'utf8')
     raiseScan(registered, await runTool())
-    await settle()
+    await settleCounters(home)
     const empty = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
     assert.deepEqual(empty.lastScan.suppressions, { entries: 0, matching: 0, unused: [], items: [] })
 
@@ -1563,12 +1518,12 @@ test('an unreadable suppression file is no review, and an empty one is a review 
     // report — and a block of zeros would claim a file that was read and found empty.
     await writeFile(join(workspace, '.suppress'), '{"version":1,"entries":{\n', 'utf8')
     raiseScan(registered, await runTool())
-    await settle()
+    await settleCounters(home)
     const broken = JSON.parse((await command.handler({ rawInput: '--json', ...headerAt(workspace) })).text)
     assert.equal('suppressions' in broken.lastScan, false)
   } finally {
     for (const dispose of registered.disposers) dispose()
-    await settle()
+    await settleCounters(home)
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }

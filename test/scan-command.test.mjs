@@ -10,25 +10,21 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readdir, readFile, stat as statFile, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { after, test } from 'node:test'
 
 import { apply } from '../index.js'
 import { siteId } from '../lib/site.js'
 import { PACKAGE_DIR } from './paths.mjs'
-import { makeScratchDir, removeTree, sweepStale } from './tmp.mjs'
+import { makeScratchDir, removeTree, settleCounters, sweepStale } from './tmp.mjs'
 
 const DIRTY = 'test/fixtures/scan/dirty'
 const CLEAN = 'test/fixtures/scan/clean'
 
 /** Sweep the profiles an earlier failed run left behind, before this run creates any of its own. */
 await sweepStale(['scan-command'])
-
-/** How long `quiet` keeps watching a flush: 25 polls of 10 ms after the settle window. */
-const SETTLE_POLLS = 25
-const SETTLE_POLL_MS = 10
 
 // The counters are pointed at a throwaway profile by the tests that need them; put the environment
 // back afterwards so this file cannot leak its profile into another file in the same process.
@@ -146,7 +142,7 @@ async function isolatedProfile(t, label = 'counters') {
     // Close what the test left open, then let the flush land, then remove: a save that arrives after
     // the removal re-creates the very directory this hook exists to delete.
     for (const dispose of openInstances.splice(0)) dispose()
-    await quiet(home)
+    await settleCounters(home)
     await removeTree(home)
   })
   process.env.DSH_PROFILE_DIR = home
@@ -157,37 +153,6 @@ async function isolatedProfile(t, label = 'counters') {
 /** The counters document the plugin writes for the active profile. */
 function countersFile(home) {
   return join(home, 'storage', 'modern-web-guidance', 'stats.json')
-}
-
-/** One path's `stat`, or null when it is not there. */
-async function statOf(path) {
-  return statFile(path).then(
-    (value) => value,
-    () => null,
-  )
-}
-
-/**
- * Wait for a write in flight to land before the directory it writes into goes.
- *
- * `dispose()` flushes with `void save()`, so nothing can await it and a fixed sleep is a guess — the
- * one this file used to lose: the teardown removed the profile while the rename was still running. So
- * the wait gives the flush its window, then stops as soon as the counters file has stopped changing.
- * A save makes the directory before it renames the file into place, so a missing file beside an
- * existing `storage/` is a write in progress, while a missing `storage/` is a write that never came.
- */
-async function quiet(home) {
-  await settle()
-  const file = countersFile(home)
-  let previous = null
-  for (let attempt = 0; attempt < SETTLE_POLLS; attempt += 1) {
-    const current = await statOf(file)
-    const size = current === null ? null : current.size
-    if (size !== null && size === previous) return
-    if (size === null && (await statOf(dirname(file))) === null) return
-    previous = size
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
-  }
 }
 
 /** Let the fire-and-forget recording chain settle before reading the counters. */
