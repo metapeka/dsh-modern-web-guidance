@@ -64,7 +64,12 @@ full interface is `docs/notes/legacy-scan-contract.md`.
   `docs/notes/legacy-scan-contract.md` and covered by `test/scan-ignore.test.mjs`.
 - **A suppressed finding is muted, not fixed, and the scan still counts it.** A suppression names one code
   site by `siteId` — never a line, never a whole rule — and lives in a workspace-root file that only an
-  explicit human command appends to, after a visible confirmation ([ADR-0003](docs/adr/0003-write-surface.md)).
+  explicit human command touches, after a visible confirmation ([ADR-0003](docs/adr/0003-write-surface.md)).
+  Since 0.12.0 the file is **reviewable and shrinkable**: `/guidance-suppress --review` joins it against the
+  current scan and reports how many entries matched nothing (`unused` is `null`, never `0` or `[]`, when the
+  scan was incomplete), and `/guidance-suppress --remove <siteId>` plans first, then deletes exactly one
+  entry on a second, distinct confirmation ([ADR-0004](docs/adr/0004-suppression-removal.md)). A removal is
+  **not a fix**: it un-mutes a finding and moves no counter, so the two numbers still cannot be confused.
   The scan keeps the finding, reports it separately (`suppressed: N`) by rule, and never counts a suppressed
   site as resolved: "fixed" and "muted" must never look the same number. The scanner itself still writes
   nothing; the confirmed command is the only writer in the product.

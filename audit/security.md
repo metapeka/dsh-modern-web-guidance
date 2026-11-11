@@ -301,7 +301,8 @@ Added with phase C (2026-11-11, [ADR-0003](../docs/adr/0003-write-surface.md)). 
 in this audit that records a **write into the user's project**, so its boundary is stated here rather than
 left to the ADR's prose.
 
-- **Two actions, two files.** `<resolved workspace>/.suppress` (one JSON entry appended) and
+- **Two actions, two files.** `<resolved workspace>/.suppress` (one JSON entry appended; since 0.12.0 also
+  one entry removed — see F11) and
   `<resolved workspace>/.scanignore` (one pattern line appended). Nothing else in the product writes
   outside the profile: `/guidance-stats --reset` writes only `stats.json` (see F9's note), and "copy as
   JSON" is the clipboard, not a file.
@@ -335,9 +336,41 @@ Residual risk, accepted: the plugin process can now append inside the workspace 
 confused panel could mute a finding. Three things bound it — the write is one line to one of two fixed
 dotfiles, the target is contained and symlink-refused, and a muted finding is never hidden: it is still
 counted and reported as suppressed, so the numbers keep the evidence. A suppression is a reviewable file
-in the user's repository, not a hidden setting. The write cannot delete, cannot escape the workspace,
-cannot touch source code or `.git`, and cannot be triggered by the model: no write tool exists, and the
-four model-facing tools still have no write API.
+in the user's repository, not a hidden setting. The write cannot escape the workspace, cannot touch source
+code or `.git`, and cannot be triggered by the model: no write tool exists, and the four model-facing
+tools still have no write API. (F11 narrows one clause of this paragraph: since 0.12.0 the writer *can*
+delete — exactly one named entry from `.suppress`, after a plan and a second confirmation.)
+
+---
+
+## F11 — Info — 0.12.0: the first removal, and it removes exactly one entry
+
+Added with phase E-3 (2026-11-11, [ADR-0004](../docs/adr/0004-suppression-removal.md)), which amends
+F10's "the write cannot delete". A suppression could be added and never taken away, so the list only grew
+and nothing said an entry had stopped matching anything; `--review` and `--remove` answer that.
+
+- **The delete is one entry, in one file.** `<resolved workspace>/.suppress` loses exactly one member and
+  one separator; no other file is opened for writing, `.scanignore` has no delete, and source code, `.git`
+  and the profile are untouched. The removal is a byte cut of the parsed member, re-parsed before the
+  rename — the writer still never rebuilds the file from a model, so comments and formatting survive.
+- **Review never writes.** `--suppress --review` is the read half: it joins the file against the current
+  scan and prints entries, matching and unused. `unused` is `null`, never `0` or `[]`, when the scan was
+  incomplete — an incomplete scan cannot prove an entry is dead, and a zero there would be a claim.
+- **A removal is not a fix, and it moves no counter.** The counters document stays byte-identical and the
+  report character-identical through a removal; `lastScan.suppressed` keeps the count it was given. There
+  is no `resolved`/`fixed` word anywhere, because deleting a suppression un-mutes a finding rather than
+  proving it went away.
+- **Plan, then apply; refusals are errors.** `--remove <siteId>` answers `--dry-run` with the target and
+  what would change, and applies only on the same line without the flag. An absent target is a **named
+  no-op**; a file that cannot be re-parsed afterwards, a version mismatch, or a failed rename leaves the
+  file byte-identical and returns an error with a code. Seven argument combinations are refused by name.
+- **Containment and authority are F10's.** Same resolved workspace, same literal filename, same realpath
+  and symlink refusal, same temp+rename, no network, no spawn — and the model still has no write tool.
+
+Residual risk, accepted: the plugin can now *remove* one human-written line, so a confused caller could
+un-mute a finding it should have left muted. The bound is that nothing is deleted except a member the
+same command just named and planned, the un-muted state is not silent (the next scan counts the site
+again), and no counter is rewritten to hide the difference.
 
 ---
 
