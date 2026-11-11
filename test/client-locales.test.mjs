@@ -1448,6 +1448,58 @@ test('muting asks for a plan, writes only on the second click, and reports the o
   assert.equal(typeof buttonOf(done, EN.get('scan.muteConfirm')), 'undefined', 'the plan outlived its confirmation')
 })
 
+test('the mute plan opens with the panel\'s own sentence, the way the ignore plan does', async () => {
+  // The live pass found the pair asymmetric: the ignore box started with a panel sentence and the mute
+  // box was all host English, so two deliberate flows read as one flow and one accident.
+  const plan =
+    'Suppression plan for 96cb61de: append {"reason":"","at":"2026-11-11"} to /work/app/.suppress, which would go from 0 to 1 entry (cap 200). Nothing has been written; run the same line without --dry-run to write it.'
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-suppress 96cb61de --dry-run': textEnvelope(plan),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.mute')).props.onClick()
+  const planned = await settle(panel, props)
+  const texts = textsOf(planned)
+  assert.ok(texts.includes(EN.get('scan.muteNote')), 'the mute plan has no panel-owned sentence')
+  // The note is the panel's, not a translation of the host's: the plan itself stays verbatim, and the
+  // note is the only prose above it.
+  assert.ok(texts.includes(plan), 'the host plan is no longer shown verbatim')
+  const order = elementsOf(planned)
+  const noteAt = order.findIndex((element) => element.children.includes(EN.get('scan.muteNote')))
+  const planAt = order.findIndex((element) => element.children.includes(plan))
+  assert.ok(noteAt !== -1 && planAt > noteAt, 'the note does not open the box')
+  // The ignore's sentence belongs to the ignore: a mute is not an ignore and may not borrow its words.
+  assert.equal(texts.includes(EN.get('scan.ignoreNote')), false, 'the mute plan shows the ignore note')
+})
+
+/**
+ * The panel's own sentence for a mute, beside the ignore's.
+ *
+ * It is not in `SUPPRESS_KEYS`: that list is one contiguous group ending at `scan.muteFailed`, and the
+ * ignore group must follow it immediately, so the two notes sit together after both groups instead.
+ */
+test('the mute note exists in all three dictionaries, and claims no fix', () => {
+  assert.ok(CLIENT_SOURCE.includes("t('scan.muteNote')"), 'client.js never renders scan.muteNote')
+  assert.equal(placeholders(EN.get('scan.muteNote')).length, 0, 'the mute note takes no placeholder')
+  for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+    const text = dictionary.get('scan.muteNote')
+    assert.notEqual(text, undefined, `${name} has no scan.muteNote`)
+    assert.notEqual(text, dictionary.get('scan.ignoreNote'), `${name}.scan.muteNote is the ignore note`)
+    assert.doesNotMatch(text, /fixed|исправлено|已修复/i, `${name}.scan.muteNote claims a fix`)
+  }
+  for (const [name, dictionary] of [['RU', RU], ['ZH', ZH]]) {
+    assert.notEqual(dictionary.get('scan.muteNote'), EN.get('scan.muteNote'), `${name}.scan.muteNote is copied from English`)
+  }
+  assert.match(RU.get('scan.muteNote'), /[\u0400-\u04ff]/, 'RU.scan.muteNote is not Russian')
+  assert.match(ZH.get('scan.muteNote'), CJK, 'ZH.scan.muteNote has no Chinese text')
+  // A muted finding is counted, not removed: the sentence has to say what the scan still does with it.
+  assert.match(EN.get('scan.muteNote'), /still counts/i, 'the mute note does not say the finding is still counted')
+  assert.match(EN.get('scan.muteNote'), /suppressed/i, 'the mute note does not say how the finding is reported')
+})
+
 test('an "already present" answer is the no-op the host names, and it is shown as one', async () => {
   const noop = '96cb61de is already in /work/app/.suppress — nothing written'
   const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
@@ -1658,8 +1710,8 @@ test('the ignore strings exist in all three dictionaries, in the contract order'
   assert.notEqual(EN.get('scan.ignore'), EN.get('scan.mute'))
 })
 
-/** The strings the copy action added: the button in its three states. */
-const COPY_KEYS = ['copy.json', 'copy.done', 'copy.failed']
+/** The strings the copy action added: the button in its four states. */
+const COPY_KEYS = ['copy.json', 'copy.done', 'copy.failed', 'copy.timeout']
 
 test('the copy strings exist in all three dictionaries and are rendered', () => {
   for (const key of COPY_KEYS) {
@@ -1851,6 +1903,57 @@ test('a clipboard that refuses is reported, and a page without one gets no butto
   // No clipboard on this page — an insecure origin, a shell that mounts none: no button at all.
   const plain = await mountPanel(reportOf())
   assert.equal(buttonOf(plain.tree, EN.get('copy.json')), undefined, 'a page without a clipboard offers a copy')
+})
+
+/** The copy's bounded wait, read from the source: the test cannot import the browser module. */
+const COPY_TIMEOUT_MS = Number(/const COPY_TIMEOUT_MS = (\d+)/.exec(CLIENT_SOURCE)?.[1])
+
+test('a clipboard that never settles is reported as a failure, not left looking idle', async (t) => {
+  // This is the live-host defect, reproduced: a window without OS focus parks `writeText()`, so it
+  // settles neither way and a label that only moves on `then`/`catch` stays on `copy.json` forever —
+  // a working copy and a dead button look identical. Resolve and reject alone would not have caught it.
+  assert.ok(
+    Number.isSafeInteger(COPY_TIMEOUT_MS) && COPY_TIMEOUT_MS > 0,
+    'client.js has no named, positive COPY_TIMEOUT_MS',
+  )
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const clipboard = { writeText: () => new Promise(() => {}) }
+  const { tree, panel, props } = await mountPanel(reportOf(), { navigator: { clipboard } })
+  buttonOf(tree, EN.get('copy.json')).props.onClick()
+  // While the write is in flight the label has not moved: it claims nothing it does not know.
+  const waiting = await settle(panel, props)
+  assert.equal(typeof buttonOf(waiting, EN.get('copy.json')), 'object', 'the label answered before the copy did')
+  assert.equal(buttonOf(waiting, EN.get('copy.done')), undefined, 'a parked copy is reported as done')
+  t.mock.timers.tick(COPY_TIMEOUT_MS)
+  const answered = await settle(panel, props)
+  assert.equal(typeof buttonOf(answered, EN.get('copy.timeout')), 'object', 'a parked copy reports nothing at all')
+  assert.equal(buttonOf(answered, EN.get('copy.done')), undefined, 'a copy nobody saw land is reported as done')
+  // The timeout is its own sentence: "did not answer" is not "refused", and the panel must not
+  // pretend it knows which one it was.
+  assert.equal(buttonOf(answered, EN.get('copy.failed')), undefined, 'a timeout is reported as a refusal')
+})
+
+test('a copy that lands after the timeout does not turn the failure back into a success', async (t) => {
+  // The honesty direction: once the panel has said it could not copy, a late resolve proves only that
+  // the write was slow. Flipping the label to `JSON copied` would retract a true statement, so the
+  // late success must find the race already settled. A `writeText().then(done)` without the race
+  // would show `copy.done` here, which is exactly the implementation this test rejects.
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let land
+  const clipboard = {
+    writeText: () =>
+      new Promise((resolve) => {
+        land = resolve
+      }),
+  }
+  const { tree, panel, props } = await mountPanel(reportOf(), { navigator: { clipboard } })
+  buttonOf(tree, EN.get('copy.json')).props.onClick()
+  t.mock.timers.tick(COPY_TIMEOUT_MS)
+  await new Promise((resolve) => setImmediate(resolve))
+  land()
+  const late = await settle(panel, props)
+  assert.equal(typeof buttonOf(late, EN.get('copy.timeout')), 'object', 'a late copy silently overwrote the timeout')
+  assert.equal(buttonOf(late, EN.get('copy.done')), undefined, 'a late copy claims the user was told it worked')
 })
 
 test('with nothing to copy the copy action is absent, not broken', async () => {

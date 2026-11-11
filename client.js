@@ -81,6 +81,15 @@ window.__ModuleLoader__.load({
     /** Recent scans the panel lists: the ring keeps 20, a rail shows the five that answer "when". */
     const MAX_HISTORY_ROWS = 5
     const MAX_TOOL_ROWS = 16
+    /**
+     * How long the copy button waits for the clipboard before it says it could not.
+     *
+     * `navigator.clipboard.writeText()` is a browser promise that is allowed to stay pending: a window
+     * without OS focus parks the write, and a permission prompt nobody sees does the same. The button's
+     * label is the whole answer to the click, so a copy the panel never saw land is reported as a
+     * failure — never claimed as a success — and the wait is bounded so that answer always arrives.
+     */
+    const COPY_TIMEOUT_MS = 4000
 
     /** English dictionary: the fallback locale, so it must stay complete. */
     const EN = {
@@ -91,6 +100,7 @@ window.__ModuleLoader__.load({
       'copy.json': 'Copy as JSON',
       'copy.done': 'JSON copied',
       'copy.failed': 'The clipboard refused',
+      'copy.timeout': 'The clipboard did not answer',
       'updated': 'Updated {time}',
       'period.short': '{days} d',
       'workspace.label': 'Workspace: {name}',
@@ -150,6 +160,7 @@ window.__ModuleLoader__.load({
       'scan.ignoreConfirm': 'Append to .scanignore',
       'scan.ignoreFailed': 'The pattern was not written: {message}',
       'scan.ignoreNote': 'An ignore makes the next scan read less: that path is skipped, and the finding is not fixed.',
+      'scan.muteNote': 'A mute hides one site without fixing it: the scan still counts the finding and reports it as suppressed.',
       'row.title': 'Legacy scan',
       'row.preparing': 'Preparing the scan...',
       'row.running': 'Scanning...',
@@ -207,6 +218,7 @@ window.__ModuleLoader__.load({
       'copy.json': 'Копировать JSON',
       'copy.done': 'JSON скопирован',
       'copy.failed': 'Буфер обмена отказал',
+      'copy.timeout': 'Буфер обмена не ответил',
       'updated': 'Обновлено {time}',
       'period.short': '{days} дн.',
       'workspace.label': 'Рабочая папка: {name}',
@@ -266,6 +278,7 @@ window.__ModuleLoader__.load({
       'scan.ignoreConfirm': 'Дописать в .scanignore',
       'scan.ignoreFailed': 'Шаблон не записан: {message}',
       'scan.ignoreNote': 'Игнорирование уменьшает объём следующего сканирования: этот путь пропускается, а находка не исправляется.',
+      'scan.muteNote': 'Заглушение скрывает один участок кода, а не исправляет его: находка остаётся в сканировании и учитывается как подавленная.',
       'row.title': 'Сканер устаревшего кода',
       'row.preparing': 'Готовлю сканирование...',
       'row.running': 'Сканирую...',
@@ -327,6 +340,7 @@ window.__ModuleLoader__.load({
       'copy.json': '复制为 JSON',
       'copy.done': 'JSON 已复制',
       'copy.failed': '剪贴板拒绝了写入',
+      'copy.timeout': '剪贴板没有响应',
       'updated': '更新于 {time}',
       'period.short': '{days} 天',
       'workspace.label': '工作区：{name}',
@@ -386,6 +400,7 @@ window.__ModuleLoader__.load({
       'scan.ignoreConfirm': '追加到 .scanignore',
       'scan.ignoreFailed': '未写入模式：{message}',
       'scan.ignoreNote': '忽略只让下次扫描读得更少：该路径被跳过，问题并未修复。',
+      'scan.muteNote': '屏蔽只隐藏一处问题、并不修复它：该问题仍留在扫描结果中，并按已屏蔽计数。',
       'row.title': '遗留代码扫描',
       'row.preparing': '正在准备扫描...',
       'row.running': '正在扫描...',
@@ -1553,6 +1568,13 @@ window.__ModuleLoader__.load({
         color: 'var(--dsw-alias-label-primary)',
         font: 'inherit',
       },
+      // Two rows on a wide panel, and that is deliberate. Measured in a live host at 869px of panel
+      // (787px of content): the title block needs ~250px to keep its subtitle on one line and the four
+      // controls need ~700px, so 787px cannot hold both — fitting them would mean crushing the
+      // subtitle into a column or dropping one of the two places the workspace is named. So the header
+      // wraps instead, and the controls keep their own order. What it must not do is wrap because of a
+      // long workspace name: the chip is the one element here with ellipsis-capable text, so it is the
+      // one allowed to give way (`S.workspace` and `S.workspaceChip` shrink; the buttons never do).
       header: { display: 'flex', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' },
       headerText: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
       title: { fontSize: '16px', fontWeight: 600, lineHeight: 1.3 },
@@ -1610,9 +1632,13 @@ window.__ModuleLoader__.load({
         cursor: 'pointer',
       },
       // The workspace chip names whose numbers are on screen and the select next to it changes
-      // them. Both sit in the header beside the window switch, and both are themed like it.
-      workspace: { flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 },
+      // them. Both sit in the header beside the window switch, and both are themed like it. Only the
+      // chip shrinks: its text is the only text in this header that can be abbreviated without
+      // losing a control, and a squeezed `<select>` loses its arrow instead of its tail.
+      workspace: { flex: '0 1 auto', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 },
       workspaceChip: {
+        flex: '0 1 auto',
+        minWidth: 0,
         maxWidth: '180px',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -1626,6 +1652,7 @@ window.__ModuleLoader__.load({
         lineHeight: 1.4,
       },
       workspaceSelect: {
+        flex: '0 0 auto',
         appearance: 'none',
         maxWidth: '160px',
         border: '1px solid var(--dsw-alias-border-l2)',
@@ -2341,9 +2368,12 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { style: S.mutePlan, key: 'write-plan' },
-        // The ignore's own caption, in the panel's words: an ignore makes the next scan read less. It
-        // is never the suppression's "muted, not fixed", because it does not mute anything.
-        ignore ? h('div', { style: S.note, key: 'note' }, t('scan.ignoreNote')) : null,
+        // The panel's own sentence for the write it is about to make, and the only prose in the box
+        // that is ours: the host's plan stays verbatim underneath, because it is a command line's
+        // answer and not something to re-word. Each write gets its own — an ignore makes the next
+        // scan read less, a mute hides one site and moves no counter — so the two boxes read as two
+        // deliberate flows instead of one flow and one accident.
+        h('div', { style: S.note, key: 'note' }, ignore ? t('scan.ignoreNote') : t('scan.muteNote')),
         facts.length === 0 ? null : h('div', { style: S.note, key: 'facts' }, facts.join(' · ')),
         plan === '' ? null : h('div', { style: S.note, key: 'plan' }, plan),
         h(
@@ -2897,7 +2927,9 @@ window.__ModuleLoader__.load({
         text: '',
         message: '',
       })
-      // The copy action has three states and no other surface: the button's own label says which.
+      // The copy action has four states and no other surface: the button's own label says which —
+      // `idle`, `done`, `failed` (the write refused) and `timeout` (it never answered). The last two
+      // are different sentences because they are different facts, and only `done` may claim a copy.
       const [copied, setCopied] = useState('idle')
       const alive = useRef(true)
       // Every load takes a ticket; a response whose ticket is no longer current is dropped, so
@@ -2905,6 +2937,9 @@ window.__ModuleLoader__.load({
       const ticket = useRef(0)
       const scanTicket = useRef(0)
       const writeTicket = useRef(0)
+      // Which copy click owns the label: a timeout from an abandoned attempt must not overwrite the
+      // answer of the one the user is now waiting on.
+      const copyTicket = useRef(0)
 
       useEffect(() => {
         alive.current = true
@@ -3103,9 +3138,15 @@ window.__ModuleLoader__.load({
        * Hand the report's own JSON to the clipboard.
        *
        * No host call, no file write, no second data path: what is copied is the object the panel
-       * already received, pretty-printed. The button's label is the whole report — `JSON copied` or
-       * `The clipboard refused` — because the action is small enough that a sentence beside it would
-       * be the larger part of it.
+       * already received, pretty-printed. The button's label is the whole report — `JSON copied`, or
+       * the named failure (`The clipboard refused`, `The clipboard did not answer`) — because the
+       * action is small enough that a sentence beside it would be the larger part of it.
+       *
+       * The wait is bounded (`COPY_TIMEOUT_MS`): a write that never settles gets the same visible
+       * answer as one that was refused, because "we did not see it land" is exactly what the panel
+       * knows. A late success does not flip the label afterwards — the user has already been told it
+       * failed and pressed it again — and `copyTicket` keeps an old attempt's timeout from overwriting
+       * the answer of a newer click.
        *
        * @returns {void}
        */
@@ -3113,19 +3154,26 @@ window.__ModuleLoader__.load({
         const clipboard = clipboardOf()
         const json = typeof state.json === 'string' ? state.json : ''
         if (clipboard === undefined || json === '') return
+        const mine = copyTicket.current + 1
+        copyTicket.current = mine
         let pending
         try {
           pending = Promise.resolve(clipboard(json))
         } catch (error) {
           pending = Promise.reject(error)
         }
-        pending
-          .then(() => {
-            if (alive.current) setCopied('done')
-          })
-          .catch(() => {
-            if (alive.current) setCopied('failed')
-          })
+        // Whichever happens first is the answer: the write landing, the write refusing, or the wait
+        // running out. `timeout` is a failure of its own — it says the clipboard did not answer,
+        // which is true whether or not the parked write eventually lands.
+        let timer
+        const timedOut = new Promise((resolve) => {
+          timer = setTimeout(() => resolve('timeout'), COPY_TIMEOUT_MS)
+        })
+        const answer = (outcome) => {
+          if (timer !== undefined) clearTimeout(timer)
+          if (alive.current && copyTicket.current === mine) setCopied(outcome)
+        }
+        Promise.race([pending.then(() => 'done'), timedOut]).then(answer, () => answer('failed'))
       }, [state.json])
 
       const busy = state.status === 'loading'
@@ -3168,7 +3216,15 @@ window.__ModuleLoader__.load({
           ? h(
               'button',
               { type: 'button', style: S.action, onClick: copyReport },
-              copied === 'done' ? t('copy.done') : copied === 'failed' ? t('copy.failed') : t('copy.json'),
+              // Four states, and no fifth: the label is the whole report, so each one has to be a
+              // sentence that is true when it is on screen.
+              copied === 'done'
+                ? t('copy.done')
+                : copied === 'failed'
+                  ? t('copy.failed')
+                  : copied === 'timeout'
+                    ? t('copy.timeout')
+                    : t('copy.json'),
             )
           : null,
         h(
