@@ -1,4 +1,4 @@
-# Scan history contract (0.11.0)
+# Scan history contract (0.10.0)
 
 This note is the interface for phase B, and only the interface: no code, no test and no state change
 lands with it. `docs/ROADMAP.md:324-342` sets the goal ("answer `when` and `did the fix land`
@@ -49,7 +49,7 @@ those (`docs/ROADMAP.md:296-310`) is what this note extends rather than replaces
   normalises from absent.
 - **A missing key reads as empty, never as a zero.** A 0.10.0 document has none of these fields;
   it must load, keep counting, and render *shorter* — no invented `0 scans`, no `never`, no empty
-  block (the 0.7.3 rule, restated for 0.11.0).
+  block (the 0.7.3 rule, restated for 0.10.0).
 - **No path, no snippet, no file name, no branch as a key.** The counters promise "ids and numbers,
   never a path and never a snippet" (`README.md:367`, `README.zh.md:345`); §4 stores a hash of a path
   inside a site key and says exactly what that does and does not reveal.
@@ -104,7 +104,7 @@ Four storage lives, deliberately different:
 | what did each recent scan find | `scanHistory` (per workspace) | last 20, pruned by the same window |
 | is a site still there | `lastSites`, `scanDiff` (per workspace) | latest only, expires with the window |
 
-The full document after 0.11.0, with new members marked:
+The full document after 0.10.0, with new members marked:
 
 ```js
 {

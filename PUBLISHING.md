@@ -91,12 +91,13 @@ was opened on 2026-11-10 with the 208-guide entry.
 - [x] `cordis.patch.yml` sits next to `package.json` and inserts `modern-web-guidance` →
       `dsh-modern-web-guidance`.
 - [x] Real working code: 4 tools, 2 skills, 208 guides, two human commands, and a `npm test` suite of
-      **257 tests in 15 files** covering the index, the plugin mount, the security invariants, the counter
-      pipeline, the panel's three dictionaries, the legacy scanner (including the "Markdown is skipped"
-      case, the dot-directory rule, the `.scanignore` grammar and the run-collapse boundaries), the
-      byte-level manifest guard that would have caught 0.8.1, the six-key
-      `lastScan` summary and the panel's skip/truncation lines, the rule table's guide hashes and the
-      `/guidance-scan` command (a run reports 256 passed plus 1 skipped where the host forbids symlink
+      **373 tests in 17 files** covering the index, the plugin mount, the security invariants, the counter
+      pipeline and its per-workspace buckets, the panel's three dictionaries, the legacy scanner (including
+      the "Markdown is skipped" case, the dot-directory rule, the `.scanignore` grammar and the
+      run-collapse boundaries), the byte-level manifest guard that would have caught 0.8.1, the `lastScan`
+      summary with its optional branch label and the panel's skip/truncation lines, the rule table's guide
+      hashes, the site hash and every comparison guard and the
+      `/guidance-scan` command (a run reports 372 passed plus 1 skipped where the host forbids symlink
       creation, because the walk test skips itself there rather than failing)
       (`node --test test/*.test.mjs`; a single file also runs directly where child processes are blocked).
 - [x] The tests workflow is green on `main`: `.github/workflows/test.yml` runs `npm test` plus
@@ -241,8 +242,11 @@ Constraints worth knowing:
   no dependency, no build step, and no change to the JSON shape. 0.8.2 ships the same source with the
   byte-order mark stripped from `package.json` — a byte-level fix plus one test, no file added, nothing
   else changed. 0.9.0 adds no file either: the enrichment is `lib/report.js` and `client.js` plus one
-  locale string, so the file list and the zero-dependency shape hold. `npm pack
-  --dry-run` lists exactly what ships: 256 files, 913 kB packed / 2.7 MB unpacked at 0.9.0.
+  locale string, so the file list and the zero-dependency shape hold. 0.10.0 is the same shape again: the
+  workspace partition, the branch label and the scan history are source inside `lib/telemetry.js`,
+  `lib/report.js`, `index.js` and `client.js` plus fourteen locale strings — no file, no dependency, no
+  build step, and no new read surface beyond the one `.git/HEAD` the branch label needs. `npm pack
+  --dry-run` lists exactly what ships: 256 files, 943 kB packed / 2.8 MB unpacked at 0.10.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 

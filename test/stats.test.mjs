@@ -808,7 +808,7 @@ test('two checkouts with one name are refused by name and selected by id or rela
 
 //#endregion
 
-//#region 0.11.0: what the report says about when a scan happened
+//#region 0.10.0: what the report says about when a scan happened
 
 /** The state document the counters write for the active profile. */
 function countersFile(home) {

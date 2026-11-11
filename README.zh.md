@@ -212,7 +212,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 913 kB，解包 2.7 MB |
+| 体积 | — | 256 个文件，打包 943 kB，解包 2.8 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -346,6 +346,8 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 键是由目录推导出的 id，而不是目录本身 —— 最近一次扫描还可能带上唯一既不是 id、也不是数字的东西：**分支标签**，
 从工作区的 `.git/HEAD` 读取（worktree 的情况下只跟随一次 `gitdir:` 指针，此外不读别的，也不启动 `git` 进程），
 打印在 `Last scan:` 那一行里。读取失败时什么也不打印。
+同一版本还为每个发现保存位置键，让「到底修好没有」有答案：路径、规则 id 与代码片段哈希后的八个十六进制字符
+—— 是路径的哈希，不是路径，片段本身也不会被保存。
 
 存放位置：profile 的持久存储，也就是本来就存会话日志的那层信任边界。默认保留 90 天，`--reset --yes` 会立即清空。
 
@@ -454,6 +456,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.8.2 | 已发布 | 0.8.1 的 `package.json` 带上了 UTF-8 BOM，宿主用 `JSON.parse` 校验会报 `SyntaxError: Unexpected token`，而 `require()` 与 `npm pack` 都能接受；0.8.2 去掉该标记，并加上对清单、入口文件与随包 JSON 的字节级测试，让 BOM 无法再通过 CI |
 | 0.8.1 | 已发布 | `ls-12` 不再在会破坏代码的地方建议 `display: flex`：line-clamp 写法（`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`）不再报告，只保留无法用于 clamp 的前缀写法 —— 用召回率换精确度，确实把裸 `display: -webkit-box` 当作弹性盒的页面现在不再进入报告 |
 | 0.9.0 | 已发布 | 计数器会自我解释：规则行读作 `ls-17 · medium · 121 findings`，下面附上规则自己那句话，指南 chip 把目录中的描述放进 `title`，另有一行说明讲清排名数字是累计总数、不是上方图块所选的时间窗口 —— 这些文字来自宿主（`renderJson(snapshot, { rules, guides })`），因此缺字段只会少一行说明或提示，永远不会少一行数据 |
+| 0.10.0 | 已发布 | 计数器现在说清数字属于谁、每次扫描发生在何时、某个位置还在不在：扫描计数器按工作区分开，面板里有 chip 与切换器，命令支持 `--workspace`/`--all`；最近一次扫描带上从固定文件 `.git/HEAD` 读到的 `; branch main`；20 条扫描历史加上只存哈希的位置比较会打印 `Since the scan of …: 3 no longer present, 82 still open, 1 new` —— 或者带原因的 `not comparable`，绝不给三个零 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -483,13 +486,15 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 257 个测试，分布在十五个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 373 个测试，分布在十七个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，
 `scan.test.mjs` 是端到端扫描，`scan-ignore.test.mjs` 按规范校验 `.scanignore` 的语法和点目录规则，
 `scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
-`scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步。在禁止
+`scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步；
+`branch-label.test.mjs` 覆盖 `.git/HEAD` 的四种形态与所有「读不到就不出声」的情形；`site-identity.test.mjs`
+固定位置哈希与每道比较守卫。在禁止
 子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 
 <a id="publishing"></a>

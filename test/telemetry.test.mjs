@@ -856,7 +856,7 @@ test('two workspaces keep their scan counters disjoint while calls stay profile-
     scanRules: { 'ls-13': 1 },
     scanGuides: { 'guide-a': 1 },
     lastScan: lastScanOf({ at: new Date(NOW - 1000).toISOString(), files: 1, findings: 1, rules: ['ls-13'] }),
-    // The 0.11.0 members are written by the same completed scan. These findings carry no path or
+    // The 0.10.0 members are written by the same completed scan. These findings carry no path or
     // snippet (the helper reports ids only), so the site map is incomplete and nothing is compared.
     scanByDay: { [localDay(NOW - 1000)]: { scans: 1, files: 1, findings: 1 } },
     ruleFirstSeen: { 'ls-13': localDay(NOW - 1000) },
@@ -1174,7 +1174,7 @@ test('branchLabel accepts exactly the two shapes and rebuilds them', () => {
   assert.equal(branchLabel([]), null)
 })
 
-// --- Scan history (0.11.0): when a scan ran, and whether the sites it found are still there -------
+// --- Scan history (0.10.0): when a scan ran, and whether the sites it found are still there -------
 
 /** One finding with everything a site key needs: a path, a rule id and a snippet. */
 function site(ruleId = 'ls-13', snippet = '::-webkit-scrollbar', path = 'src/app.css') {
@@ -1280,7 +1280,7 @@ test('a bucket written before scan history loads with every new member empty', a
 
   assert.equal(store.state.version, 1)
   const bucket = store.state.workspaces[ALPHA.id]
-  // Member order is the writer's: the six 0.11.0 fields follow the five 0.10.0 ones.
+  // Member order is the writer's: the six history fields follow the five attribution ones.
   assert.deepEqual(Object.keys(bucket), [
     'name', 'since', 'scanRules', 'scanGuides', 'lastScan',
     'scanByDay', 'ruleFirstSeen', 'ruleLastSeen', 'scanHistory', 'lastSites', 'scanDiff',

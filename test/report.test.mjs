@@ -983,7 +983,7 @@ test('workspaceLabel names a workspace once, and never invents a name', () => {
 
 //#endregion
 
-//#region 0.11.0: when a scan fired, and whether it is still there
+//#region 0.10.0: when a scan fired, and whether it is still there
 
 /** One entry of the scan ring, as the counters store it. */
 function historyEntry(at, { findings, rules = {}, files = 70 }) {
@@ -1019,7 +1019,7 @@ const SCAN_HISTORY = [
 ]
 
 /**
- * A snapshot from the 0.11.0 counters: the 0.10.0 workspace keys plus the day series, the ring and
+ * A snapshot from the phase-B counters: the workspace keys plus the day series, the ring and
  * the comparison of the newest scan against the one before it. The ranked rules carry the two days
  * the counters now store for each of them.
  */

@@ -89,6 +89,15 @@ exists to prevent.
   `{kind:'detached',sha}`, never as a counter key. A failed read is a missing label: no error, no guess,
   no "unknown" token. The scope, the four shapes and the tests are
   [ADR-0002](docs/adr/0002-branch-labels.md).
+- **History is bounded, and a comparison is allowed to refuse.** A completed scan appends to a 20-deep
+  `scanHistory` and to `scanByDay`, and replaces the site baseline only when it was complete, untruncated
+  and non-empty; `ruleFirstSeen`/`ruleLastSeen` are lifetime and only move outward. "Resolved" means
+  *absent from the current scan but present in the baseline* — a claim about exactly two scans, never about
+  a fix — and seven guard tokens exist so a comparison prints "not comparable" instead of a number. A site
+  is `siteId()`, FNV-1a over `path + ruleId + snippet`: the hash is stored, the path and the snippet never
+  are, and a line number is never part of it. Unless the token is `no-baseline`, a refusal must not replace
+  what the last comparable scan said. The spec is
+  [docs/notes/scan-history-contract.md](docs/notes/scan-history-contract.md).
 
 ## CI
 
@@ -152,3 +161,10 @@ languages in the same commit.
   second data path and still writes nothing. An empty or `_unattributed` name renders
   `workspace.unattributed`, never a blank chip; two entries sharing a name get an id suffix (`app · aaaa`).
   A host that sends no `workspaces` renders no chip and no switcher — the 0.9.0 panel exactly.
+- **The panel answers "when" and "did it land", and says so when it cannot** (0.10.0, phase B): a
+  comparison line under the last scan, a five-row Recent scans block, and a last-seen date on each ranked
+  rule row — each rendered only when the host sends it, so a pre-B document renders the 0.9.0 panel. A
+  guard token prints raw and untranslated, `not comparable (fewer-files)`, and a diff without numbers
+  prints no numbers at all — never three zeros. There is no chart: the per-rule × per-day matrix was
+  refused on its size budget, so `scanSeries` carries whole scans, not rules, and the panel draws no
+  sparkline.

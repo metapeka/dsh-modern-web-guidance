@@ -13,9 +13,9 @@ moves to "Done".
 | Phase | State | Proposed release |
 | --- | --- | --- |
 | **A — Readable** | released locally as 0.9.0; not pushed, not dispatched | 0.9.0 |
-| **D — Attributable** | implemented on the branch, pending the 0.10.0 ritual | 0.10.0 |
-| **B — Over time** | sketched, unblocked by D — the next phase | — |
-| **C — Under control** | sketched, blocked on B-3 | — |
+| **D — Attributable** | implemented and committed; ships in 0.10.0 | 0.10.0 |
+| **B — Over time** | implemented and committed; ships in 0.10.0 | 0.10.0 |
+| **C — Under control** | sketched, unblocked by B-3 — the next phase | — |
 
 Update this table in the same commit that changes a phase's state. A phase is "in progress" only when
 its contract below is fixed; it is "done" when its acceptance list passes and its release note exists.
@@ -349,6 +349,25 @@ because "when" is the question and the panel is not always open.
   window side by side, so the 7/30-day switch stops being decorative for scan data.
 
 **Not in B:** writing to the project, judging code quality, claiming a fix the scanner cannot prove.
+
+### Delivered in 0.10.0
+
+B-1, B-2 and B-3 ship; **B-4 does not** and `scanCountsScope` stays `'lifetime'`. Where the delivered shape
+differs from the sketch above:
+
+- **The sparkline is refused, with numbers.** A per-rule × per-day matrix costs 31 KB per workspace at the
+  90-day window, so `scanByDay` counts scans, files and findings per day and each rule carries a `lastSeen`
+  day instead of a series. `ruleFirstSeen`/`ruleLastSeen` are lifetime and only move outward.
+- **History keeps one entry per completed scan, 20 deep**, with capped rule and skip-reason lists, and a
+  refused scan records nothing at all — the `lastScan` precedent, so a refusal cannot erase what the last
+  good scan said.
+- **A site is a hash, and a comparison may refuse.** `siteId` hashes `path + ruleId + snippet` and only the
+  eight hex characters are stored. A comparison needs a complete, untruncated baseline, and otherwise
+  prints one of seven tokens (`sites-unknown`, `truncated`, `no-files`, `no-baseline`, `fewer-files`,
+  `branch-changed`, `rule-table-changed`) instead of numbers. A collision can hide a fix; it cannot invent
+  one, and a retired rule is never counted as resolved.
+- **The text report prints three numbers; `retired` is panel-only**, and a pre-0.10.0 document renders
+  exactly as before on both surfaces — the 0.7.3 rule, extended across a whole phase.
 
 ---
 
