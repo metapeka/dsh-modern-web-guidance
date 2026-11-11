@@ -16,7 +16,7 @@ moves to "Done".
 | **D — Attributable** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
 | **B — Over time** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
 | **C — Under control** | released — 0.11.0 published to npm and GitHub | 0.11.0 |
-| **E — Auditable** | scoped in [docs/notes/phase-e-scope.md](notes/phase-e-scope.md); E-1/E-2/E-3 in flight | 0.12.0 |
+| **E — Auditable** | delivered — 0.12.0 in preparation (version, notes, READMEs) | 0.12.0 |
 
 Update this table in the same commit that changes a phase's state. A phase is "in progress" only when
 its contract below is fixed; it is "done" when its acceptance list passes and its release note exists.
@@ -427,6 +427,64 @@ Honest deviations, in the phase B spirit:
 - One flake was observed once, mid-run, in `test/stats.test.mjs` while a peer was writing `index.js`; it
   passed on every subsequent run, twice in a row on the final tree. Recorded here rather than buried,
   because a test that fails only under concurrent edits is still a test worth watching.
+
+---
+
+## Phase E — Auditable (does this record still describe anything?)
+
+The scope is [docs/notes/phase-e-scope.md](notes/phase-e-scope.md), chosen after A, D, B and C shipped.
+The diagnosis is not "we lack a feature": it is that every record the four shipped phases keep can be
+written and never read back — a suppression added and never removed, an ignore line that excludes nothing
+and is never named, a lifetime total with no origin. E is therefore a review of the records, not a fifth
+surface: **no new command, no new dependency, `version` still 1, and no reach** (a second editor or a CI
+lint mode would fork the single door).
+
+### Delivered in 0.12.0
+
+All three items shipped, plus one fix the live panel pass forced. The suite went from 463 tests to 506.
+
+- **E-1 — a lifetime total names the day the books opened.** `scanCountsSince` is the selected bucket's
+  own start, and for an aggregate the oldest contributing bucket's — never the document's, which would
+  label a young workspace with a date from before it existed. The delivered half is the stricter one:
+  `normalizeState` used to stamp `now` onto a loaded document with no `since`, so any date would have been
+  an invention. It now preserves absence as `null`, and only `emptyState`/`emptyBucket` stamp a genuinely
+  new document or bucket. Legacy root counters have no stored origin, so `_unattributed` and any aggregate
+  including it stay undated rather than borrowing one.
+- **E-2 — an ignore line that excludes nothing is named.** The walk records, per source line, whether that
+  pattern excluded anything, and the report says `3 patterns, 1 matched nothing`. The design constraint is
+  where the data went: an ignore line is a path fragment and `stats.json` is one profile-wide document, so
+  the rows stay transient on the scan value and only `{ patterns, idle }` is persisted — pinned by a test
+  that reads `stats.json` as text and asserts a distinctive pattern never appears in it.
+- **E-3 — the suppression list can be reviewed, and shrunk by one entry.** `/guidance-suppress --review`
+  reports entries, matching and `unused`; `--remove <siteId>` plans, then deletes exactly one entry after a
+  second, distinct confirmation. [ADR-0004](adr/0004-suppression-removal.md) amends ADR-0003's "never a
+  delete" and states the residual: a removal cannot undo what a previous scan already reported.
+- **The live panel pass** (first time the panel was looked at rather than read) found that
+  `Копировать JSON` could look dead forever: a clipboard write parked by an unfocused window never
+  settles, so neither `then` nor `catch` fired and the label never moved. The wait is now bounded and a
+  fourth label says the clipboard did not answer — a late success does not flip it back, and "did not
+  answer" is not "refused".
+
+Honest deviations, in the same spirit as the earlier phases:
+
+- **Absence is unforgeable, not common.** Every real document since 0.2.0 has a `since`; the undated case
+  is a truncated or hand-built file. It is the case where a fabricated date is cheapest to print, so it is
+  tested — but the note does not pretend it is a population.
+- **A removal is not a fix.** Deleting a suppression un-mutes a finding and moves no counter: the counters
+  document is byte-identical through a removal, and `lastScan.suppressed` keeps the count it was given.
+  There is no word for "resolved" anywhere in the product.
+- **`unused` is `null`, never `0`, when the scan was incomplete.** An incomplete scan cannot prove an
+  entry is dead, and `0` would be a claim. The same discipline as the seven guard tokens of phase B.
+- **The panel still spends a transcript row per action.** `ctx.remote.commands.execute` renders each
+  command line it runs, so a mount and a scan cost a visible JSON block. The alternatives are a cached
+  envelope (stale numbers on open) or a second data path (forbidden), so the calls stay and the price is
+  recorded in AGENTS.md rather than hidden.
+
+What E refused, with the reasons kept in its scope: rules parity (the parity note is a ledger, not a
+backlog), reach (a second surface forks the single door), per-branch counters (D-2), two-checkout
+suppression dedupe (it would read outside the workspace), a `.scanignore` cap (the asymmetry is
+deliberate), and a drafted `--forget-workspace`, which already exists as `--reset --workspace <name>
+--dry-run`.
 
 ---
 
