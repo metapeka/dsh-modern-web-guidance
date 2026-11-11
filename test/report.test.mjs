@@ -1317,6 +1317,8 @@ test('renderJson describes the days a rule was first and last seen, only in the 
     guideId: 'html',
     firstSeen: '2026-10-04',
     lastSeen: '2026-11-10',
+    // No history entry carries ls-17, so the row says so instead of reading as "steady".
+    slope: { refusal: 'not-sampled' },
   })
 
   // A rule the table does not know still carries its dates: the count and the days are the
@@ -1333,6 +1335,7 @@ test('renderJson describes the days a rule was first and last seen, only in the 
     guideId: null,
     firstSeen: '2026-10-01',
     lastSeen: '2026-11-01',
+    slope: { refusal: 'not-sampled' },
   }])
 
   // A date that is not a day reads as null, so the panel renders no suffix rather than a guess.
@@ -1690,5 +1693,167 @@ function HISTORICAL_NO_HISTORY() {
   const { scanHistory, scanDiff, ...rest } = HISTORICAL
   return rest
 }
+
+//#endregion
+
+//#region a rule's slope (F-2)
+
+/**
+ * A ring whose entries carry per-rule counts, newest first: `scans` is a list of rule-count maps, and
+ * entry `i` is dated `2026-11-<20 - i>`. The `findings` total is not what a rule slope reads, so it is
+ * a constant — the counts a rule has are its own map, which is the whole point of F-2.
+ */
+function ruleRing(scans) {
+  return scans.map((rules, index) => historyEntry(`2026-11-${String(20 - index).padStart(2, '0')}T08:00:00.000Z`, {
+    findings: 10,
+    rules,
+  }))
+}
+
+/** One described report over that ring, ranked by the rule ids given (or `[id, lifetimeCount]` pairs). */
+function ruleSlopeSnapshot(scans, ranked) {
+  return {
+    ...slopeSnapshot(ruleRing(scans)),
+    topRules: ranked.map((entry) => (Array.isArray(entry)
+      ? { ruleId: entry[0], count: entry[1] }
+      : { ruleId: entry, count: 40 })),
+  }
+}
+
+/** The `slope` member of each ranked row, by rule id, plus the snapshot and the text it renders. */
+function ruleSlopes(scans, ranked) {
+  const snapshot = ruleSlopeSnapshot(scans, ranked)
+  const rows = renderJson(snapshot, { rules: [], guides: [] }).topRules
+  const text = renderReport(snapshot)
+  return {
+    snapshot,
+    rows,
+    slopeOf: (ruleId) => rows.find((row) => row.ruleId === ruleId)?.slope,
+    text,
+    slopeLine: text.split('\n').find((line) => line.startsWith('Rule slopes:')),
+  }
+}
+
+test('a rule carried in four entries states its direction and the sample it was weighed over', () => {
+  // Four scans, two halves of two: the older half carries 5 and 4 findings, the newer 7 and 8. The
+  // line is the scope's own sentence, and the ranked row keeps its lifetime count — the slope is a
+  // member added to the row, never a replacement for it.
+  const review = ruleSlopes([
+    { 'ls-17': 8 }, { 'ls-17': 7 }, { 'ls-17': 5 }, { 'ls-17': 4 },
+  ], ['ls-17'])
+  assert.equal(review.rows[0].count, 40)
+  assert.deepEqual(review.slopeOf('ls-17'), { from: 9, to: 15, sample: 4, direction: 'rising' })
+  assert.match(review.text, /^Rule slopes: ls-17 rising: 9 → 15 over 4 scans$/m)
+
+  // Equal halves summing the same is the only `flat` this report is allowed to claim: both sides are
+  // cut to the same number of carries, so equality is the rule's own, not an artefact of one half
+  // holding more scans than the other.
+  const flat = ruleSlopes([
+    { 'ls-02': 6 }, { 'ls-02': 6 }, { 'ls-02': 6 }, { 'ls-02': 6 },
+  ], ['ls-02'])
+  assert.deepEqual(flat.slopeOf('ls-02'), { from: 12, to: 12, sample: 4, direction: 'flat' })
+  assert.match(flat.text, /^Rule slopes: ls-02 flat: 12 → 12 over 4 scans$/m)
+
+  // A fall is the same arithmetic with the sign in the data, not in the words.
+  const falling = ruleSlopes([
+    { 'ls-13': 2 }, { 'ls-13': 3 }, { 'ls-13': 6 }, { 'ls-13': 9 },
+  ], ['ls-13'])
+  assert.deepEqual(falling.slopeOf('ls-13'), { from: 15, to: 5, sample: 4, direction: 'falling' })
+  assert.match(falling.text, /^Rule slopes: ls-13 falling: 15 → 5 over 4 scans$/m)
+})
+
+test('a rule seen twice is too few samples, and the line prints the sample it had', () => {
+  // Four scans, the rule carried in the two newest and absent from both older ones: two carried
+  // entries across the window, which is below the floor of three.
+  const review = ruleSlopes([
+    { 'ls-17': 8 }, { 'ls-17': 7 }, {}, {},
+  ], ['ls-17'])
+  assert.deepEqual(review.slopeOf('ls-17'), { refusal: 'too-few-samples', sample: 2 })
+  assert.match(review.text, /^Rule slopes: ls-17 too-few-samples \(2 scans\)$/m)
+  assert.doesNotMatch(review.text, /\brising\b/)
+})
+
+test('a rule that only ever appears in one half says so, and never borrows a direction', () => {
+  // Six scans, three and three. Absence from an entry means "below that scan's top ten", not "stopped
+  // firing" — so the two one-sided states are claims about the *sample*, and the words are neither
+  // the comparison's `new` nor its `resolved`.
+  const entered = ruleSlopes([
+    { 'ls-17': 8 }, { 'ls-17': 7 }, { 'ls-17': 6 }, {}, {}, {},
+  ], ['ls-17'])
+  assert.deepEqual(entered.slopeOf('ls-17'), { refusal: 'entered-sample', sample: 3 })
+  assert.match(entered.text, /^Rule slopes: ls-17 entered-sample \(3 scans\)$/m)
+
+  const left = ruleSlopes([
+    {}, {}, {}, { 'ls-17': 6 }, { 'ls-17': 5 }, { 'ls-17': 4 },
+  ], ['ls-17'])
+  assert.deepEqual(left.slopeOf('ls-17'), { refusal: 'left-sample', sample: 3 })
+  assert.match(left.text, /^Rule slopes: ls-17 left-sample \(3 scans\)$/m)
+  // The muted thesaurus check: these are not the site-level words, in the data or on the line. The
+  // comparison line above it may say "new" about a *site*; a rule's clause never does.
+  assert.doesNotMatch(left.slopeLine, /\bresolved\b/)
+  assert.doesNotMatch(left.slopeLine, /\bnew\b/)
+  assert.doesNotMatch(left.slopeLine, /\brising\b/)
+})
+
+test('a lifetime count with no carrying entry is not sampled, never steady', () => {
+  const review = ruleSlopes([
+    { 'ls-13': 4 }, { 'ls-13': 4 }, { 'ls-13': 4 }, { 'ls-13': 4 },
+  ], ['ls-17'])
+  assert.deepEqual(review.slopeOf('ls-17'), { refusal: 'not-sampled' })
+  assert.match(review.text, /^Rule slopes: ls-17 not-sampled$/m)
+  assert.doesNotMatch(review.text, /\bflat\b/)
+  // The row still carries its lifetime count: the rule has 40 findings and no sampled scan, which is
+  // two different facts about it and both are true.
+  assert.equal(review.rows[0].count, 40)
+})
+
+test('a truncated entry is a hole in a rule series too, and the sample says so', () => {
+  // Seven scans, all carrying the rule, the fourth-newest truncated. Read as a data point it would
+  // sit in the older half and make the line read 19 → 24 over 6 scans; it is a hole, so six entries
+  // survive, the halves are re-cut three and three, and the honest older half is 6 + 5 + 4 = 15.
+  const ring = ruleRing([
+    { 'ls-17': 8 }, { 'ls-17': 8 }, { 'ls-17': 8 },
+    { 'ls-17': 8 },
+    { 'ls-17': 6 }, { 'ls-17': 5 }, { 'ls-17': 4 },
+  ])
+  ring[3].truncated = true
+  const snapshot = { ...slopeSnapshot(ring), topRules: [{ ruleId: 'ls-17', count: 40 }] }
+  const json = renderJson(snapshot, { rules: [], guides: [] })
+  assert.deepEqual(json.topRules[0].slope, { from: 15, to: 24, sample: 6, direction: 'rising' })
+  assert.match(renderReport(snapshot), /^Rule slopes: ls-17 rising: 15 → 24 over 6 scans$/m)
+})
+
+test('the two halves are trimmed to the same number of carries, so a sum is not a bias', () => {
+  // One carrying entry in the newer half (9 findings), two in the older (5 and 4). Summing whole
+  // halves would compare 9 against 9 and call a rise "flat"; the halves are cut to one carrying scan
+  // each — the newest of each side — so 5 → 9 is the rule's own movement, over an honest sample of 2.
+  const review = ruleSlopes([
+    { 'ls-17': 9 }, {}, { 'ls-17': 5 }, { 'ls-17': 4 },
+  ], ['ls-17'])
+  assert.deepEqual(review.slopeOf('ls-17'), { from: 5, to: 9, sample: 2, direction: 'rising' })
+  assert.match(review.text, /^Rule slopes: ls-17 rising: 5 → 9 over 2 scans$/m)
+})
+
+test('a rule slope line names only the ranked rules it has a claim about, and no ring means no line', () => {
+  // A stated rule and an unsampled one, in the ranked order, one clause each — and rules without a
+  // slope contribute nothing rather than a placeholder.
+  const review = ruleSlopes([
+    { 'ls-17': 8, 'ls-13': 2 }, { 'ls-17': 7 }, { 'ls-17': 5 }, { 'ls-17': 4 },
+  ], [['ls-17', 40], ['ls-05', 10]])
+  assert.match(review.text, /^Rule slopes: ls-17 rising: 9 → 15 over 4 scans, ls-05 not-sampled$/m)
+
+  // A pre-F snapshot has no ring: the described rows keep exactly their members, and the report keeps
+  // exactly its lines.
+  const preF = renderJson(PRE_B, { rules: [], guides: [] })
+  assert.deepEqual(preF.topRules.map((row) => Object.keys(row)), [['ruleId', 'count', 'message', 'confidence', 'guideId', 'firstSeen', 'lastSeen']])
+  assert.doesNotMatch(renderReport(PRE_B), /^Rule slopes:/m)
+
+  // An aggregate has a ring but no single one, so every row says null — "this host cannot claim a
+  // direction here", which is not the same answer as a token or as an absent member.
+  const ring = [{ 'ls-17': 8 }, { 'ls-17': 7 }, { 'ls-17': 5 }, { 'ls-17': 4 }]
+  const aggregated = { ...ruleSlopeSnapshot(ring, ['ls-17']), workspace: null }
+  assert.deepEqual(renderJson(aggregated, { rules: [], guides: [] }).topRules.map((row) => row.slope), [null])
+  assert.doesNotMatch(renderReport(aggregated), /^Rule slopes:/m)
+})
 
 //#endregion

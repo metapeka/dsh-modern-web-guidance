@@ -283,6 +283,48 @@ function scanResult({ files, findings, muted = 0 }) {
   }
 }
 
+/**
+ * The counters document, waited for. A disposed instance flushes with a `void`ed promise, so on a busy
+ * run the file can land after `settleCounters`' own window has closed; polling for the file keeps the
+ * comparison about the bytes rather than about the scheduler.
+ */
+async function settledCounters(home) {
+  const file = countersFile(home)
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      return await readFile(file, 'utf8')
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+  return readFile(file, 'utf8')
+}
+
+/**
+ * A scan value whose findings all name one rule, `count` times — the shape the ring stores as that
+ * scan's per-rule count, which is what a rule's slope is derived from. `scanResult` cannot express it:
+ * it spreads findings across distinct rule ids, so every rule would count one.
+ */
+function scanWithRule(ruleId, count, { files = 50 } = {}) {
+  return {
+    format: 'summary',
+    cwd: 'C:/work',
+    scanned: { files, bytes: files * 512, skipped: [], truncated: false },
+    findings: Array.from({ length: count }, (_, index) => ({
+      path: `src/${ruleId}-${index + 1}.js`,
+      line: index + 1,
+      column: 1,
+      ruleId,
+      guideId: 'css-anchor',
+      confidence: 'high',
+      message: 'Use the modern API instead.',
+      snippet: 'legacy()',
+    })),
+    guides: [{ id: 'css-anchor', findings: count }],
+    truncated: false,
+  }
+}
+
 test('a 0.4.x state file without the fourth counter still loads and renders', async () => {
   await mkdir(scratch, { recursive: true })
   const home = await mkdtemp(join(scratch, 'stats-legacy-'))
@@ -506,6 +548,9 @@ test('/guidance-stats --json describes the scan ids the host knows', async () =>
         guideId: rule.guideId,
         firstSeen: '<day>',
         lastSeen: '<day>',
+        // No session header means an aggregate, and a rule's direction is a per-workspace claim: the
+        // row says null rather than borrowing one project's ring for a profile-wide count.
+        slope: null,
       },
     )
     // One scan saw the rule once, so both days are that scan's day — a real date, not a guess.
@@ -1049,6 +1094,10 @@ test('a report states the slope it derived, and leaves stats.json byte-identical
     const payload = JSON.parse((await command.handler({ rawInput: '--json', ...header })).text)
     assert.deepEqual(payload.scanSlope, { from: 40, to: 20, delta: -20, sample: 6 })
     assert.equal(payload.scanHistory.length, 6)
+    // Every ranked rule carries its own derived slope too, and it is the same read: no counter moved,
+    // which the byte comparison below proves for both members at once.
+    assert.ok(payload.topRules.length > 0)
+    assert.ok(payload.topRules.every((row) => 'slope' in row))
 
     // Reporting a trend writes nothing. The file is compared as bytes rather than as parsed JSON, so
     // a rewritten key order or an added member counts as a change, and the comparison is made twice:
@@ -1100,6 +1149,48 @@ test('the slope is a per-workspace claim, so the aggregate refuses it with a tok
       delta: -20,
       sample: 4,
     })
+  } finally {
+    await removeHome(home)
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('a rule the ring sampled rising reports its own slope, and reading it writes nothing', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-rule-slope')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    // Four scans that each keep ls-17 in their top ten: the two oldest raise four findings of it, the
+    // two newest seven, so the rule's own series is 8 → 14 over four scans. The ring stores each
+    // scan's per-rule counts, which is what a rule's direction is derived from.
+    for (const count of [4, 4, 7, 7]) {
+      raiseScan(registered, { ...scanWithRule('ls-17', count), cwd: workspace })
+      await new Promise((resolve) => setTimeout(resolve, 3))
+    }
+    for (const dispose of registered.disposers) dispose()
+    await settleCounters(home)
+    const before = await settledCounters(home)
+
+    const second = createContext()
+    apply(second.ctx, {})
+    const command = statsCommand(second.registered)
+    const header = headerAt(workspace)
+
+    const text = (await command.handler({ rawInput: '', ...header })).text
+    assert.match(text, /^Most matched rules: ls-17 22$/m)
+    assert.match(text, /^Rule slopes: ls-17 rising: 8 → 14 over 4 scans$/m)
+
+    const payload = JSON.parse((await command.handler({ rawInput: '--json', ...header })).text)
+    const row = payload.topRules.find((entry) => entry.ruleId === 'ls-17')
+    assert.deepEqual(row.slope, { from: 8, to: 14, sample: 4, direction: 'rising' })
+    // The lifetime count is the member it always was: the slope is added beside it, never instead.
+    assert.equal(row.count, 22)
+
+    await settleCounters(home)
+    assert.equal(await settledCounters(home), before)
   } finally {
     await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
