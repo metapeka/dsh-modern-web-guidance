@@ -98,6 +98,31 @@ the three dictionaries. The rendering itself has no test harness (the panel is b
 dictionary parity only), so it is **shown**: two screenshots, one document with `since` and one without,
 in the release note.
 
+**Delivered (0.12.0), with two premises of this section corrected.** The item shipped, but not as
+scoped, because the scope was wrong in a way worth recording rather than quietly fixing:
+
+- *"`state.since` is already there, so `renderJson` derives the field from it"* is false.
+  `snapshot()` never exposed an origin — document-level or per-bucket — and `since` had no reader
+  anywhere in the product. The field had to be *exposed*, which put `lib/telemetry.js` in scope.
+- The worse half: `normalizeState` stamped `now` onto a loaded document whose `since` was absent
+  (`|| now`), and `emptyBucket` did the same per bucket. Any snapshot field would therefore have been
+  populated even when the origin was unknown — the invented date this item exists to prevent, moved
+  one layer down. `normalizeState` now **preserves absence as `null`**; only `emptyState()`/
+  `emptyBucket()` stamp a genuinely new document or bucket, because initialising is honest and
+  backfilling on load is not.
+- *Which* origin is a design question the first draft missed: the document's start is not the counters'
+  start. `scanCountsSince` is the **selected bucket's** own `since`, and for an aggregate the **oldest
+  contributing bucket's**; the document date would label a young workspace with a date from before it
+  existed. Legacy root counters (pre-0.10) have no stored origin at all, so `_unattributed` — and any
+  aggregate that includes it — stays undated rather than borrowing one.
+- The absence branch is unreachable for a real document (every document since 0.2.0 has `since`), but
+  it is reachable for a truncated or hand-built one, which is exactly where a fabricated date is
+  cheapest to print. The branch is tested anyway, and the test says so.
+
+The screenshots this section asks for are superseded by a render harness:
+`test/client-locales.test.mjs` mounts the panel and asserts the caption with and without the date, so
+the rendering is proven by a failing-if-broken test rather than by two pictures.
+
 ### E-2 — an ignore line that excludes nothing is named
 
 **Today.** `parseScanIgnore` reports *malformed* lines in `scanned.ignoreProblems`
