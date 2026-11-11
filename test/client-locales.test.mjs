@@ -508,6 +508,35 @@ test('the guide chips explain themselves without changing their text', () => {
  */
 const HOOKS = { cells: [], index: 0 }
 
+/**
+ * The DOM elements the panel's refs were handed, in creation order, and the rectangles they report.
+ *
+ * A hook-only stub would let a scroll regression through: the panel reads and writes its own scroll
+ * container to survive a refresh, and measures the block it has just written into the document. Real
+ * React fills a ref after the commit; this stub fills it when the element is created, which is the same
+ * thing for a component that looks at a *previous* commit's node while rendering. `DOM_RECTS` is keyed
+ * by the element's own `key`, so a test can say where a block is before it exists: the stand-in reads
+ * the map at call time, the way `getBoundingClientRect()` would answer after a layout.
+ */
+const DOM_NODES = []
+const DOM_RECTS = new Map()
+/** The scroll container's viewport: a 732 px sidebar, the height measured in the live host. */
+const ROOT_RECT = { top: 0, bottom: 732 }
+
+function domNode(type, props) {
+  const node = {
+    type,
+    key: props.key,
+    rectKey: props.key,
+    scrollTop: 0,
+    getBoundingClientRect() {
+      return DOM_RECTS.get(node.rectKey) ?? ROOT_RECT
+    },
+  }
+  DOM_NODES.push(node)
+  return node
+}
+
 function resetHooks() {
   HOOKS.cells = []
   HOOKS.index = 0
@@ -516,7 +545,12 @@ function resetHooks() {
 const REACT = {
   Fragment: 'Fragment',
   createElement(type, props, ...children) {
-    return { type, props: props === null || props === undefined ? {} : props, children }
+    const element = { type, props: props === null || props === undefined ? {} : props, children }
+    const ref = element.props.ref
+    if (ref !== null && ref !== undefined && typeof ref === 'object' && 'current' in ref && ref.current === null) {
+      ref.current = domNode(type, element.props)
+    }
+    return element
   },
   useState(initial) {
     const index = HOOKS.index
@@ -564,6 +598,8 @@ function renderOnce(component, props) {
 function loadClient(options = {}) {
   let spec
   resetHooks()
+  DOM_NODES.length = 0
+  DOM_RECTS.clear()
   // The browser global, named `window` because that is what client.js reads.
   const browserWindow = { __ModuleLoader__: { load(candidate) { spec = candidate } } }
   // A page's clipboard is a browser global, so a test that needs one hands it in: the client reads
@@ -2385,4 +2421,176 @@ test('a matching entry can be removed too, under the same two clicks', async () 
     'the second click did not run the plan it showed',
   )
   assert.ok(textsOf(done).includes(outcome), 'the outcome the host reported is not shown')
+})
+
+/** Every element of a tree carrying one React key. */
+function elementsByKey(tree, key) {
+  return elementsOf(tree).filter((element) => element.props.key === key)
+}
+
+/** The review row of one entry, and the one Remove it draws. */
+function reviewRowOf(tree, siteId) {
+  const row = elementIn(tree, (element) => element.props.key === `entry-${siteId}`)
+  assert.notEqual(row, undefined, `the review draws no row for ${siteId}`)
+  const button = elementIn(row, (element) => element.type === 'button' && element.children.includes(EN.get('scan.remove')))
+  assert.notEqual(button, undefined, `the row for ${siteId} offers no removal`)
+  return button
+}
+
+test('a verdict is a pill of its own, and the three states do not wear the same one', async () => {
+  // Measured in the live host before the pills existed: `совпало`, `не совпало` and `неизвестно` were one
+  // element with one computed style — transparent background, the same grey, no border — and only 47.8,
+  // 61.5 and 62.2 px wide, so width was the word and nothing else. The words are still the words; the
+  // shapes now differ too.
+  const review = {
+    entries: 3,
+    matching: 1,
+    unused: ['aa11bb22', 'cc33dd44'],
+    items: [
+      { siteId: 'aa11bb22', matched: false },
+      { siteId: 'bb22cc33', matched: true },
+      // A row whose verdict the host could not prove, in a document whose counts say it could.
+      { siteId: 'cc33dd44', matched: null },
+    ],
+  }
+  const { tree } = await mountPanel(reviewReport(review))
+  const pills = new Map()
+  for (const element of elementsOf(tree)) {
+    if (element.children.length !== 1) continue
+    const text = element.children[0]
+    if (MATCH_KEYS.some((key) => EN.get(key) === text)) pills.set(text, element.props.style)
+  }
+  assert.equal(pills.size, 3, 'the three verdicts are not three elements')
+  const matched = pills.get(EN.get('scan.matchMatched'))
+  const unused = pills.get(EN.get('scan.matchUnused'))
+  const unknown = pills.get(EN.get('scan.matchUnknown'))
+  for (const [name, style] of [['matched', matched], ['unused', unused], ['unknown', unknown]]) {
+    assert.equal(typeof style, 'object', `the ${name} verdict carries no style`)
+    // A real pill: an edge and a radius, so the state is a shape and not only a 10 px word.
+    assert.match(String(style.border ?? ''), /^1px solid /, `the ${name} verdict has no border`)
+    assert.equal(style.borderRadius, '999px', `the ${name} verdict is not a pill`)
+    assert.equal(String(style.color).includes('#'), false, `the ${name} verdict uses a colour literal`)
+  }
+  // Three states, three shapes: any pair that renders identically is the collapse this asserts against.
+  assert.equal(new Set([matched, unused, unknown].map((style) => JSON.stringify(style))).size, 3, 'two verdicts render the same pill')
+  // "unused" is dead and "unknown" is unproven: different colours, and only the unproven one is provisional.
+  assert.notEqual(matched.borderColor, unused.borderColor, 'matched and unused share an edge colour')
+  assert.notEqual(unused.color, unknown.color, 'unused and unknown share a text colour')
+  assert.equal(unknown.borderStyle, 'dashed', 'the unknown verdict is not provisional on its edge')
+  assert.equal(unknown.fontStyle, 'italic', 'the unknown verdict is not provisional in its face')
+  assert.equal(unknown.background, 'transparent', 'the unknown verdict carries a tint it has not earned')
+  assert.equal(unused.background, matched.background, 'the two proven verdicts no longer share their tint')
+  // The finding row's `muted` label is a different thing and keeps its own style untouched.
+  assert.ok(CLIENT_SOURCE.includes("style: S.mutedTag, key: 'tag'"), 'the finding row lost its muted label')
+  assert.equal(CLIENT_SOURCE.includes("style: S.mutedTag, key: 'match'"), false, 'a verdict still wears the finding label')
+})
+
+test('a removal block is drawn once, under the finding row that names its target', async () => {
+  // The target of a removal is a site, and a site is also a finding row whenever the entry still
+  // matches — which is the common case. Drawn twice it was two blocks with one set of React keys in one
+  // child list: measured a plan at y 616.3 with a duplicate at 2586.2, and an older outcome kept above
+  // the next plan, pushing that plan's confirmation 25.8 px below the fold.
+  const review = {
+    entries: 2,
+    matching: 1,
+    unused: ['aa11bb22'],
+    items: [
+      { siteId: '96cb61de', date: '2026-11-04', reason: 'third-party widget', matched: true },
+      { siteId: 'aa11bb22', date: '2026-10-02', matched: false },
+    ],
+  }
+  const planMatch = 'Removal plan for 96cb61de: remove 1 entry from /work/app/.suppress, which would go from 2 to 1 entries.'
+  const outcomeMatch = 'Removed 96cb61de from /work/app/.suppress; the file now holds 1 entry.'
+  const planDead = 'Removal plan for aa11bb22: remove 1 entry from /work/app/.suppress, which would go from 1 to 0 entries.'
+  const { tree, panel, props } = await mountScriptedPanel(reviewReport(review), {
+    '*': reportEnvelope(reviewReport(review)),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-suppress --remove 96cb61de --dry-run': textEnvelope(planMatch),
+    '/guidance-suppress --remove 96cb61de': textEnvelope(outcomeMatch),
+    '/guidance-suppress --remove aa11bb22 --dry-run': textEnvelope(planDead),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  reviewRowOf(scanned, '96cb61de').props.onClick()
+  const planned = await settle(panel, props)
+  const order = elementsOf(planned)
+  assert.equal(elementsByKey(planned, 'write-plan').length, 1, 'the removal plan is on screen twice')
+  // Where it is: under the finding row of its target, never under the review box it was also drawn in.
+  const planIndex = order.findIndex((element) => element.props.key === 'write-plan')
+  const rowIndex = order.findIndex((element) => element.props.key === 'finding-0')
+  const boxIndex = order.findIndex((element) => element.props.key === 'scan-review-rows')
+  assert.ok(planIndex > rowIndex, 'the plan is not drawn under the finding row it removes')
+  assert.ok(planIndex > boxIndex, 'the plan is drawn in the review block as well as under its row')
+  buttonOf(planned, EN.get('scan.removeConfirm')).props.onClick()
+  await settle(panel, props)
+  const done = await settle(panel, props)
+  assert.equal(elementsByKey(done, 'write-done').length, 1, 'the outcome is on screen twice')
+  // A new plan replaces the old outcome: the entry that matched nothing has no finding row, so this one
+  // is drawn under the review block — and it is the only write block on screen.
+  reviewRowOf(done, 'aa11bb22').props.onClick()
+  const next = await settle(panel, props)
+  assert.equal(elementsByKey(next, 'write-plan').length, 1, 'the next plan is not exactly one block')
+  assert.equal(elementsByKey(next, 'write-done').length, 0, 'the previous outcome outlived its next plan')
+  assert.ok(textsOf(next).includes(planDead), 'the next plan is not the one shown')
+})
+
+/**
+ * Drive one removal to its outcome, with the reader parked `scrollTop` px down the panel.
+ *
+ * @param {number} scrollTop where the reader was when they confirmed.
+ * @param {{ top: number, bottom: number }|null} outcomeRect where the answer lands, or null for inside.
+ * @returns {Promise<{ root: object, done: object, scrolls: number[] }>} the scroll container, the tree
+ *   after the outcome landed, and the offset after each render that followed the write.
+ */
+async function removeWithReaderParked(scrollTop, outcomeRect = null) {
+  const review = {
+    entries: 1,
+    matching: 1,
+    unused: [],
+    items: [{ siteId: '96cb61de', date: '2026-11-04', reason: 'third-party widget', matched: true }],
+  }
+  const plan = 'Removal plan for 96cb61de: remove 1 entry from /work/app/.suppress, which would go from 1 to 0 entries.'
+  const outcome = 'Removed 96cb61de from /work/app/.suppress; the file now holds 0 entries.'
+  const { tree, panel, props } = await mountScriptedPanel(reviewReport(review), {
+    '*': reportEnvelope(reviewReport(review)),
+    '/guidance-suppress --remove 96cb61de --dry-run': textEnvelope(plan),
+    '/guidance-suppress --remove 96cb61de': textEnvelope(outcome),
+  })
+  // After the mount, because mounting clears both stubs: the rectangle is read when the answer is drawn.
+  if (outcomeRect !== null) DOM_RECTS.set('write-done', outcomeRect)
+  const root = DOM_NODES[0]
+  assert.equal(root.type, 'div', 'the first ref the panel takes is not its root')
+  root.scrollTop = scrollTop
+  buttonOf(tree, EN.get('scan.remove')).props.onClick()
+  const planned = await settle(panel, props)
+  buttonOf(planned, EN.get('scan.removeConfirm')).props.onClick()
+  const scrolls = []
+  await settle(panel, props)
+  scrolls.push(root.scrollTop)
+  const done = await settle(panel, props)
+  scrolls.push(root.scrollTop)
+  return { root, done, scrolls }
+}
+
+test('a write refresh puts the reader back and brings the outcome into view, never to the top', async () => {
+  // Measured in the live host: `panelScrollTop` 200 → 0 the moment the refresh rendered its loading
+  // line, with the outcome then at 752.3–806.3 in a 732 px panel — the person who had just confirmed
+  // saw a jump and no answer.
+  const { root, done, scrolls } = await removeWithReaderParked(200, { top: 752.3, bottom: 806.3 })
+  assert.deepEqual(scrolls, [200, 275], `the refresh did not restore the reader and reveal the answer: ${JSON.stringify(scrolls)}`)
+  assert.notEqual(root.scrollTop, 0, 'the write scrolled the panel to the top')
+  assert.ok(textsOf(done).includes('Removed 96cb61de from /work/app/.suppress; the file now holds 0 entries.'), 'the answer is not on screen')
+  // 275 is 200 plus the 74.3 px the block hangs below the fold, rounded up: the panel moves as little
+  // as the answer needs and no further.
+  assert.equal(root.scrollTop - 200, Math.ceil(806.3 - 732), 'the panel moved further than the answer needed')
+  // A reader whose answer already fits keeps their exact place: no movement is added for its own sake.
+  const visible = await removeWithReaderParked(200)
+  assert.deepEqual(visible.scrolls, [200, 200], `a visible answer still moved the panel: ${JSON.stringify(visible.scrolls)}`)
+  // And a panel that has written nothing never touches its own scroll position.
+  const { tree, panel, props } = await mountPanel(reviewReport({ entries: 1, matching: 1, unused: [], items: [] }))
+  const fresh = DOM_NODES[0]
+  fresh.scrollTop = 200
+  await settle(panel, props)
+  assert.equal(fresh.scrollTop, 200, 'the panel moved itself without a write')
+  assert.notEqual(tree, undefined)
 })

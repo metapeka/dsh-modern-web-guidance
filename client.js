@@ -1936,6 +1936,38 @@ window.__ModuleLoader__.load({
         color: 'var(--dsw-alias-label-secondary)',
         fontSize: '10px',
       },
+      // A suppression row's verdict is a state, not a word: three claims that must be readable *as*
+      // three. The `mutedTag` above is a label on a finding and stays what it is; this is a pill with
+      // its own edge, because the fill token resolves to transparent in the live theme — measured with
+      // the previous single style, all three verdicts were one object with no border, no background and
+      // the same grey, so only the word told `unused` from `unknown`.
+      //   matched — the panel's own hit colour, the same vocabulary a coverage row uses
+      //   unused  — the miss colour: the entry is doing nothing
+      //   unknown — dashed and untinted: a provisional state, never a verdict in a verdict's clothes
+      matchTag: {
+        flex: '0 0 auto',
+        padding: '0 6px',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        borderRadius: '999px',
+        background: 'var(--dsw-alias-fill-l1)',
+        fontSize: '10px',
+        lineHeight: '1.6',
+        whiteSpace: 'nowrap',
+      },
+      matchMatched: {
+        borderColor: 'var(--dsw-alias-state-success-primary)',
+        color: 'var(--dsw-alias-state-success-primary)',
+      },
+      matchUnused: {
+        borderColor: 'var(--dsw-alias-state-warn-primary)',
+        color: 'var(--dsw-alias-state-warn-primary)',
+      },
+      matchUnknown: {
+        borderStyle: 'dashed',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-tertiary)',
+        fontStyle: 'italic',
+      },
       // The two row actions are quiet text buttons: they are the panel's writes, so they must not look
       // like the scan button that produces numbers.
       rowActions: { flex: '0 0 auto', display: 'flex', alignItems: 'baseline', gap: '10px', marginLeft: 'auto' },
@@ -2504,13 +2536,16 @@ window.__ModuleLoader__.load({
     function reviewEntryLine(t, row, index, blocked, actions) {
       const siteId = row.siteId
       const matched = row.matched
-      const tag = matched === undefined
-        ? ''
-        : matched === true
-          ? t('scan.matchMatched')
-          : matched === false
-            ? t('scan.matchUnused')
-            : t('scan.matchUnknown')
+      // Three claims, three pills. The object is built here because the style and the word are one
+      // decision: a row whose state says "unused" but looks like "unknown" is the defect the pill fixes.
+      const verdict =
+        matched === undefined
+          ? null
+          : matched === true
+            ? { text: t('scan.matchMatched'), style: { ...S.matchTag, ...S.matchMatched } }
+            : matched === false
+              ? { text: t('scan.matchUnused'), style: { ...S.matchTag, ...S.matchUnused } }
+              : { text: t('scan.matchUnknown'), style: { ...S.matchTag, ...S.matchUnknown } }
       return h(
         'div',
         { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `entry-${siteId}` },
@@ -2519,7 +2554,7 @@ window.__ModuleLoader__.load({
           { style: S.scanRuleHead },
           h('span', { style: S.scanName, key: 'site' }, siteId),
           row.date === undefined ? null : h('span', { style: S.scanSeen, key: 'date' }, row.date),
-          tag === '' ? null : h('span', { style: S.mutedTag, key: 'match' }, tag),
+          verdict === null ? null : h('span', { style: verdict.style, key: 'match' }, verdict.text),
           h(
             'div',
             { style: S.rowActions, key: 'actions' },
@@ -2559,12 +2594,17 @@ window.__ModuleLoader__.load({
      * @param {Function} t bound translator.
      * @param {{ status: string, kind: string, target: string, rule: string, place: string, text: string, message: string }} write
      * @param {Function} onConfirm applies the plan that is on screen.
+     * @param {object|null} [outcome] a ref put on the outcome block, so the panel can bring it into view
+     *   after the refresh a successful write causes. Only the outcome carries it: the plan is already
+     *   where the click was, and a refusal is drawn where the plan would have been.
      * @returns {object|null}
      */
-    function renderWrite(t, write, onConfirm) {
+    function renderWrite(t, write, onConfirm, outcome = null) {
       const ignore = write.kind === 'ignore'
       const remove = write.kind === 'remove'
-      if (write.status === 'done') return h('div', { style: S.stateBody, key: 'write-done' }, asText(write.text))
+      if (write.status === 'done') {
+        return h('div', { ref: outcome, style: S.stateBody, key: 'write-done' }, asText(write.text))
+      }
       if (write.status === 'error') {
         return h(
           'div',
@@ -2710,6 +2750,22 @@ window.__ModuleLoader__.load({
           ),
         )
       }
+      // One write block, drawn where its target is — decided here, before the review block, because
+      // that block is the fallback place and this predicate is what keeps it from ever being the second
+      // copy. A removal names a site, and that site is also a finding row whenever the entry still
+      // matches, so the block belongs under that row; it belongs under the review block only when there
+      // is no row for it at all: an entry that matched nothing has none, and one whose row was cut by
+      // the cap is not on screen either. Two copies used to be drawn, in one child list with one set of
+      // React keys, and the stale one survived: measured a plan at y 616.3 with a duplicate at 2586.2
+      // and an older outcome sitting above the next plan. The choice is a function of `write.target`,
+      // never of which control started the write.
+      const shownFindings =
+        scan.status === 'ready' && scan.value !== undefined ? scan.value.findings.slice(0, MAX_TOOL_ROWS) : []
+      const writeTarget = write.target === undefined ? '' : asText(write.target)
+      const removalHasRow =
+        write.kind === 'remove' &&
+        writeTarget !== '' &&
+        shownFindings.some((finding) => asText(finding.siteId) === writeTarget)
       // The `.suppress` file's own review: the host's join of every entry against the sites its last
       // scan saw. The header is the two counts plus how many entries matched nothing; the rows below
       // it are the file itself when the host sent them (`items`), and the ids that matched nothing
@@ -2778,12 +2834,13 @@ window.__ModuleLoader__.load({
           )
         }
       }
-      // The removal's plan, confirmation and outcome sit directly under the review block — outside the
-      // scroll box, so a confirmation can never be scrolled away from the button that means it, and
-      // still drawn after the count reaches zero, because that is the answer to the click that got it
-      // there. A `suppress` or `ignore` write is drawn beside its finding row further down.
-      if (write.kind === 'remove') {
-        const removalBlock = renderWrite(t, write, actions.onConfirm)
+      // The removal's plan, confirmation and outcome sit under the review block only when the entry has
+      // no finding row of its own — outside the scroll box, so a confirmation can never be scrolled away
+      // from the button that means it, and still drawn after the count reaches zero, because that is the
+      // answer to the click that got it there. A matched entry's block goes under its finding row, and a
+      // `suppress` or `ignore` write is drawn there too.
+      if (write.kind === 'remove' && !removalHasRow) {
+        const removalBlock = renderWrite(t, write, actions.onConfirm, actions.outcome)
         if (removalBlock !== null) children.push(removalBlock)
       }
       if (report.topRules.length > 0) {
@@ -2895,7 +2952,6 @@ window.__ModuleLoader__.load({
           (write.kind === 'ignore' ? asText(finding.path) === write.target : asText(finding.siteId) === write.target)
         let placed = false
         if (value.findings.length > 0) {
-          const shownFindings = value.findings.slice(0, MAX_TOOL_ROWS)
           for (const [index, finding] of shownFindings.entries()) {
             children.push(findingLine(t, finding, index, blocked || writing, actions))
             // The plan, its confirmation and its outcome sit under the row they belong to, so a long
@@ -2903,7 +2959,7 @@ window.__ModuleLoader__.load({
             // first row that names the target: two rules can fire in one file, and the file is what an
             // ignore names.
             if (placed === false && anchored(finding)) {
-              children.push(renderWrite(t, write, actions.onConfirm))
+              children.push(renderWrite(t, write, actions.onConfirm, actions.outcome))
               placed = true
             }
           }
@@ -2911,10 +2967,10 @@ window.__ModuleLoader__.load({
           if (rest > 0) children.push(h('div', { style: S.note, key: 'scan-more' }, t('row.more', { count: rest })))
         }
         // A plan whose row fell outside the cap is still shown, at the end rather than not at all. A
-        // removal has no finding row at all — its entry matched nothing, which is what it is — so it
-        // was drawn under the review block above and must not be drawn a second time here.
+        // removal was already drawn under the review block when its row is out of reach, and stays out
+        // of this fallback: `removalHasRow` is the one predicate, so it cannot be drawn twice.
         if (placed === false && write.kind !== 'remove') {
-          const block = renderWrite(t, write, actions.onConfirm)
+          const block = renderWrite(t, write, actions.onConfirm, actions.outcome)
           if (block !== null) children.push(block)
         }
       } else if (scan.status === 'error') {
@@ -3196,6 +3252,44 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** The panel root's own scroll offset, and 0 while it is not mounted yet. */
+    function scrollOffsetOf(element) {
+      if (element === null || element === undefined) return 0
+      return Number.isFinite(element.scrollTop) ? element.scrollTop : 0
+    }
+
+    /**
+     * The offset the panel sits at after a write's refresh: the reader's place, or as far past it as
+     * the answer needs.
+     *
+     * The root element is the panel's only scroll container, and the refresh in between renders the
+     * one-line loading body, which makes the content shorter than the viewport — the browser then clamps
+     * the offset to 0 and the outcome lands below the fold. Measured in a live host: `scrollTop` 200 → 0
+     * and the outcome at 752.3–806.3 in a 732 px viewport, so the person who had just confirmed saw a
+     * jump and no answer. The offset is therefore restored from a number taken *before* the reload, and
+     * the only movement added is the exact overflow of the outcome block: down when it hangs below, up
+     * when it sits above, and never back to the top as a side effect of writing something.
+     *
+     * @param {number} saved the offset to restore.
+     * @param {{ getBoundingClientRect: Function }|null} block the outcome block, when it is on screen.
+     * @param {{ getBoundingClientRect: Function }|null} root the scroll container.
+     * @returns {number} the `scrollTop` to apply.
+     */
+    function scrollAfterWrite(saved, block, root) {
+      const want = Number.isFinite(saved) && saved > 0 ? saved : 0
+      if (block === null || block === undefined || root === null || root === undefined) return want
+      if (typeof block.getBoundingClientRect !== 'function' || typeof root.getBoundingClientRect !== 'function') {
+        return want
+      }
+      const content = block.getBoundingClientRect()
+      const view = root.getBoundingClientRect()
+      const below = content.bottom - view.bottom
+      if (below > 0) return want + Math.ceil(below)
+      const above = view.top - content.top
+      if (above > 0) return Math.max(0, want - Math.ceil(above))
+      return want
+    }
+
     /**
      * The panel. It is read-only apart from two command lines: the header picks the window and the
      * workspace whose counters are on screen, Refresh re-runs the counters command, and the scan
@@ -3239,6 +3333,12 @@ window.__ModuleLoader__.load({
       // Which copy click owns the label: a timeout from an abandoned attempt must not overwrite the
       // answer of the one the user is now waiting on.
       const copyTicket = useRef(0)
+      // The panel's own scroll container, the outcome block a write leaves behind, and the reader's
+      // place across the refresh that write causes: the refresh blanks the body to its loading line, so
+      // the browser clamps the offset to the top before the answer arrives (measured 200 → 0).
+      const rootRef = useRef(null)
+      const outcomeRef = useRef(null)
+      const resume = useRef(null)
 
       useEffect(() => {
         alive.current = true
@@ -3284,6 +3384,39 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         load()
       }, [load])
+
+      /**
+       * Put the reader back where they were after a write, and show them its answer.
+       *
+       * Deliberately no dependency list: the pending spot is cleared the moment it is honoured, so every
+       * other render this costs one comparison. It cannot run inside the promise instead — the outcome
+       * block it looks for does not exist until the new envelope has been rendered, and React owns that
+       * commit. And it abandons the spot when the write state moves on, because a person who has clicked
+       * the next row owns the panel now: restoring the last place would drag them backwards.
+       */
+      useEffect(() => {
+        const pending = resume.current
+        if (pending === null) return
+        if (write.status !== 'done') {
+          resume.current = null
+          return
+        }
+        const root = rootRef.current
+        if (root === null) return
+        // The place first, so the answer is measured against the position the reader will have. This
+        // only ever restores an offset that was taken: a panel that was already at the top stays there.
+        root.scrollTop = scrollAfterWrite(pending.scrollTop, null, null)
+        const block = outcomeRef.current
+        if (block === null) {
+          // A refresh commits twice — the loading line first, then the new envelope — and only the
+          // second commit draws the answer. Retrying once covers that ordering; past it the spot is
+          // dropped, because a scroll that keeps being restored is worse than one that is not.
+          resume.current = pending.retried === true ? null : { ...pending, retried: true }
+          return
+        }
+        resume.current = null
+        root.scrollTop = scrollAfterWrite(pending.scrollTop, block, root)
+      })
 
       /**
        * Run the scan the button offers.
@@ -3437,6 +3570,9 @@ window.__ModuleLoader__.load({
           .then((envelope) => {
             if (!alive.current || writeTicket.current !== mine) return
             setWrite({ ...blank, status: 'done', text: readWriteEnvelope(envelope, line) })
+            // The reader's place is taken here, before the refetch: a number survives the loading body
+            // that collapses the panel, the element's own offset does not.
+            resume.current = { scrollTop: scrollOffsetOf(rootRef.current) }
             // The report is refetched rather than adjusted: the counts are the host's, and the scan's
             // own value cannot be re-read — a write is not a scan and changes no counter.
             load()
@@ -3500,6 +3636,8 @@ window.__ModuleLoader__.load({
         onRemove: requestRemove,
         onConfirm: confirmWrite,
         write,
+        // The outcome block, so the panel can find the answer it has just written into the document.
+        outcome: outcomeRef,
       }
       // The copy action exists only when there is something to copy and a clipboard to copy it to: a
       // page without one renders exactly the header it always did, never a button that cannot work.
@@ -3588,7 +3726,9 @@ window.__ModuleLoader__.load({
               )
       } else body = h('div', { style: S.note }, t('loading'))
 
-      return h('div', { style: S.root }, header, body)
+      // The root is the panel's own scroll container, and the element the refresh around a write has to
+      // put back where the reader left it.
+      return h('div', { style: S.root, ref: rootRef }, header, body)
     }
 
     //#endregion
