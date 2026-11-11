@@ -11,24 +11,21 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.12.0` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.13.0` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
-> 0.13.0 is **released on GitHub and staged on npm, waiting on one human approval**. The dispatch ran,
-> the suite inside the job was green, `npm publish --provenance` answered `+ dsh-modern-web-guidance@0.13.0`
-> with a sigstore statement (logIndex 3815381867) — and the version then arrived **staged** rather than
-> published, because npm is restricting tokens that bypass 2FA and OIDC trusted publishing no longer skips
-> that confirmation on this account. The registry still lists 18 versions with `latest` at 0.12.0, the
-> 0.13.0 tarball 404s, and a second dispatch refuses correctly with `409 Conflict - Cannot publish over
-> previously staged version "0.13.0"`. Finishing it needs the owner: approve the staged version (npmjs.com →
-> the package's staged versions, or `npm stage approve dsh-modern-web-guidance@0.13.0` after `npm login`),
-> then re-dispatch `.github/workflows/release.yml` at `v0.13.0` — the workflow skips the publish once the
-> version is on the registry, attaches the tarball, and publishes `docs/releases/v0.13.0.md` as the release
-> body. This banner becomes "0.13.0 is live" the moment that succeeds; until then `main` and the tag are
-> pushed and nothing else is pending.
+> **The first publish of a version can now take about ten minutes to appear, and the workflow's verify
+> step waits five.** 0.13.0's dispatch published at 17:59 (`+ dsh-modern-web-guidance@0.13.0`, sigstore
+> logIndex 3815381867) and the registry only answered at 18:09:35 — so the job failed on
+> `0.13.0 never appeared on the registry after five minutes` while the version was already on its way, and
+> a second dispatch refused with `409 Conflict - Cannot publish over previously staged version "0.13.0"`.
+> Republishing the same tag a minute later then found the version live, skipped the publish, attached the
+> tarball and wrote the release body. Read the 409 as "the earlier dispatch is still in flight, not lost",
+> and re-dispatch instead of changing anything; if the delay ever exceeds the window for good, the fix is
+> the workflow's wait, not the release.
 >
 > 0.8.1 is on the registry but **broken for the host**: its `package.json` shipped with a UTF-8
 > byte-order mark, and the host validates the manifest with `JSON.parse`, which throws on one, so an
