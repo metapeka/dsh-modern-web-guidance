@@ -131,6 +131,19 @@ exists to prevent.
   carries `slope: null` with F-1's line giving the reason, and the frozen two-member row shape keeps two
   members — the slope is enrichment for described rows, not snapshot data. §17 of
   `docs/notes/scan-history-contract.md`.
+- **Two rates, two questions** (0.13.0, F-3): the corpus block states the **answer rate** — `(hit + list) /
+  (hit + list + miss + unknown-id)`, guidance calls only, this window against the one before, with the
+  sample in the sentence — beside the KPI's **hit rate**, which divides hits by every call and keeps its
+  own sentence untouched. A test requires the two numbers to differ on one document and the blended
+  fraction to print nowhere; if a future refactor makes them agree, the two questions have been merged.
+  `list` is an answer and `error` is in neither side, from the root `byDay` rows at snapshot time and
+  stored nowhere (`version` 1, `stats.json` byte-identical after a report). It refuses with a raw token:
+  `no-previous` (**an erased baseline is not an improvement** — a reset must never read as a jump to
+  100 % against 0 %), `thin` (under ten guidance calls in either window, printed as counts without a
+  percentage, because a percentage is what the floor refuses), `too-old` (the earlier window reaches past
+  the ninety-day retention, so it would compare a full period against a pruned one), and `no-days` (no day
+  row in either window: the line is **absent**, never "0 %"). §18 of
+  `docs/notes/scan-history-contract.md`.
 
 ## CI
 
