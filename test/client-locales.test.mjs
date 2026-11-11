@@ -446,26 +446,77 @@ test('the guide chips explain themselves without changing their text', () => {
 })
 
 /**
+ * The hook cells of the component being rendered, and the cursor inside its current render.
+ *
+ * React is not a dependency of this suite, so a component is driven by calling it: one state cell
+ * per `useState` in call order, kept across renders so a second render sees the update, and every
+ * effect run once per render so a reload shows up as the bridge call it makes. `resetHooks()` starts
+ * a fresh component instance; `renderOnce` starts a fresh render of the instance that already owns
+ * the cells.
+ */
+const HOOKS = { cells: [], index: 0 }
+
+function resetHooks() {
+  HOOKS.cells = []
+  HOOKS.index = 0
+}
+
+const REACT = {
+  Fragment: 'Fragment',
+  createElement(type, props, ...children) {
+    return { type, props: props === null || props === undefined ? {} : props, children }
+  },
+  useState(initial) {
+    const index = HOOKS.index
+    HOOKS.index += 1
+    if (HOOKS.cells[index] === undefined) HOOKS.cells[index] = { value: initial }
+    const cell = HOOKS.cells[index]
+    return [
+      cell.value,
+      (next) => {
+        cell.value = typeof next === 'function' ? next(cell.value) : next
+      },
+    ]
+  },
+  useRef(value) {
+    const index = HOOKS.index
+    HOOKS.index += 1
+    if (HOOKS.cells[index] === undefined) HOOKS.cells[index] = { value: { current: value } }
+    return HOOKS.cells[index].value
+  },
+  useCallback(fn) {
+    HOOKS.index += 1
+    return fn
+  },
+  useEffect(fn) {
+    HOOKS.index += 1
+    fn()
+  },
+}
+
+/** Render one hook-using component once: a fresh hook cursor over the cells it already owns. */
+function renderOnce(component, props) {
+  HOOKS.index = 0
+  return component(props)
+}
+
+/**
  * The client half as the browser loads it: `window.__ModuleLoader__.load({ factory })` runs once, and
  * the `apply(ctx)` the factory returns registers the three slots. Loading it here lets a test drive a
  * component with the props the host passes, instead of only grepping the source for the call that
  * renders it.
  *
- * React is stubbed to the one function this file calls — `createElement` — because the component
- * under test is a plain function with no hooks.
+ * React is stubbed to what this file's components call: `createElement` and the four hooks the panel
+ * uses. See `REACT` above for what those stubs promise.
  */
 function loadClient() {
   let spec
+  resetHooks()
   // The browser global, named `window` because that is what client.js reads.
   const browserWindow = { __ModuleLoader__: { load(candidate) { spec = candidate } } }
-  const react = {
-    createElement(type, props, ...children) {
-      return { type, props: props === null || props === undefined ? {} : props, children }
-    },
-  }
   const requireReact = (name) => {
     assert.equal(name, 'react', `client.js required ${name} instead of react`)
-    return react
+    return REACT
   }
   new Function('window', 'require', CLIENT_SOURCE)(browserWindow, requireReact)
   assert.ok(spec !== undefined && typeof spec.factory === 'function', 'client.js registered no factory')
@@ -573,4 +624,232 @@ test('the Chinese plugin-list card is written in Chinese', () => {
   assert.match(card.meta.title, CJK, 'locale/zh.json meta.title has no Chinese text')
   assert.match(card.meta.description, CJK, 'locale/zh.json meta.description has no Chinese text')
   assert.match(card.meta.description, /Google Chrome/, 'locale/zh.json should keep the product name')
+})
+
+/** The strings workspace attribution added: the chip, the aggregate option, the unattributed bucket. */
+const WORKSPACE_KEYS = ['workspace.label', 'workspace.all', 'workspace.unattributed', 'workspace.switch']
+
+test('every workspace string exists in all three dictionaries and is rendered', () => {
+  for (const key of WORKSPACE_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    // A chip that names nothing is a chip the reader has to decode.
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // One interpolated string carries the name, so the wire shape stays a chip and not a sentence.
+  assert.deepEqual(placeholders(EN.get('workspace.label')), ['name'], 'the chip does not interpolate the workspace name')
+})
+
+test('the workspace keys are read additively and the switch reuses the report bridge', () => {
+  // Both keys are optional on the wire: a 0.9.0 host sends neither, and the panel renders what it did.
+  assert.match(CLIENT_SOURCE, /workspace: readWorkspace\(payload\.workspace\)/, 'the selected workspace is not read')
+  assert.match(CLIENT_SOURCE, /workspaces: readWorkspaces\(payload\.workspaces\)/, 'the workspace list is not read')
+  assert.match(
+    CLIENT_SOURCE,
+    /function readWorkspaces\(value\) \{[\s\S]{0,120}for \(const entry of asRows\(value\)\)/,
+    'a malformed workspace list is not read as rows',
+  )
+  assert.match(
+    CLIENT_SOURCE,
+    /if \(value === null \|\| value === undefined \|\| typeof value !== 'object' \|\| Array\.isArray\(value\)\) return null/,
+    'a malformed selected workspace is not ignored',
+  )
+  // The switcher asks the command, not the host: one line, through the same bridge Refresh uses.
+  assert.ok(CLIENT_SOURCE.includes('`${line} --workspace ${selected}`'), 'the selection never reaches the command line')
+  assert.ok(CLIENT_SOURCE.includes('`${line} --all`'), 'the aggregate option does not ask for every workspace')
+  assert.match(CLIENT_SOURCE, /bridge\.call\(sessionId, reportLine\(days, workspace\)\)/, 'the report line does not carry the selection')
+  assert.match(CLIENT_SOURCE, /onChange: \(event\) => onChange\(selectValue\(event\)\)/, 'the select does not read its own value')
+  assert.ok(CLIENT_SOURCE.includes("useState('')"), 'the selection has no component state')
+  assert.ok(CLIENT_SOURCE.includes('[bridge, sessionId, days, workspace]'), 'a selection does not reload the report')
+  // It stays a read: the panel still owns exactly two command lines and no new button.
+  assert.equal((CLIENT_SOURCE.match(/const (REPORT_LINE|SCAN_LINE) = /g) ?? []).length, 2, 'the panel grew a third command line')
+})
+
+/** A `/guidance-stats --json` body: the fields the panel requires, plus whatever a test adds. */
+function reportOf(extra = {}) {
+  return {
+    periodDays: 7,
+    corpus: { total: 208, version: '2026-11-01', snapshotDate: '2026-11-01' },
+    totals: { calls: 4, hitRate: 0.5, byTool: { 'legacy-scan': 2 }, byOutcome: { hit: 1, miss: 1 } },
+    topQueries: [],
+    misses: [],
+    coverage: [],
+    series: [],
+    deadGuides: { total: 208, sample: [] },
+    topRules: [],
+    topScanGuides: [],
+    scanCountsScope: 'lifetime',
+    lastScan: null,
+    ...extra,
+  }
+}
+
+/** The Remote envelope a successful command answers with. */
+function reportEnvelope(report) {
+  return { ok: true, value: { result: { kind: 'success', text: JSON.stringify(report) } } }
+}
+
+/**
+ * The panel as the host mounts it. The report arrives on a promise, so the component is rendered
+ * twice: once while the command runs, then again with the answer in state. The bridge records every
+ * line it is asked to run, which is how a switcher click is observed.
+ */
+async function mountPanel(report) {
+  const panel = loadClient().get('main:guidance')
+  assert.equal(typeof panel, 'function', 'the panel is not registered under the main slot')
+  const bridge = {
+    lines: [],
+    call(sessionId, line) {
+      bridge.lines.push(line)
+      return Promise.resolve(reportEnvelope(report))
+    },
+  }
+  const props = { t: translate, bridge, useSessions: () => 'session-1' }
+  renderOnce(panel, props)
+  // Let the command answer, then render what the panel settled on.
+  await new Promise((resolve) => setImmediate(resolve))
+  return { tree: renderOnce(panel, props), panel, props, bridge }
+}
+
+/** One element of a rendered tree by predicate. */
+function elementIn(tree, predicate) {
+  return elementsOf(tree).find(predicate)
+}
+
+/** The `<option>` elements a rendered `<select>` carries, in order. */
+function optionsOf(select) {
+  return elementsOf(select).filter((element) => element.type === 'option')
+}
+
+test('the header chip names the workspace the report answered for, and the switch lists every one', async () => {
+  const { tree } = await mountPanel(
+    reportOf({
+      workspace: { id: 'aaaa1111', name: 'app' },
+      workspaces: [
+        { id: 'aaaa1111', name: 'app', findings: 12, rules: 3, lastScanAt: 1762000000000 },
+        { id: 'bbbb2222', name: 'site', findings: 0, rules: 0, lastScanAt: null },
+      ],
+    }),
+  )
+  const chip = elementIn(tree, (element) => element.props.title === 'app')
+  assert.deepEqual(chip?.children, ['Workspace: app'], 'the chip does not name the selected workspace')
+  const select = elementIn(tree, (element) => element.type === 'select')
+  assert.equal(select?.props.value, 'aaaa1111', 'the switcher does not start on the selected workspace')
+  assert.equal(select?.props['aria-label'], 'Switch workspace', 'the switcher has no accessible name')
+  assert.deepEqual(
+    optionsOf(select).map((option) => option.children[0]),
+    ['All workspaces', 'app', 'site'],
+    'the switcher does not offer the aggregate plus every workspace',
+  )
+})
+
+test('the switch asks the command for the chosen workspace and redraws on the answer', async () => {
+  const { tree, panel, props, bridge } = await mountPanel(
+    reportOf({
+      workspace: { id: 'aaaa1111', name: 'app' },
+      workspaces: [
+        { id: 'aaaa1111', name: 'app', findings: 12, rules: 3, lastScanAt: 1762000000000 },
+        { id: 'bbbb2222', name: 'site', findings: 0, rules: 0, lastScanAt: null },
+      ],
+    }),
+  )
+  const before = bridge.lines.length
+  const select = elementIn(tree, (element) => element.type === 'select')
+  select.props.onChange({ target: { value: 'bbbb2222' } })
+  // The state change is what re-runs the report: the effect fires with the new selection.
+  const next = renderOnce(panel, props)
+  assert.deepEqual(
+    bridge.lines.slice(before),
+    ['/guidance-stats --json --days 7 --workspace bbbb2222'],
+    'the switcher does not re-run the report line for the chosen workspace',
+  )
+  const redrawn = elementIn(next, (element) => element.type === 'select')
+  assert.equal(redrawn.props.value, 'bbbb2222', 'the switcher does not show the new pick before the answer lands')
+  // The chip keeps naming the numbers that are still on screen.
+  assert.deepEqual(elementIn(next, (element) => element.props.title === 'app')?.children, ['Workspace: app'])
+})
+
+test('the aggregate option asks for every workspace and says so in the chip', async () => {
+  const { tree, panel, props, bridge } = await mountPanel(
+    reportOf({
+      workspace: null,
+      workspaces: [{ id: 'aaaa1111', name: 'app', findings: 12, rules: 3, lastScanAt: 1762000000000 }],
+    }),
+  )
+  assert.deepEqual(elementIn(tree, (element) => element.props.title === 'All workspaces')?.children, [
+    'Workspace: All workspaces',
+  ])
+  const select = elementIn(tree, (element) => element.type === 'select')
+  assert.equal(select.props.value, 'all', 'an aggregate report does not select the aggregate option')
+  const before = bridge.lines.length
+  select.props.onChange({ target: { value: 'all' } })
+  renderOnce(panel, props)
+  assert.deepEqual(bridge.lines.slice(before), ['/guidance-stats --json --days 7 --all'], 'the aggregate option does not ask --all')
+})
+
+test('the unattributed bucket is named by the dictionary, never shown as an empty name', async () => {
+  const { tree } = await mountPanel(
+    reportOf({
+      workspace: { id: '_unattributed', name: '' },
+      workspaces: [{ id: '_unattributed', name: '', findings: 7, rules: 2, lastScanAt: null }],
+    }),
+  )
+  assert.deepEqual(elementIn(tree, (element) => element.props.title === 'Unattributed')?.children, [
+    'Workspace: Unattributed',
+  ])
+  const select = elementIn(tree, (element) => element.type === 'select')
+  assert.deepEqual(optionsOf(select).map((option) => option.children[0]), ['All workspaces', 'Unattributed'])
+})
+
+test('two workspaces that share a name stay distinguishable', async () => {
+  const { tree } = await mountPanel(
+    reportOf({
+      workspace: { id: 'aaaa1111', name: 'app' },
+      workspaces: [
+        { id: 'aaaa1111', name: 'app', findings: 1, rules: 1, lastScanAt: 1762000000000 },
+        { id: 'bbbb2222', name: 'app', findings: 2, rules: 1, lastScanAt: null },
+      ],
+    }),
+  )
+  const labels = optionsOf(elementIn(tree, (element) => element.type === 'select')).map((option) => option.children[0])
+  assert.deepEqual(labels, ['All workspaces', 'app · aaaa', 'app · bbbb'], 'a duplicated name is not told apart')
+  assert.equal(new Set(labels).size, labels.length, 'two options share one label')
+})
+
+test('a report without workspaces keeps the panel exactly as it was', async () => {
+  const legacy = elementsOf((await mountPanel(reportOf())).tree)
+  assert.equal(legacy.some((element) => element.type === 'select'), false, 'a 0.9.0 host grew a switcher')
+  assert.equal(
+    legacy.some((element) =>
+      element.children.some((child) => typeof child === 'string' && child.startsWith('Workspace: ')),
+    ),
+    false,
+    'a 0.9.0 host grew a chip',
+  )
+  // Everything else still renders, and the button count matches an attributed panel: the workspace
+  // switch adds a chip and a select, never a control of its own.
+  assert.ok(legacy.some((element) => element.children.includes('Total calls')), 'the tiles are gone')
+  const attributed = elementsOf(
+    (
+      await mountPanel(
+        reportOf({
+          workspace: null,
+          workspaces: [{ id: 'aaaa1111', name: 'app', findings: 1, rules: 1, lastScanAt: 1762000000000 }],
+        }),
+      )
+    ).tree,
+  )
+  assert.equal(
+    attributed.filter((element) => element.type === 'button').length,
+    legacy.filter((element) => element.type === 'button').length,
+    'the workspace switch added a button',
+  )
 })

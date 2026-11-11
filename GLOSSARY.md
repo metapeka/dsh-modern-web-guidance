@@ -113,6 +113,22 @@ _Avoid_: success rate, accuracy
 The human-facing summary of counters over one period, produced by the `/guidance-stats` command.
 _Avoid_: dashboard, metrics page
 
+**Workspace**:
+The directory a session is working in, as the host reports it in the session header. Scan counters are kept
+per workspace; guidance counters are not, because those measure the bundled corpus rather than a project.
+_Avoid_: project, repo, folder
+
+**Workspace id**:
+Eight lowercase hexadecimal characters — FNV-1a 32-bit over the resolved workspace path — used as the key of
+a counter bucket. Stable across runs, and the only thing that tells two same-named checkouts apart: the path
+itself is never stored.
+_Avoid_: project id, slug, key
+
+**Unattributed**:
+The bucket holding scan counters written before per-workspace attribution existed (0.10.0). It is offered in
+the switcher and selectable by id rather than hidden, and nothing writes to it any more.
+_Avoid_: legacy, unknown, orphan
+
 ## Panel
 
 **Panel**:

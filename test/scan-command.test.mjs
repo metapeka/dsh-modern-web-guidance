@@ -169,6 +169,11 @@ function comparable(report) {
     findings: report.totals.findings,
     topRules: report.topRules,
     topScanGuides: report.topScanGuides,
+    // Attribution is part of "counted exactly like": the two entry points must not merely add up the
+    // same, they must land in the same workspace bucket (workspace-attribution contract §2-§3). Only
+    // the ids and names are compared — the two runs happen at different instants, so `lastScanAt`
+    // legitimately differs.
+    workspaces: report.workspaces.map((row) => ({ id: row.id, name: row.name })),
     lastScan: {
       files: report.lastScan.files,
       findings: report.lastScan.findings,
@@ -367,13 +372,19 @@ test('a command scan is counted exactly like a tool scan', async (t) => {
   assert.equal(report.lastScan.files, scanned.scanned.files)
   assert.equal(report.lastScan.findings, scanned.findings.length)
 
-  // And it survives a shutdown: the document on disk holds that one call.
+  // And it survives a shutdown: the document on disk holds that one call. The scan is attributed to
+  // the workspace the invocation named, so per the workspace-attribution contract §3 its last-scan
+  // pointer lives in that workspace's bucket while the legacy root pointer stays null.
   await flush()
   const stored = JSON.parse(await readFile(countersFile(home), 'utf8'))
   assert.equal(stored.byTool['legacy-scan'], 1)
   assert.equal(stored.byOutcome.findings, 1)
-  assert.equal(stored.lastScan.files, scanned.scanned.files)
-  assert.equal(stored.lastScan.findings, scanned.findings.length)
+  assert.equal(stored.lastScan, null)
+  assert.equal(report.workspaces.length, 1)
+  const bucket = stored.workspaces[report.workspaces[0].id]
+  assert.equal(bucket.name, report.workspaces[0].name)
+  assert.equal(bucket.lastScan.files, scanned.scanned.files)
+  assert.equal(bucket.lastScan.findings, scanned.findings.length)
 })
 
 test('a refused command scan counts an error and leaves lastScan alone', async (t) => {

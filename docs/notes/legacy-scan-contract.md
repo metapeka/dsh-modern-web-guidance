@@ -471,6 +471,23 @@ Last scan: 2026-11-10, 70 files, 85 findings (rules: ls-13); skipped 284 (282 ex
   `scan.skipped`, `scan.skippedMore`, `scanner.skipped`, `scanner.cut` — and the fifth string is the
   existing `scan.truncated`. No path and no snippet appears on any of the three: these are counters, and
   the chat table is where files and lines belong.
+- **0.9.0 — a counter explains itself.** `renderJson(snapshot, { rules, guides })` joins the rule table
+  and the catalog onto the ranked counters: `topRules` becomes `{ ruleId, count, message, confidence,
+  guideId }` and `topScanGuides` becomes `{ guideId, count, description }`, both described by a new
+  top-level `scanCountsScope: 'lifetime'` — the ranked counters are lifetime totals that `periodDays`
+  never filtered. Everything is additive and defensive: an id the table or the catalog no longer knows
+  keeps its row and reads as `''` (and `null` for `guideId`), because its count is still true. Called
+  with **no options** `renderJson` emits exactly the 0.8.x document, byte for byte, so an older consumer
+  cannot tell the enrichment exists; `/guidance-stats --json` always passes both tables, so the command
+  and the panel always get the described rows.
+
+- **0.10.0 — scan counters are per workspace.** `stats.json` gains an additive `workspaces` subtree while
+  `version` stays `1` (a bump would erase the file), one bucket per workspace holding `name`, `since`,
+  `scanRules`, `scanGuides` and `lastScan`. Counters written before this release stay at the root and are
+  surfaced as `_unattributed`. `classifyCall()` adds `workspacePath` (the raw `value.cwd`) for scans only,
+  `snapshot({ days, workspace })` selects a bucket, and `/guidance-stats` grows `--workspace` and `--all`.
+  The scanner itself is untouched: the same `runScanRequest`, the same findings, the same caps. Shapes:
+  [workspace-attribution-contract.md](workspace-attribution-contract.md).
 
 ## Release
 

@@ -61,6 +61,30 @@ full interface is `docs/notes/legacy-scan-contract.md`.
   workspace, so it can only make a scan read less. Both rules are specified in
   `docs/notes/legacy-scan-contract.md` and covered by `test/scan-ignore.test.mjs`.
 
+## Telemetry and attribution
+
+`lib/telemetry.js` counts every call, then partitions **scan** counters per workspace (0.10.0). One
+`stats.json` per DSH profile serves every project, so an unattributed number is the defect this section
+exists to prevent.
+
+- **Partition additively; never bump `version`.** `normalizeState()` reads any other version as an empty
+  document and the next flush atomically overwrites the file, so a bump is silent total data loss. The
+  `workspaces` subtree and the `_unattributed` bucket are how the old counters survive; a test pins both,
+  and `recent` entries keep their exact shape.
+- **A workspace is a name and an id, never a path.** `workspaceId()` is FNV-1a 32-bit over the resolved
+  path — eight lowercase hex characters, pinned by a golden value because it keys every bucket — and the
+  display name is the basename. `index.js` resolves the path and strips it before `record()` sees it;
+  `lib/telemetry.js` stays filesystem-free. The exact shapes are
+  `docs/notes/workspace-attribution-contract.md`.
+- **The report refuses to guess.** The default workspace comes from the invocation's session header; with
+  no header the report aggregates *and says so*, because `process.cwd()` is not the user's project. An
+  unknown selector is an error listing every `name (id)`, a duplicated name is refused rather than guessed,
+  and an absent bucket draws empty instead of borrowing the aggregate.
+- **Guidance counters stay profile-wide.** They measure the bundled corpus, not a project; a workspace
+  dimension would make "hit rate" mean nothing. Scan counters are the only partitioned ones.
+- **Branch is a label, not a key — and nothing reads `.git` yet.** `.git/HEAD` stays unread until an ADR
+  accepts that read surface, so attribution is per workspace and "per branch" remains open.
+
 ## CI
 
 `.github/workflows/test.yml` is the source of truth: every push to `main` and every PR runs `npm test` plus `npm pack --dry-run`, and `npm test` on its own reproduces it locally.
@@ -105,3 +129,21 @@ languages in the same commit.
   line must render *shorter*: never invent a `skipped 0` and never show `truncated` because the field was
   absent. The stored map keeps the top four reasons, so its sum can be smaller than the scan's own
   `skippedTotal` — that is the contract, not a bug to "fix" in the panel.
+- **A counter explains itself, and a lifetime total says so** (0.9.0): a ranked rule row carries its id,
+  its raw confidence token and a count that names its unit (`121 findings`, through the existing
+  `finding` plurals), with the rule's own `message` clamped to two lines underneath — and no second line
+  at all when the host sends none. A guide chip keeps `id (count)` visible and puts the catalog
+  `description` in its `title`. While `scanCountsScope` is `lifetime`, one caption (`scanner.lifetime`)
+  says the ranked counts are not the `{days}` window the tiles above show. **The words come from the
+  host**: `renderJson(snapshot, { rules, guides })` joins them from `lib/scan-rules.js` and the catalog,
+  so the panel invents nothing, and the chat row reads the same per-finding `message`/`snippet` as
+  `title`s rather than adding a line per row. Version skew costs a caption or a hint, never a row — a
+  host without those fields renders exactly the terse ids and counts it always did. Confidence tokens
+  stay raw like rule ids: there are no `confidence.*` keys, and the locale test rejects them on purpose.
+- **The panel names whose numbers it is showing** (0.10.0): a chip and a native `<select>` sit between the
+  title and the 7/30 switch, rendering `workspace.label` from the report's `workspace` and listing every
+  entry of `workspaces` plus `workspace.all`. Selecting one re-runs
+  `/guidance-stats --json --workspace <id>` through the same bridge as refresh, so the panel still owns no
+  second data path and still writes nothing. An empty or `_unattributed` name renders
+  `workspace.unattributed`, never a blank chip; two entries sharing a name get an id suffix (`app · aaaa`).
+  A host that sends no `workspaces` renders no chip and no switcher — the 0.9.0 panel exactly.

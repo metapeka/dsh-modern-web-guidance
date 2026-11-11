@@ -9,16 +9,16 @@
  * leaves the session workspace.
  */
 
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync, realpathSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createGuidance } from './lib/guidance.js'
-import { renderJson, renderReport } from './lib/report.js'
+import { renderJson, renderReport, workspaceLabel } from './lib/report.js'
 import { RULES, selectRules } from './lib/scan-rules.js'
 import { ScanError, scan } from './lib/scan.js'
 import { createFileStore, defaultStatePath } from './lib/store.js'
-import { classifyCall, createTelemetry } from './lib/telemetry.js'
+import { classifyCall, createTelemetry, workspaceId } from './lib/telemetry.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(here, 'data')
@@ -474,6 +474,51 @@ function commandCwd(invocation) {
 }
 
 /**
+ * A workspace as the counters store it: a stable id and a directory name, never a path.
+ *
+ * The id hashes the resolved path, so two sessions in one checkout land in one bucket and a renamed
+ * directory starts a new one. `realpathSync` only sharpens the string — a path that cannot be
+ * resolved (yet) still has an identity — and the raw string is what gets hashed if it fails.
+ *
+ * `null` means "there is no usable path", never "use the process directory": the report must be able
+ * to say it does not know which project it is showing, and `process.cwd()` posed as the project is
+ * exactly the lie this helper exists to prevent.
+ *
+ * @param {unknown} cwd the workspace path, as the host reported it.
+ * @param {string} [base] where a relative path is read from — the command passes the session
+ *   directory, so `--workspace ../other` never resolves against the plugin process's own directory.
+ * @returns {{ id: string, name: string } | null}
+ */
+function resolveWorkspace(cwd, base) {
+  const raw = typeof cwd === 'string' ? cwd.trim() : ''
+  if (raw === '') return null
+  const target = base !== undefined && base !== '' && !isAbsolute(raw) ? join(base, raw) : raw
+  let resolved = target
+  try {
+    resolved = realpathSync(target)
+  } catch {
+    resolved = target
+  }
+  return { id: workspaceId(resolved), name: basename(resolved) || 'workspace' }
+}
+
+/**
+ * The workspace a command was invoked in, or `undefined` when the host handed it no session header.
+ *
+ * Deliberately header-only, unlike `commandCwd`: a scan needs a directory to resolve its relative
+ * paths against, so it must fall back to something, while a report must be able to admit that the
+ * project is unknown rather than attribute a profile's counters to the plugin's own directory.
+ *
+ * @param {object} invocation the command invocation the host hands the handler.
+ * @returns {string | undefined} an absolute path, or undefined when the host named none.
+ */
+function sessionCwd(invocation) {
+  const header = invocation?.agent?.session?.header ?? invocation?.session?.header
+  const cwd = typeof header?.cwd === 'string' ? header.cwd.trim() : ''
+  return cwd === '' ? undefined : cwd
+}
+
+/**
  * The text a command prints: exactly what the tool's renderer produces, joined into one string.
  * A second renderer would drift from the tool, and the panel parses this JSON — so the command
  * reuses `renderScan` rather than formatting findings itself.
@@ -633,21 +678,161 @@ function readCatalog() {
 }
 
 /**
- * Parse a `/guidance-stats` line. Anything unparsable falls back to the default period, because a
- * malformed argument should still show the report rather than an error.
+ * Parse a `/guidance-stats` line:
+ * `[--days N] [--json] [--reset --yes] [--workspace <name|id|path>] [--all]`.
+ *
+ * Anything unparsable falls back to the default period, because a malformed argument should still
+ * show the report rather than an error. The two selector flags are the exception: half a flag, or
+ * two contradictory ones, would otherwise quietly read as "count everything", so they travel out as
+ * an `error` string the handler returns before it takes a snapshot.
+ *
  * @param {string} line raw arguments after the command name.
- * @returns {{ days: number, json: boolean, reset: boolean, yes: boolean }}
+ * @returns {{ days: number, json: boolean, reset: boolean, yes: boolean, workspace: string | undefined, all: boolean, error: string | undefined }}
  */
 function parseStatsArguments(line) {
   const text = String(line ?? '')
   const matched = text.match(/--days(?:\s+|=)(\d+)/)
   const days = matched === null ? DEFAULT_PERIOD_DAYS : Number(matched[1])
+  const declared = /--workspace\b/.test(text)
+  // A selector never starts with `-`: `--workspace --json` is a missing value, not a workspace
+  // called "--json", and the next flag must not be swallowed as one.
+  const workspaceMatch = text.match(/--workspace(?:\s+|=)([^\s-]\S*)/)
+  const all = /--all\b/.test(text)
+  const workspace = workspaceMatch === null ? undefined : workspaceMatch[1]
   return {
     days: Number.isFinite(days) && days > 0 ? Math.min(Math.floor(days), 3650) : DEFAULT_PERIOD_DAYS,
     json: /--json\b/.test(text),
     reset: /--reset\b/.test(text),
     yes: /--yes\b/.test(text),
+    workspace,
+    all,
+    error: statsSelectorError({ declared, workspace, all }),
   }
+}
+
+/**
+ * Why a selector cannot be used, or undefined when the flags are coherent. Checked before any
+ * snapshot: a contradictory line must cost nothing and touch nothing.
+ *
+ * @param {{ declared: boolean, workspace: string | undefined, all: boolean }} flags
+ * @returns {string | undefined}
+ */
+function statsSelectorError({ declared, workspace, all }) {
+  if (declared && workspace === undefined) {
+    return 'Error: --workspace needs a workspace name, id or path, for example /guidance-stats --workspace my-app.'
+  }
+  if (declared && all) {
+    return 'Error: --workspace and --all cannot be combined. Pass one of them, or neither to show the session workspace.'
+  }
+  return undefined
+}
+
+/** Why a report covers every workspace: the text says it, so the aggregate never passes as a project. */
+const NO_SESSION_WORKSPACE_NOTE = 'no session workspace could be resolved, so every workspace is counted'
+
+/**
+ * Which workspace's scan detail the report shows.
+ *
+ * With no selector it is the session's own workspace — the whole point of the partition — and when
+ * the host named no path the report aggregates and the reason travels to the text. `--all` asks for
+ * the aggregate explicitly, so it explains nothing. A `--workspace` value is validated against the
+ * list the snapshot already carries: a typo must be an error naming what exists, never a quiet
+ * aggregate that reads like "this project has no scans".
+ *
+ * @param {{ workspace: string | undefined, all: boolean }} options parsed flags.
+ * @param {string | undefined} sessionPath the session header's cwd, when the host gave one.
+ * @param {object} overview an aggregate snapshot, for its `workspaces` list.
+ * @returns {{ workspace?: { id: string, name: string }, note?: string, error?: string }}
+ */
+function selectWorkspace(options, sessionPath, overview) {
+  const known = Array.isArray(overview?.workspaces) ? overview.workspaces : []
+  if (options.all) return {}
+  if (options.workspace !== undefined) {
+    const match = matchWorkspace(options.workspace, known, sessionPath)
+    return match.error === undefined ? { workspace: match.workspace } : { error: match.error }
+  }
+  const session = resolveWorkspace(sessionPath)
+  return session === null ? { note: NO_SESSION_WORKSPACE_NOTE } : { workspace: session }
+}
+
+/**
+ * Resolve one `--workspace` selector against the workspaces the counters know: an id, an exact
+ * name, or a path that hashes to a recorded id. The order matters — an id is what `--workspace`
+ * prints in its refusals, a name is what a person types, and a path is the only form that has to be
+ * resolved before it can match.
+ *
+ * Two workspaces can share a name (two checkouts of one project), and guessing between them would
+ * attach numbers to the wrong project, so an ambiguous name is refused with their ids instead.
+ *
+ * @param {string} selector the raw `--workspace` value.
+ * @param {Array<object>} known the snapshot's `workspaces` rows.
+ * @param {string | undefined} base the session directory, for a relative path.
+ * @returns {{ workspace?: { id: string, name: string }, error?: string }}
+ */
+function matchWorkspace(selector, known, base) {
+  const wanted = String(selector ?? '').trim()
+  const usable = known.filter((row) => row !== null && typeof row === 'object'
+    && typeof row.id === 'string' && row.id !== '')
+  const asWorkspace = (row) => ({ id: row.id, name: typeof row.name === 'string' ? row.name : '' })
+
+  const byId = usable.find((row) => row.id === wanted)
+  if (byId !== undefined) return { workspace: asWorkspace(byId) }
+
+  const byName = usable.filter((row) => typeof row.name === 'string' && row.name !== '' && row.name === wanted)
+  if (byName.length === 1) return { workspace: asWorkspace(byName[0]) }
+  if (byName.length > 1) {
+    return {
+      error: `Error: "${wanted}" names ${byName.length} workspaces. Pass one of their ids: ${byName.map(workspaceLabel).join(', ')}.`,
+    }
+  }
+
+  // A path selects by identity. A relative path is only read from a base the host actually gave:
+  // resolving it against `process.cwd()` could select the plugin's own directory.
+  if (isAbsolute(wanted) || base !== undefined) {
+    const resolved = resolveWorkspace(wanted, base)
+    const byPath = resolved === null ? undefined : usable.find((row) => row.id === resolved.id)
+    if (byPath !== undefined) return { workspace: asWorkspace(byPath) }
+  }
+
+  const labelled = usable.map(workspaceLabel)
+  const list = labelled.length === 0
+    ? 'No workspace has a recorded scan yet.'
+    : `Known workspaces: ${labelled.join(', ')}.`
+  return { error: `Error: unknown workspace "${wanted}". ${list} Omit --workspace to count every workspace.` }
+}
+
+/**
+ * Show one workspace's scan detail, and name it.
+ *
+ * Two things the counters cannot do for the command. First, the counters aggregate an id they hold
+ * no bucket for — that is their contract, because the command validates selectors — but a workspace
+ * that has never been scanned has *no* scan debt: rendering the aggregate under its name would
+ * attribute somebody else's findings to this project, which is the exact lie this phase removes. So
+ * an absent bucket is drawn as empty. Second, the counters only know the names of workspaces they
+ * hold a bucket for, so a fresh checkout would otherwise report anonymously while the command knows
+ * exactly which directory it selected; the command stamps the name it resolved.
+ *
+ * @param {object} snapshot the snapshot the counters returned for this id.
+ * @param {{ id: string, name: string }} workspace the workspace the command selected.
+ * @returns {object} the same snapshot, or a copy scoped and named for the selection.
+ */
+function scopeWorkspace(snapshot, workspace) {
+  if (snapshot === null || typeof snapshot !== 'object' || !('workspaces' in snapshot)) return snapshot
+  const rows = Array.isArray(snapshot.workspaces) ? snapshot.workspaces : []
+  const known = rows.some((row) => row !== null && typeof row === 'object' && row.id === workspace.id)
+  if (!known) {
+    return {
+      ...snapshot,
+      workspace: { id: workspace.id, name: workspace.name },
+      topRules: [],
+      topScanGuides: [],
+      lastScan: null,
+    }
+  }
+  const current = snapshot.workspace
+  const named = current !== null && typeof current === 'object' && current.id === workspace.id
+    && typeof current.name === 'string' && current.name !== ''
+  return named ? snapshot : { ...snapshot, workspace: { id: workspace.id, name: workspace.name } }
 }
 
 /**
@@ -662,13 +847,16 @@ function parseStatsArguments(line) {
 function buildStatsCommand(telemetry, detail = {}) {
   return {
     name: 'guidance-stats',
-    description: 'Local usage counters for the guidance tools: calls, outcomes, missed queries, category coverage and dead guides.',
-    input: { hint: '[--days N] [--json] [--reset --yes]' },
+    description: 'Local usage counters for the guidance tools: calls, outcomes, missed queries, category coverage and dead guides, plus the scan findings and rules of the workspace you ask for.',
+    input: { hint: '[--days N] [--json] [--workspace <name|id>] [--all] [--reset --yes]' },
     recordInput: false,
     async handler(invocation) {
       try {
         const options = parseStatsArguments(invocation?.rawInput)
+        if (options.error !== undefined) return { kind: 'error', text: options.error }
         if (options.reset) {
+          // Reset stays global: the counters are one document, and a selector must not make erasing
+          // look narrower than it is.
           const before = await telemetry.snapshot({ days: options.days })
           const calls = before?.totals?.calls ?? 0
           if (!options.yes) {
@@ -678,10 +866,23 @@ function buildStatsCommand(telemetry, detail = {}) {
           return { kind: 'success', text: `Erased local usage counters (${calls} call(s) in the last ${options.days} day(s)). Tool behaviour is unchanged.` }
         }
 
-        const snapshot = await telemetry.snapshot({ days: options.days })
+        // One aggregate snapshot answers both questions: it lists the workspaces a selector can be
+        // validated against, and it *is* the report when no workspace is selected.
+        const overview = await telemetry.snapshot({ days: options.days, workspace: 'all' })
+        const selection = selectWorkspace(options, sessionCwd(invocation), overview)
+        if (selection.error !== undefined) return { kind: 'error', text: selection.error }
+
+        let snapshot = overview
+        if (selection.workspace !== undefined) {
+          snapshot = scopeWorkspace(
+            await telemetry.snapshot({ days: options.days, workspace: selection.workspace.id }),
+            selection.workspace,
+          )
+        }
+
         const text = options.json
           ? JSON.stringify(renderJson(snapshot, detail), null, 2)
-          : renderReport(snapshot)
+          : renderReport(snapshot, { workspaceNote: selection.note })
         return { kind: 'success', text }
       } catch (error) {
         return { kind: 'error', text: `Usage stats are unavailable: ${error instanceof Error ? error.message : String(error)}` }
@@ -767,8 +968,20 @@ function startUsageCounters(ctx, config, usage) {
       return
     }
 
+    // A scan names the workspace it read as the raw `cwd` in its value; the counters store an id and
+    // a name, so the path is resolved here and never reaches the document. A call with no path — a
+    // guidance call, or a scan whose value carries none — records no workspace and its scan debt
+    // stays in the legacy root counters.
+    const { workspacePath, ...classified } = entry
+    const workspace = resolveWorkspace(workspacePath)
+
     void Promise.resolve()
-      .then(() => telemetry.record({ at: Date.now(), tool, ...entry }))
+      .then(() => telemetry.record({
+        at: Date.now(),
+        tool,
+        ...classified,
+        ...(workspace === null ? {} : { workspace }),
+      }))
       .catch(() => {})
 
     scheduleSave()

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { renderJson, renderReport } from '../lib/report.js'
+import { renderJson, renderReport, workspaceLabel } from '../lib/report.js'
 
 /**
  * A small hand-written snapshot, matching the contract `lib/telemetry.js` is expected to
@@ -92,6 +92,22 @@ const RICH = {
     findings: 4,
     rules: ['ls-05', 'ls-08', 'ls-13', 'ls-17', 'ls-21', 'ls-33'],
   },
+}
+
+/**
+ * A snapshot from the per-workspace counters (0.10.0): the report is scoped to one workspace, so the
+ * snapshot carries the selection and the directory the panel's switcher reads. The rows follow the
+ * contract's order — newest last scan first, with the synthetic legacy bucket (`name: ''`) last — and
+ * the selected id is the first row, so the report and the list describe the same workspace.
+ */
+const WORKSPACED = {
+  ...RICH,
+  workspace: { id: 'a1b2c3d4', name: 'my-app' },
+  workspaces: [
+    { id: 'a1b2c3d4', name: 'my-app', findings: 6, rules: 3, lastScanAt: '2026-11-10T09:42:11.000Z' },
+    { id: '0f1e2d3c', name: 'site', findings: 2, rules: 2, lastScanAt: '2026-11-09T18:00:00.000Z' },
+    { id: '_unattributed', name: '', findings: 4, rules: 1, lastScanAt: null },
+  ],
 }
 
 /**
@@ -395,7 +411,7 @@ test('a sparse snapshot degrades instead of throwing', () => {
 })
 
 test('rendering never mutates the snapshot', () => {
-  for (const fixture of [SMALL, RICH]) {
+  for (const fixture of [SMALL, RICH, WORKSPACED]) {
     const snapshot = structuredClone(fixture)
     const before = structuredClone(snapshot)
     renderReport(snapshot)
@@ -784,4 +800,106 @@ test('renderJson without options keeps the pre-enrichment document exactly', () 
   ]) {
     assert.deepEqual(described[key], frozen[key], `${key} must not change when rows are described`)
   }
+})
+
+// --- Per-workspace counters: which workspace the numbers belong to ------------------------------
+
+test('renderJson carries the selected workspace and the switcher list', () => {
+  const json = renderJson(WORKSPACED, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+
+  assert.deepEqual(json.workspace, { id: 'a1b2c3d4', name: 'my-app' })
+  assert.deepEqual(json.workspaces, WORKSPACED.workspaces)
+  // The rows are the snapshot's own, not a copy: nothing is renamed on the way out.
+  assert.equal(json.workspaces, WORKSPACED.workspaces)
+  // The lifetime flag still describes the two scan lists it sits above.
+  assert.equal(json.scanCountsScope, 'lifetime')
+  // Both keys are additive and sit after the frozen document, so an older consumer reading by key
+  // never meets them mid-document.
+  assert.deepEqual(Object.keys(json).slice(-2), ['workspace', 'workspaces'])
+})
+
+test('an aggregate snapshot carries workspace: null and still lists every workspace', () => {
+  const json = renderJson({ ...WORKSPACED, workspace: null })
+  assert.equal(json.workspace, null)
+  assert.deepEqual(json.workspaces, WORKSPACED.workspaces)
+  // A fresh document has no buckets but still has the keys: the panel must be able to tell "no
+  // workspace yet" from "this host cannot say".
+  const fresh = renderJson({ ...SMALL, workspace: null, workspaces: [] })
+  assert.equal(fresh.workspace, null)
+  assert.deepEqual(fresh.workspaces, [])
+})
+
+test('a 0.8.x-shaped snapshot keeps the old document, key for key and byte for byte', () => {
+  const json = renderJson(SMALL, { rules: RULE_TABLE, guides: GUIDE_DESCRIPTIONS })
+  assert.equal('workspace' in json, false)
+  assert.equal('workspaces' in json, false)
+  // The whole document, not just the absence of two keys: a hand-built snapshot renders exactly the
+  // document it rendered before per-workspace counters existed.
+  assert.equal(
+    JSON.stringify(json),
+    JSON.stringify({
+      periodDays: SMALL.periodDays,
+      corpus: SMALL.corpus,
+      totals: SMALL.totals,
+      topQueries: SMALL.topQueries,
+      misses: SMALL.misses,
+      coverage: SMALL.coverage,
+      deadGuides: SMALL.deadGuides,
+      series: SMALL.series,
+      scanCountsScope: 'lifetime',
+      topRules: [],
+      topScanGuides: [],
+      lastScan: null,
+    }),
+  )
+})
+
+test('the text report names the workspace it is showing', () => {
+  const text = renderReport(WORKSPACED)
+  assert.match(text, /^Workspace: my-app \(a1b2c3d4\)$/m)
+  // It belongs to the "what was measured" footer: after the last scan, before the corpus line.
+  assert.ok(text.indexOf('Workspace:') > text.indexOf('Last scan:'))
+  assert.ok(text.indexOf('Workspace:') < text.indexOf('Corpus:'))
+})
+
+test('an aggregate report says every workspace is counted', () => {
+  const text = renderReport({ ...WORKSPACED, workspace: null })
+  assert.match(text, /^Workspace: all workspaces$/m)
+  assert.doesNotMatch(text, /Workspace: all workspaces \(/)
+})
+
+test('the reason for aggregating travels with the line, and only when the caller has one', () => {
+  const note = 'no session workspace could be resolved, so every workspace is counted'
+  assert.match(
+    renderReport({ ...WORKSPACED, workspace: null }, { workspaceNote: note }),
+    /^Workspace: all workspaces \(no session workspace could be resolved, so every workspace is counted\)$/m,
+  )
+  // An explicit --all has nothing to explain: no note, no parenthetical.
+  assert.match(
+    renderReport({ ...WORKSPACED, workspace: null }, {}),
+    /^Workspace: all workspaces$/m,
+  )
+})
+
+test('the legacy bucket is labelled by its id, never by an empty name', () => {
+  const text = renderReport({ ...WORKSPACED, workspace: { id: '_unattributed', name: '' } })
+  assert.match(text, /^Workspace: _unattributed$/m)
+  assert.doesNotMatch(text, /Workspace: {2}/)
+})
+
+test('a snapshot without workspace data renders no workspace line at all', () => {
+  // Both the empty state and the full report: 0.9.0 fixtures must not grow a line.
+  assert.doesNotMatch(renderReport(SMALL), /Workspace:/)
+  assert.doesNotMatch(renderReport(RICH), /Workspace:/)
+  assert.doesNotMatch(renderReport(WITH_SCAN), /Workspace:/)
+})
+
+test('workspaceLabel names a workspace once, and never invents a name', () => {
+  assert.equal(workspaceLabel({ id: 'a1b2c3d4', name: 'my-app' }), 'my-app (a1b2c3d4)')
+  assert.equal(workspaceLabel({ id: '_unattributed', name: '' }), '_unattributed')
+  // A name that is only the id is not printed twice.
+  assert.equal(workspaceLabel({ id: 'a1b2c3d4', name: 'a1b2c3d4' }), 'a1b2c3d4')
+  // Junk degrades to an empty label instead of throwing "undefined".
+  assert.equal(workspaceLabel(null), '')
+  assert.equal(workspaceLabel({}), '')
 })

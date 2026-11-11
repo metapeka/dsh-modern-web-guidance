@@ -48,6 +48,15 @@ window.__ModuleLoader__.load({
     const REPORT_LINE = '/guidance-stats --json'
     /** The windows the header switch offers, in days. The first one is the default. */
     const PERIODS = [7, 30]
+    /**
+     * The `<select>` value that asks the report to sum every workspace. No workspace id is `all`:
+     * the host makes those out of 8 lowercase hex characters.
+     */
+    const WORKSPACE_ALL = 'all'
+    /** The host's synthetic bucket for counters recorded before workspaces were attributed. */
+    const UNATTRIBUTED_ID = '_unattributed'
+    /** Characters of a workspace id shown beside a duplicated name: enough to tell two apart. */
+    const WORKSPACE_ID_CHARS = 4
     /** Dead-guide ids the panel lists: the counter caps its own sample at 20 as well. */
     const MAX_DEAD_ROWS = 20
     /**
@@ -72,6 +81,10 @@ window.__ModuleLoader__.load({
       'loading': 'Reading the counters...',
       'updated': 'Updated {time}',
       'period.short': '{days} d',
+      'workspace.label': 'Workspace: {name}',
+      'workspace.all': 'All workspaces',
+      'workspace.unattributed': 'Unattributed',
+      'workspace.switch': 'Switch workspace',
       'kpi.calls': 'Total calls',
       'kpi.hitRate': 'Hit rate',
       'hitRate.raw': 'The report counts every call: {value}',
@@ -156,6 +169,10 @@ window.__ModuleLoader__.load({
       'loading': 'Чтение счётчиков...',
       'updated': 'Обновлено {time}',
       'period.short': '{days} дн.',
+      'workspace.label': 'Рабочая папка: {name}',
+      'workspace.all': 'Все рабочие папки',
+      'workspace.unattributed': 'Без привязки',
+      'workspace.switch': 'Переключить рабочую папку',
       'kpi.calls': 'Всего вызовов',
       'kpi.hitRate': 'Доля попаданий',
       'hitRate.raw': 'В отчёте учитываются все вызовы: {value}',
@@ -244,6 +261,10 @@ window.__ModuleLoader__.load({
       'loading': '正在读取计数器...',
       'updated': '更新于 {time}',
       'period.short': '{days} 天',
+      'workspace.label': '工作区：{name}',
+      'workspace.all': '所有工作区',
+      'workspace.unattributed': '未归属',
+      'workspace.switch': '切换工作区',
       'kpi.calls': '总调用次数',
       'kpi.hitRate': '命中率',
       'hitRate.raw': '报告按全部调用计算：{value}',
@@ -359,16 +380,99 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The command line for one window.
+     * The command line for one window and one workspace.
      *
-     * `--days` belongs to the command, not to the panel: the panel only picks the number, so the
-     * text report and the panel keep reading one implementation of the counters.
+     * Both selectors belong to the command, not to the panel: the panel only picks numbers and ids,
+     * so the text report and the panel keep reading one implementation of the counters. An empty id
+     * asks for nothing extra, which is the command's own default (this session's workspace).
      *
      * @param {number} days
+     * @param {string} [workspace] a workspace id, `all`, or '' for the command's default.
      * @returns {string}
      */
-    function reportLine(days) {
-      return `${REPORT_LINE} --days ${asCount(days)}`
+    function reportLine(days, workspace) {
+      const line = `${REPORT_LINE} --days ${asCount(days)}`
+      const selected = asText(workspace)
+      if (selected === '') return line
+      if (selected === WORKSPACE_ALL) return `${line} --all`
+      return `${line} --workspace ${selected}`
+    }
+
+    /**
+     * The visible name of one workspace.
+     *
+     * The host sums the counters recorded before it attributed anything into a bucket with an empty
+     * name; that bucket, and only that bucket, is what the locale calls unattributed. The word is the
+     * translator's, because the host names no workspace and invents no English.
+     *
+     * @param {Function} t bound translator.
+     * @param {{ id: string, name: string }} workspace
+     * @returns {string}
+     */
+    function workspaceName(t, workspace) {
+      if (workspace.id === UNATTRIBUTED_ID || workspace.name === '') return t('workspace.unattributed')
+      return workspace.name
+    }
+
+    /**
+     * One `<option>` per entry plus the aggregate, each with the label to show for it.
+     *
+     * Two projects can share a directory basename (`app`, `app`), so a label that would repeat gains
+     * a short id suffix: the id is a hash of the path, so nothing outside the profile is disclosed.
+     * The full id settles the case of two ids that share their first characters.
+     *
+     * @param {Function} t bound translator.
+     * @param {Array<{ id: string, name: string }>} workspaces
+     * @returns {Array<{ id: string, label: string }>}
+     */
+    function workspaceOptions(t, workspaces) {
+      const names = new Map()
+      for (const entry of workspaces) names.set(entry.name, (names.get(entry.name) ?? 0) + 1)
+      const used = new Set()
+      const options = workspaces.map((entry) => {
+        const name = workspaceName(t, entry)
+        let label = names.get(entry.name) > 1 ? `${name} · ${entry.id.slice(0, WORKSPACE_ID_CHARS)}` : name
+        if (used.has(label)) label = `${name} · ${entry.id}`
+        used.add(label)
+        return { id: entry.id, label }
+      })
+      return [{ id: WORKSPACE_ALL, label: t('workspace.all') }, ...options]
+    }
+
+    /**
+     * The chip's label: the selected entry's own option label when the report lists it, its bare
+     * name otherwise, so a report that names a workspace the switcher omits still says whose numbers
+     * these are.
+     *
+     * @param {Function} t bound translator.
+     * @param {Array<{ id: string, label: string }>} options
+     * @param {{ id: string, name: string }|null} workspace the report's own `workspace`.
+     * @returns {string}
+     */
+    function workspaceLabelOf(t, options, workspace) {
+      if (workspace === null || workspace === undefined) return t('workspace.all')
+      const option = options.find((row) => row.id === workspace.id)
+      return option === undefined ? workspaceName(t, workspace) : option.label
+    }
+
+    /**
+     * The `<select>` value: what the reader picked, or, before a pick, the workspace the report
+     * answered for.
+     *
+     * @param {string} selected the reader's pick, or '' for none.
+     * @param {{ id: string }|null} workspace the report's own `workspace`.
+     * @returns {string}
+     */
+    function workspaceSelected(selected, workspace) {
+      if (selected !== '') return selected
+      const id = workspace === null || workspace === undefined ? '' : asText(workspace.id)
+      return id === '' ? WORKSPACE_ALL : id
+    }
+
+    /** The value of one `<select>` change event, read defensively. */
+    function selectValue(event) {
+      const target = event === null || event === undefined ? undefined : event.target
+      return target === null || target === undefined ? '' : asText(target.value)
     }
 
     /**
@@ -591,6 +695,43 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The workspace the report answered for, or null when it aggregated every one.
+     *
+     * Additive on the wire: a host that predates attribution sends no `workspace` key at all, and
+     * then the header renders exactly what 0.9.0 rendered.
+     *
+     * @param {unknown} value
+     * @returns {{ id: string, name: string }|null}
+     */
+    function readWorkspace(value) {
+      if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value)) return null
+      const id = asText(value.id)
+      if (id === '') return null
+      return { id, name: asText(value.name) }
+    }
+
+    /**
+     * The switcher's entries, in the order the host ranked them (most recent scan first).
+     *
+     * Read defensively like the other optional scan fields: a value that is not an array reads as
+     * [], a malformed entry is dropped rather than thrown over, and [] is what makes the header draw
+     * no chip and no switcher. Only the id and the name are kept: the counts beside each entry are
+     * the tiles' business, and a chip does not repeat them.
+     *
+     * @param {unknown} value
+     * @returns {Array<{ id: string, name: string }>}
+     */
+    function readWorkspaces(value) {
+      const entries = []
+      for (const entry of asRows(value)) {
+        const id = asText(entry.id)
+        if (id === '') continue
+        entries.push({ id, name: asText(entry.name) })
+      }
+      return entries
+    }
+
+    /**
      * Validate one `/guidance-stats --json` report and normalize it for rendering. The panel never
      * renders a partially parsed report: a missing or mistyped field raises instead.
      *
@@ -666,6 +807,10 @@ window.__ModuleLoader__.load({
         // silent rather than claiming either way.
         scanCountsScope: asText(payload.scanCountsScope),
         lastScan: readLastScan(payload.lastScan),
+        // Whose numbers these are, and whose are on offer. Both are additive: a 0.9.0 host sends
+        // neither, and null / [] is the panel's own "no attribution to show" state.
+        workspace: readWorkspace(payload.workspace),
+        workspaces: readWorkspaces(payload.workspaces),
       }
     }
 
@@ -1082,6 +1227,35 @@ window.__ModuleLoader__.load({
         lineHeight: 1.4,
         cursor: 'pointer',
       },
+      // The workspace chip names whose numbers are on screen and the select next to it changes
+      // them. Both sit in the header beside the window switch, and both are themed like it.
+      workspace: { flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 },
+      workspaceChip: {
+        maxWidth: '180px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        padding: '4px 10px',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        borderRadius: '999px',
+        background: 'var(--dsw-alias-fill-l1)',
+        color: 'var(--dsw-alias-label-secondary)',
+        fontSize: '12px',
+        lineHeight: 1.4,
+      },
+      workspaceSelect: {
+        appearance: 'none',
+        maxWidth: '160px',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        borderRadius: '8px',
+        background: 'var(--dsw-alias-fill-l1)',
+        color: 'var(--dsw-alias-label-primary)',
+        padding: '4px 8px',
+        font: 'inherit',
+        fontSize: '12px',
+        lineHeight: 1.4,
+        cursor: 'pointer',
+      },
       // 120px is the narrow-panel budget: a ~320px panel spends 24px of padding on each side, and
       // `2 × 120 + 8` fits even after the shell takes some of it, so the six tiles form a 2-column
       // block instead of one tall column. On a wide panel `auto-fit` stretches them into one row.
@@ -1350,6 +1524,43 @@ window.__ModuleLoader__.load({
         { style: S.card, key: title },
         h('div', { style: S.cardTitle }, title),
         children,
+      )
+    }
+
+    /**
+     * The header's workspace control: a chip naming the workspace whose numbers are on screen, and
+     * the native `<select>` that asks the command for another.
+     *
+     * Returns null on a host that sends no `workspaces` list, so the header is exactly the 0.9.0 one
+     * — the same degradation the report reader gives the rest of the panel. The chip keeps naming
+     * the report that is rendered while a reload is in flight; only the select follows the pick.
+     *
+     * @param {Function} t bound translator.
+     * @param {object|undefined} report the loaded report, if there is one yet.
+     * @param {string} selected the reader's pick, or '' for none.
+     * @param {Function} onChange called with the chosen id (or `all`).
+     * @returns {object|null}
+     */
+    function renderWorkspace(t, report, selected, onChange) {
+      const workspaces = report === undefined || report === null ? [] : report.workspaces
+      if (!Array.isArray(workspaces) || workspaces.length === 0) return null
+      const workspace = report.workspace === undefined ? null : report.workspace
+      const options = workspaceOptions(t, workspaces)
+      const label = workspaceLabelOf(t, options, workspace)
+      return h(
+        'div',
+        { style: S.workspace, role: 'group', 'aria-label': t('workspace.switch') },
+        h('span', { style: S.workspaceChip, title: label }, t('workspace.label', { name: label })),
+        h(
+          'select',
+          {
+            style: S.workspaceSelect,
+            'aria-label': t('workspace.switch'),
+            value: workspaceSelected(selected, workspace),
+            onChange: (event) => onChange(selectValue(event)),
+          },
+          options.map((option) => h('option', { key: `workspace-${option.id}`, value: option.id }, option.label)),
+        ),
       )
     }
 
@@ -1860,8 +2071,9 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The panel. It is read-only apart from the scan button: the header picks the window, Refresh
-     * re-runs the counters command, and the scan button asks the host to scan the workspace folder.
+     * The panel. It is read-only apart from the scan button: the header picks the window and the
+     * workspace whose counters are on screen, Refresh re-runs the counters command, and the scan
+     * button asks the host to scan the workspace folder.
      * Every subscription it starts is component-local, so unmounting it releases them.
      */
     function GuidancePanel(props) {
@@ -1870,6 +2082,9 @@ window.__ModuleLoader__.load({
       const sessionId = props.useSessions(selectSessionId)
       const [state, setState] = useState({ status: 'loading', report: undefined, code: '', message: '', at: 0 })
       const [days, setDays] = useState(PERIODS[0])
+      // '' is "no pick yet": the command answers for this session's workspace by itself, and the
+      // report's own `workspace` then says which one that was.
+      const [workspace, setWorkspace] = useState('')
       const [scan, setScan] = useState({ status: 'idle', value: undefined, message: '' })
       const alive = useRef(true)
       // Every load takes a ticket; a response whose ticket is no longer current is dropped, so
@@ -1898,7 +2113,7 @@ window.__ModuleLoader__.load({
         setState((previous) => ({ ...previous, status: 'loading' }))
         let pending
         try {
-          pending = Promise.resolve(bridge.call(sessionId, reportLine(days)))
+          pending = Promise.resolve(bridge.call(sessionId, reportLine(days, workspace)))
         } catch (error) {
           pending = Promise.reject(error)
         }
@@ -1913,7 +2128,7 @@ window.__ModuleLoader__.load({
             const code = error !== null && typeof error === 'object' && typeof error.code === 'string' ? error.code : 'call'
             setState({ status: 'error', report: undefined, code, message: messageOf(error), at: 0 })
           })
-      }, [bridge, sessionId, days])
+      }, [bridge, sessionId, days, workspace])
 
       useEffect(() => {
         load()
@@ -1968,6 +2183,7 @@ window.__ModuleLoader__.load({
           h('div', { style: S.subtitle }, t('subtitle')),
           state.at === 0 ? null : h('div', { style: S.updated }, t('updated', { time: new Date(state.at).toLocaleTimeString() })),
         ),
+        renderWorkspace(t, state.report, workspace, setWorkspace),
         h(
           'div',
           { style: S.periods, role: 'group', 'aria-label': t('kpi.period') },

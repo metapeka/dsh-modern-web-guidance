@@ -141,3 +141,46 @@ it would have printed the first line of an eight-line block as if that were the 
 - **The panel's own summary is untouched**: it deliberately shows no path and no snippet, so ranges appear
   only in the chat row and in the scan text. Still one client file, no new dependency, no host method.
 
+## What 0.9.0 added: the counter explains itself
+
+The panel said `ls-17  121`. A reader could not tell what `ls-17` is, whether `121` counts findings,
+files or scans, or whether either number was the 7-day window in the header. None of that was missing
+from the plugin — it was cut at the host/client boundary.
+
+- **The host joins the words, the client only renders them.** `renderJson(snapshot, { rules, guides })`
+  looks each ranked id up in `lib/scan-rules.js` and in the catalog, so `topRules` rows carry
+  `message`/`confidence`/`guideId` and `topScanGuides` rows carry `description`. One catalog read in
+  `index.js` now also derives the id-to-description map; there is no second loader.
+- **`scanCountsScope: 'lifetime'` is a statement of fact.** The ranked counters are never filtered by
+  `periodDays`, and before this release nothing on screen said so. The flag is emitted on every
+  *described* report; `renderJson(snapshot)` with no options stays byte-identical to 0.8.x, which is what
+  keeps an older consumer honest and its tests unchanged.
+- **A missing id keeps its row.** An unknown rule renders `message: ''`, `confidence: ''`,
+  `guideId: null`; an unknown guide renders `description: ''`. The count is still true even when the
+  explanation has gone, so a retired or renamed rule cannot hide a real finding.
+- **One new string, not five.** `scanner.lifetime` in EN/RU/ZH is the only dictionary addition; the unit
+  reuses the `finding` plurals, the guide hint reuses `deadRow`'s chip, and there is no `confidence.*`
+  key because confidence is a scanner token like a rule id.
+- **The chat row gains hints, not height.** Sixteen findings with a second line each would bury the
+  table, so the rule cell's `title` is the finding's `message` and the place cell's is its `snippet` —
+  for a JSON answer and for a summary answer, whose printed line already carries both.
+
+## What 0.10.0 added: the panel knows whose numbers it shows
+
+The panel drew one file's counters — one `stats.json` per profile — so "647 findings" had no owner on
+screen. The numbers were not wrong; the sentence was incomplete.
+
+- **A chip, then a switcher, in the header.** `workspace.label` renders `Workspace: app` from the report's
+  `workspace`, and a native `<select>` — the panel draws its own controls, so no third-party dropdown —
+  lists every entry of `workspaces` plus `workspace.all`. Both appear only when the report carries
+  `workspaces`, so an older host gets exactly the 0.9.0 header.
+- **Selecting is a read, through the one bridge.** The change handler re-runs
+  `/guidance-stats --json --days <n> --workspace <id>` (or `--all`) through `remote.commands.execute`,
+  the same path refresh already used. The panel gained a selector, not a second data path.
+- **The host sends no display name for the legacy bucket.** `_unattributed` arrives with an empty `name`,
+  and the panel renders `workspace.unattributed`; a duplicated name gets an id suffix (`app · aaaa`) so
+  two checkouts of the same project never collapse into one option.
+- **No branch, deliberately.** The chip would have had a second half ("name · branch"), but reading
+  `.git/HEAD` is a read-surface decision with an ADR attached, and nothing in the panel should depend on a
+  promise the host has not made. A workspace label alone already answers "whose numbers are these".
+

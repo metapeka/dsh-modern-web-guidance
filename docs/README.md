@@ -11,6 +11,7 @@ door for users; this page is the front door for anyone working on the plugin.
 | [README.ru.md](../README.ru.md) · [README.zh.md](../README.zh.md) | the same page in Russian and Chinese | you read those languages first |
 | [AGENTS.md](../AGENTS.md) | the working agreements: CI gate, client-half contract, release ritual, docs conventions | you are an agent or a contributor touching code |
 | [GLOSSARY.md](../GLOSSARY.md) | the vocabulary this codebase uses — guide, entry, hit, miss, snapshot, panel | a term in the code or the docs is unclear |
+| [docs/ROADMAP.md](ROADMAP.md) | the working plan: four phases (readable counters, per-workspace attribution, history, control) with the contract and the decisions already taken for each | you are wondering what to do next, or why a phase is ordered as it is |
 | [NOTICE](../NOTICE) | attribution: what comes from upstream, what was deliberately left out and why | you need the licence story or the corpus provenance |
 
 ## Shipping
@@ -51,6 +52,8 @@ door for users; this page is the front door for anyone working on the plugin.
 | [docs/notes/legacy-scan-contract.md](notes/legacy-scan-contract.md) | the interface the 0.5.0 workstreams coded against: rule shape, scan result, error codes, caps | you are adding a rule or changing the scanner's contract |
 | [docs/notes/legacy-scan-parity.md](notes/legacy-scan-parity.md) | the scanner's rule set measured against upstream's: what we take, what we drop and why, and the one debt (closed in 0.6.0, with a caveat) | you are adding a rule, or wondering why a rule is missing |
 | [docs/notes/client-panel-spike.md](notes/client-panel-spike.md) | the spike that settled the panel's slot and bridge design | you are changing how the panel mounts |
+| [docs/notes/workspace-scoping-facts.md](notes/workspace-scoping-facts.md) | the verified facts behind per-workspace attribution: where the state lives, what the session header exposes, why a version bump is data loss | you are asking "can these counters tell two projects apart?" |
+| [docs/notes/workspace-attribution-contract.md](notes/workspace-attribution-contract.md) | the 0.10.0 interface the workstreams coded against: bucket layout, `workspaceId`, `record`, `snapshot`, the command flags, the JSON keys | you are changing how a scan is attributed to a workspace |
 | [docs/notes/readme-p0p1-spec.md](notes/readme-p0p1-spec.md) | the source text behind the README's navigation and comparison sections | you edit the READMEs |
 | [docs/agents/](agents/) | the agent-facing conventions: issue tracker, triage labels, domain docs | you are wiring this repo into an agent workflow |
 | [audit/repro/](../audit/repro) | the repro fixtures kept from the security audit | you are re-running the hardening proof |
