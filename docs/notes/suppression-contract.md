@@ -1,4 +1,4 @@
-# The suppression file, and what "suppressed" means in a report (0.12.0)
+# The suppression file, and what "suppressed" means in a report (0.11.0)
 
 This note is the interface for C-1, and only the interface: no code, no test and no state change lands
 with it. `docs/ROADMAP.md:380-382` sets the workstream ("a file the user creates on request, keyed by

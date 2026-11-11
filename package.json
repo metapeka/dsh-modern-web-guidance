@@ -1,6 +1,6 @@
 {
   "name": "dsh-modern-web-guidance",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Modern web platform guidance for DeepSeek Harness agents: Google Chrome's 208-guide catalog with offline search and retrieve tools, a report-only legacy-pattern scanner, plus a Chrome extensions (MV3) skill.",
   "type": "module",
   "license": "Apache-2.0",

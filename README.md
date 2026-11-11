@@ -212,7 +212,7 @@ and security budget. The honest split:
 
 | | Google `modern-web-guidance` | This plugin |
 | --- | --- | --- |
-| Shape | npm package: a CLI plus skills, run as `npx -y modern-web-guidance@latest …` | DSH plugin: 4 tools, 2 skills, 2 human commands, a sidebar panel |
+| Shape | npm package: a CLI plus skills, run as `npx -y modern-web-guidance@latest …` | DSH plugin: 4 tools, 2 skills, 4 human commands, a sidebar panel |
 | Audience | any agent that can run a shell command | DeepSeek Harness sessions |
 | Guide corpus | 208 indexed guides (209 `.md` files, one byte-identical duplicate) | the same 208, byte-identical, snapshot `2026_11_09-5bcc021b` |
 | Lookup | precomputed assets in `gen/` — quantized word vectors (`query-words.i8`, 7.47 MB) and chunk embeddings, 9.16 MB together | BM25 built in-process from `guides.json` and the guide bodies: no assets, no model download (measured 29/30 top-1 on a 30-query probe) |
@@ -222,7 +222,7 @@ and security budget. The honest split:
 | Experimental guides | gated inside the CLI | `[experimental]` marker in `web_guidance_search`, warning banner in `web_guidance_retrieve` |
 | Usage insight | none | local counters, the `/guidance-stats` report, the `/guidance-scan` command and a panel that maps both |
 | Languages | English guides | the same guides; docs in EN/RU/ZH, panel in EN/RU/ZH |
-| Size | — | 256 files, 943 kB packed, 2.8 MB unpacked |
+| Size | — | 258 files, 971 kB packed, 2.9 MB unpacked |
 
 What this means in practice: if you work outside DeepSeek Harness, use their package — it is the
 reference implementation and it owns the corpus. Inside Harness you want the tools in the model's tool
@@ -408,11 +408,17 @@ The last-scan line makes the same point in one line — `Last scan: 2026-11-11 �
 skipped 284`, the total only, with `· truncated` appended when a cap cut the run — and a state file written before 0.7.3
 simply renders shorter rather than claiming nothing was skipped.
 
-The panel is read-only apart from the scan button: it changes no counter, never leaves the machine, and adds no network
-calls and no new tools — the same four tools stay exactly four. A scan it starts is counted like any other scan. Paths
-and snippets stay out of the panel by design: the panel shows counters, not evidence, and the chat row is where files
-and lines appear. `/guidance-stats` remains the text and `--json` version for the terminal and the agent, and
-`/guidance-scan` is the text twin of the button.
+The panel acts only through commands, and its two writes are no exception: the scan button asks for
+`/guidance-scan . --format json`, and one `.suppress` entry or one `.scanignore` line is requested from
+`/guidance-suppress` or `/guidance-scanignore` with a visible plan first and an append only on a second,
+distinct confirmation. So a scan or a render never writes, a single click never writes, and a refusal is
+reported as a refusal instead of looking like a success. It still changes no counter, never leaves the machine,
+and adds no network calls and no new tools — four tools stay exactly four, with four human commands beside
+them. A scan it starts is counted like any other scan. Paths and snippets stay out of the panel by design: the
+panel shows counters, not evidence, and the chat row is where files and lines appear. The copy button copies the
+report the panel already holds — no host call, no file — and is absent when there is no report or no clipboard.
+`/guidance-stats` remains the text and `--json` version for the terminal and the agent, and `/guidance-scan` is
+the text twin of the button.
 
 <a id="configuration"></a>
 
@@ -495,6 +501,7 @@ work on their own; the panel additionally needs the host's `slots`, `locale` and
 | 0.8.1 | shipped | `ls-12` stops advising `display: flex` where that advice breaks code: the line-clamp idiom (`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`) is no longer reported, only the prefixed spellings a clamp cannot serve are — precision bought with recall, and a page that really does use bare `display: -webkit-box` as flexbox now goes unreported |
 | 0.9.0 | shipped | a counter explains itself: a ranked rule row reads `ls-17 · medium · 121 findings` with the rule's own sentence underneath, a guide chip puts the catalog's description in its hint, and one caption says the ranked counts are lifetime totals rather than the window the tiles above show — the words come from the host (`renderJson(snapshot, { rules, guides })`), so a missing field costs a caption or a hint, never a row |
 | 0.10.0 | shipped | the counters say whose numbers they are, when each scan fired, and whether a site is still there: scan counters are partitioned per workspace, with a chip and a switcher in the panel and `--workspace`/`--all` on the command; the last scan carries `; branch main`, read from one fixed `.git/HEAD`; and a 20-deep scan history plus a hash-only site comparison print `Since the scan of …: 3 no longer present, 82 still open, 1 new` — or `not comparable` with the reason, never three zeros |
+| 0.11.0 | shipped | the panel writes, and every write asks first: **Mute** appends one `siteId` entry to `<workspace>/.suppress` through `/guidance-suppress <siteId> [--dry-run]`, so a muted finding keeps its place, its order and its count — never resolved, never subtracted; `/guidance-scanignore <pattern> [--dry-run]` offers one line that makes the next scan read less and mutes nothing; `--reset --yes` narrows to `--scan-only`, `--workspace` or `--days`, and no scope touches the mute file, because muting is not a counter |
 
 The working plan for what comes after these releases — readable counters, per-workspace attribution,
 scan history and per-finding control — lives in [docs/ROADMAP.md](docs/ROADMAP.md), together with the
@@ -529,7 +536,7 @@ no network, no code generation" for a gain the lexical index does not show.
 npm test
 ```
 
-`npm test` runs 373 tests across seventeen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
+`npm test` runs 463 tests across eighteen files: `guidance.test.mjs` covers the index, ranking, retrieval and the stemmer;
 `plugin.test.mjs` mounts the plugin against a fake Cordis context; `hardening.test.mjs` guards the security invariants;
 `report.test.mjs`, `stats.test.mjs`, `store.test.mjs` and `telemetry.test.mjs` cover the counter pipeline and its 0.7.0
 scan fields; `scan-core.test.mjs`, `scan-rules.test.mjs` and `scan-tool.test.mjs` cover the scanner's containment, its
@@ -537,8 +544,10 @@ rule table and the tool contract, `scan.test.mjs` is the end-to-end scan, `scan-
 `.scanignore` grammar and the dot-directory rule to their spec, and `scan-command.test.mjs` holds
 `/guidance-scan` to the same refusals and the same values; `scan-guides.test.mjs` checks the guide hashes the rule table
 points at, `client-locales.test.mjs` keeps the panel's three dictionaries in sync, `branch-label.test.mjs` covers the
-four `.git/HEAD` shapes and every way the read stays silent, and `site-identity.test.mjs` pins the site hash and every
-comparison guard. In a sandbox that forbids child processes, run the files directly (`node test/hardening.test.mjs`).
+four `.git/HEAD` shapes and every way the read stays silent, `site-identity.test.mjs` pins the site hash and every
+comparison guard, and `suppress.test.mjs` holds the suppression file to its shape, its caps, the writer's refusals and
+four end-to-end reset proofs with real bytes on disk. In a sandbox that forbids child processes, run the files directly
+(`node test/hardening.test.mjs`).
 
 <a id="publishing"></a>
 

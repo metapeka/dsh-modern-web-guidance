@@ -202,7 +202,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 
 | | Google `modern-web-guidance` | 本插件 |
 | --- | --- | --- |
-| 形态 | npm 包：一个 CLI 加技能，用 `npx -y modern-web-guidance@latest …` 运行 | DSH 插件：4 个工具、2 个技能、2 条给人用的命令、一个侧边栏面板 |
+| 形态 | npm 包：一个 CLI 加技能，用 `npx -y modern-web-guidance@latest …` 运行 | DSH 插件：4 个工具、2 个技能、4 条给人用的命令、一个侧边栏面板 |
 | 受众 | 任何能执行 shell 命令的智能体 | DeepSeek Harness 会话 |
 | 指南语料 | 208 篇已索引的指南（209 个 `.md` 文件，其中一个是逐字节副本） | 同样的 208 篇，逐字节一致，快照 `2026_11_09-5bcc021b` |
 | 检索方式 | `gen/` 里预计算好的资源 —— 量化词向量（`query-words.i8`，7.47 MB）与分块 embedding，合计 9.16 MB | 在进程内用 `guides.json` 和指南正文构建 BM25：没有资源文件，不下载模型（在 30 条查询的探针上测得 29/30 的 top-1） |
@@ -212,7 +212,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 实验性指南 | 在 CLI 内部做门控 | `web_guidance_search` 结果里的 `[experimental]` 标记，`web_guidance_retrieve` 开头的警告横幅 |
 | 使用情况洞察 | 无 | 本地计数、`/guidance-stats` 报告、`/guidance-scan` 命令，以及把两者都画出来的侧边栏面板 |
 | 语言 | 英文指南 | 同样的指南；文档 EN/RU/ZH，面板 EN/RU/ZH |
-| 体积 | — | 256 个文件，打包 943 kB，解包 2.8 MB |
+| 体积 | — | 258 个文件，打包 971 kB，解包 2.9 MB |
 
 实际意味着：如果你在 DeepSeek Harness 之外工作，就用他们的包 —— 它是参考实现，语料也归它所有。在 Harness
 里面，你要的是工具出现在模型的工具列表里、安装不需要构建步骤也不联网，以及一个能看出指南到底有没有人在用的
@@ -381,9 +381,14 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 `最近一次扫描：2026-11-11 · 70 个文件 · 85 条发现 · 跳过 284`，只给总数，被上限截断时才补上 `已截断`；而在 0.7.3 之前写下的
 状态文件只会渲染得更短，不会声称没有跳过任何东西。
 
-面板除了扫描按钮之外只读：它不改计数、不离开这台机器，也不新增网络请求和工具 —— 四个工具仍然是四个。由它发起的
-扫描和别的扫描一样计数。面板里刻意不显示路径和代码片段：面板给的是计数，不是证据；文件和行号在对话的那条工具
-调用里。`/guidance-stats` 仍然是给终端和智能体用的文本版本（含 `--json`），而 `/guidance-scan` 是按钮的文本版本。
+面板只通过命令行动作，它的两次写入也不例外：扫描按钮请求 `/guidance-scan . --format json`，而往 `.suppress`
+追加一条记录、或往 `.scanignore` 追加一行，则通过 `/guidance-suppress` 或 `/guidance-scanignore` 请求 —— 先看到
+计划，只有第二次、单独的一次确认才写入。因此扫描或渲染从不写文件，单次点击从不写文件，拒绝会作为拒绝上报，
+不会看起来像成功。它仍然不改计数、不离开这台机器，也不新增网络请求和工具 —— 四个工具仍然是四个，旁边多了
+四条给人用的命令。由它发起的扫描和别的扫描一样计数。面板里刻意不显示路径和代码片段：面板给的是计数，不是
+证据；文件和行号在对话的那条工具调用里。复制按钮复制面板已经持有的报告 —— 不调用宿主、不读写文件 —— 没有
+报告或没有剪贴板时按钮不出现。`/guidance-stats` 仍然是给终端和智能体用的文本版本（含 `--json`），而
+`/guidance-scan` 是按钮的文本版本。
 
 <a id="configuration"></a>
 
@@ -457,6 +462,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 | 0.8.1 | 已发布 | `ls-12` 不再在会破坏代码的地方建议 `display: flex`：line-clamp 写法（`display: -webkit-box` + `-webkit-line-clamp` + `-webkit-box-orient: vertical`）不再报告，只保留无法用于 clamp 的前缀写法 —— 用召回率换精确度，确实把裸 `display: -webkit-box` 当作弹性盒的页面现在不再进入报告 |
 | 0.9.0 | 已发布 | 计数器会自我解释：规则行读作 `ls-17 · medium · 121 findings`，下面附上规则自己那句话，指南 chip 把目录中的描述放进 `title`，另有一行说明讲清排名数字是累计总数、不是上方图块所选的时间窗口 —— 这些文字来自宿主（`renderJson(snapshot, { rules, guides })`），因此缺字段只会少一行说明或提示，永远不会少一行数据 |
 | 0.10.0 | 已发布 | 计数器现在说清数字属于谁、每次扫描发生在何时、某个位置还在不在：扫描计数器按工作区分开，面板里有 chip 与切换器，命令支持 `--workspace`/`--all`；最近一次扫描带上从固定文件 `.git/HEAD` 读到的 `; branch main`；20 条扫描历史加上只存哈希的位置比较会打印 `Since the scan of …: 3 no longer present, 82 still open, 1 new` —— 或者带原因的 `not comparable`，绝不给三个零 |
+| 0.11.0 | 已发布 | 面板开始写入，而且每次写入都先问：**屏蔽**经 `/guidance-suppress <siteId> [--dry-run]` 往 `<workspace>/.suppress` 追加一条 `siteId` 记录，被屏蔽的发现保留位置、顺序与计数 —— 既不算已解决，也不从总数里减掉；`/guidance-scanignore <pattern> [--dry-run]` 提供一行让下次扫描读得更少、并不屏蔽任何东西；`--reset --yes` 可以窄化成 `--scan-only`、`--workspace` 或 `--days`，而任何范围都不碰屏蔽文件，因为屏蔽不是计数器 |
 
 刻意**不**做的：内置上游那 9.16 MB 的 embedding 表，或者它那个附带 TypeScript 编译器的 4.99 MB `legacy-scan`
 引擎。两者都会破坏“零运行时依赖、不联网、不生成代码”，而换来的收益在词法索引上根本看不出来。
@@ -486,7 +492,7 @@ web_guidance_search({"query": "view transition"}) → 取回之前的排序候�
 npm test
 ```
 
-`npm test` 会跑 373 个测试，分布在十七个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
+`npm test` 会跑 463 个测试，分布在十八个文件里：`guidance.test.mjs` 覆盖索引、排序、取回与词干器；
 `plugin.test.mjs` 用模拟的 Cordis 上下文挂载插件；`hardening.test.mjs` 守住安全不变量；`report.test.mjs`、
 `stats.test.mjs`、`store.test.mjs` 和 `telemetry.test.mjs` 覆盖计数管线及其 0.7.0 的扫描字段；
 `scan-core.test.mjs`、`scan-rules.test.mjs` 和 `scan-tool.test.mjs` 覆盖扫描器的隔离、规则表与工具契约，
@@ -494,7 +500,8 @@ npm test
 `scan-command.test.mjs` 则要求 `/guidance-scan` 拒绝同样的路径、返回同样的值；
 `scan-guides.test.mjs` 校验规则表指向的指南哈希；`client-locales.test.mjs` 保证面板的三份词典保持同步；
 `branch-label.test.mjs` 覆盖 `.git/HEAD` 的四种形态与所有「读不到就不出声」的情形；`site-identity.test.mjs`
-固定位置哈希与每道比较守卫。在禁止
+固定位置哈希与每道比较守卫；`suppress.test.mjs` 守住屏蔽文件的形态、上限、写入方的拒绝，以及四个带真实磁盘
+字节的端到端重置证明。在禁止
 子进程的沙箱里，请直接运行文件（`node test/hardening.test.mjs`）。
 
 <a id="publishing"></a>
