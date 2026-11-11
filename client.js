@@ -119,6 +119,7 @@ window.__ModuleLoader__.load({
       'scanner.cut': 'truncated',
       'scanner.branch': 'branch {branch}',
       'scanner.detached': 'detached at {sha}',
+      'scanner.ignoreUsage': '.scanignore: {patterns}, {unused} matched nothing',
       'scanner.history': 'Recent scans',
       'scanner.historyMore': 'and {count} earlier',
       'scanner.diffAgainst': 'Since the scan of {when}:',
@@ -184,6 +185,9 @@ window.__ModuleLoader__.load({
       'finding.one': '{count} finding',
       'finding.few': '{count} findings',
       'finding.many': '{count} findings',
+      'pattern.one': '{count} pattern',
+      'pattern.few': '{count} patterns',
+      'pattern.many': '{count} patterns',
       'empty.title': 'No calls in the last {days} days',
       'empty.body': 'Ask for a guide with web_guidance_search, then refresh this panel. /guidance-stats prints the same report as text.',
       'error.title': 'Usage counters are unavailable',
@@ -231,6 +235,7 @@ window.__ModuleLoader__.load({
       'scanner.cut': 'обрезано',
       'scanner.branch': 'ветка {branch}',
       'scanner.detached': 'отсоединён HEAD: {sha}',
+      'scanner.ignoreUsage': '.scanignore: {patterns}, без совпадений: {unused}',
       'scanner.history': 'Последние сканирования',
       'scanner.historyMore': 'и ещё {count} более ранних',
       'scanner.diffAgainst': 'С момента сканирования {when}:',
@@ -296,6 +301,9 @@ window.__ModuleLoader__.load({
       'finding.one': '{count} замечание',
       'finding.few': '{count} замечания',
       'finding.many': '{count} замечаний',
+      'pattern.one': '{count} шаблон',
+      'pattern.few': '{count} шаблона',
+      'pattern.many': '{count} шаблонов',
       'empty.title': 'За последние {days} дн. вызовов не было',
       'empty.body': 'Попросите подсказку через web_guidance_search и обновите панель. /guidance-stats печатает тот же отчёт текстом.',
       'error.title': 'Счётчики недоступны',
@@ -347,6 +355,7 @@ window.__ModuleLoader__.load({
       'scanner.cut': '已截断',
       'scanner.branch': '分支 {branch}',
       'scanner.detached': '游离 HEAD：{sha}',
+      'scanner.ignoreUsage': '.scanignore：{patterns}，{unused} 条未匹配任何内容',
       'scanner.history': '最近的扫描',
       'scanner.historyMore': '另有 {count} 次更早的',
       'scanner.diffAgainst': '自 {when} 的扫描以来：',
@@ -412,6 +421,9 @@ window.__ModuleLoader__.load({
       'finding.one': '{count} 条发现',
       'finding.few': '{count} 条发现',
       'finding.many': '{count} 条发现',
+      'pattern.one': '{count} 个模式',
+      'pattern.few': '{count} 个模式',
+      'pattern.many': '{count} 个模式',
       'empty.title': '最近 {days} 天没有调用',
       'empty.body': '使用 web_guidance_search 获取指引，然后刷新本面板。/guidance-stats 会以文本形式输出同一份报告。',
       'error.title': '使用计数器不可用',
@@ -803,8 +815,13 @@ window.__ModuleLoader__.load({
      * the scan's own and its rule breakdown beside that. A state file written before phase C has
      * neither member, and then no line is drawn — never a fabricated "0 suppressed".
      *
+     * `ignoreUsage` is the fourth, and the one this panel must be most careful with: the host sends
+     * two counts and never a pattern, because a `.scanignore` line is a path fragment. Absent means
+     * "no file, or a file nobody could read", which draws no line at all — the panel cannot print
+     * "0 patterns, 0 matched nothing" for a state document that never saw one.
+     *
      * @param {unknown} value
-     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null, suppressed: number, suppressedRules: Array<{ name: string, calls: number }> } | null}
+     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null, suppressed: number, suppressedRules: Array<{ name: string, calls: number }>, ignoreUsage: { patterns: number, unused: number }|null } | null}
      */
     function readLastScan(value) {
       if (value === null || typeof value !== 'object') return null
@@ -820,7 +837,32 @@ window.__ModuleLoader__.load({
         branch: readBranch(value.branch),
         suppressed: asCount(value.suppressed),
         suppressedRules: rankedEntries(value.suppressedRules),
+        ignoreUsage: readIgnoreUsage(value.ignoreUsage),
       }
+    }
+
+    /**
+     * The two counts the host keeps about the last scan's `.scanignore`, or null.
+     *
+     * The panel counts nothing itself and *defaults* nothing: both members have to be numbers, because
+     * a missing `idle` read as `0` would print "3 patterns, 0 matched nothing" for a document that
+     * never said so — the invented zero this whole field exists to prevent. A pair that does not agree
+     * (more idle than patterns, a non-number, an empty file) reads as null and draws no line, which is
+     * the same rule the host applies at the door. Two counts are enough because the sentence needs the
+     * total and how many of those lines excluded nothing; the patterns themselves never leave the
+     * machine that owns them.
+     *
+     * @param {unknown} value
+     * @returns {{ patterns: number, unused: number }|null}
+     */
+    function readIgnoreUsage(value) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+      if (typeof value.patterns !== 'number' || !Number.isFinite(value.patterns)) return null
+      if (typeof value.idle !== 'number' || !Number.isFinite(value.idle)) return null
+      const patterns = asCount(value.patterns)
+      const unused = asCount(value.idle)
+      if (patterns === 0 || unused > patterns) return null
+      return { patterns, unused }
     }
 
     /**
@@ -2398,6 +2440,22 @@ window.__ModuleLoader__.load({
             'div',
             { style: S.note, key: 'scan-suppressed' },
             t('scan.suppressed', { count: last.suppressed, rules: ruleList(last.suppressedRules) }),
+          ),
+        )
+      }
+      // What the ignore file's own lines did: two counts, never a pattern, because the host keeps the
+      // file's text on the machine that owns it. This is the only place the panel may call one line
+      // idle, and it stays a sentence — a state file written before 0.12.0 has no block and draws no
+      // line, so the panel never invents "0 patterns, 0 matched nothing" for a scan it cannot see.
+      if (last !== null && last.ignoreUsage !== null) {
+        children.push(
+          h(
+            'div',
+            { style: S.note, key: 'scan-ignore-usage' },
+            t('scanner.ignoreUsage', {
+              patterns: plural(t, 'pattern', last.ignoreUsage.patterns),
+              unused: last.ignoreUsage.unused,
+            }),
           ),
         )
       }

@@ -1962,6 +1962,50 @@ test('a review is stored on the last scan additively, and a corrupt one is dropp
     { entries: 2, matching: 2, unused: null })
 })
 
+test('the ignore audit is two counts at the boundary, and the pattern text stops there', async () => {
+  const { telemetry, store } = telemetryWith()
+  const rows = [
+    { line: 2, pattern: 'src/very-specific-path/', matched: true },
+    { line: 3, pattern: 'gone/', matched: false },
+  ]
+  const withRows = (value) => scanEntry([finding('ls-17', 'guide-a')], 1, { ignoreUsage: value })
+
+  // The scan value's rows are reduced to the fact about the file: two integers, in and out.
+  assert.deepEqual(withRows(rows).ignoreUsage, { patterns: 2, idle: 1 })
+  // No rows is no claim — a refused scan, an unreadable file and an empty list all look the same here,
+  // and none of them may become `{ patterns: 0, idle: 0 }`.
+  assert.equal('ignoreUsage' in withRows([]), false)
+  assert.equal('ignoreUsage' in withRows(undefined), false)
+  assert.equal('ignoreUsage' in classifyCall({ tool: 'web_guidance_legacy_scan', value: { error: 'no' }, isError: true }), false)
+
+  await telemetry.record({ at: NOW, tool: 'legacy-scan', workspace: ALPHA, ...withRows(rows) })
+  const snapshot = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.deepEqual(snapshot.lastScan.ignoreUsage, { patterns: 2, idle: 1 })
+  // The snapshot hands out a copy, so a caller cannot edit what the counters believe they stored.
+  snapshot.lastScan.ignoreUsage.idle = 2
+  assert.deepEqual((await telemetry.snapshot({ days: 7, workspace: ALPHA.id })).lastScan.ignoreUsage, { patterns: 2, idle: 1 })
+
+  await telemetry.flush()
+  assert.equal(store.state.version, 1, 'the member is additive, so the version never moves')
+  // The one thing this test exists for: the pattern a user wrote is not in the profile-wide document.
+  assert.equal(JSON.stringify(store.state).includes('very-specific-path'), false, 'the pattern text reached the counters')
+  assert.deepEqual(store.state.workspaces[ALPHA.id].lastScan.ignoreUsage, { patterns: 2, idle: 1 })
+
+  // A hand-edited or corrupt pair reads as though it had none — never as zeros, which would claim the
+  // file is empty — and the next flush writes the drop back, the way a bad `since` is repaired.
+  for (const bad of [{ patterns: 1, idle: 4 }, { patterns: 0, idle: 0 }, { patterns: 'two', idle: 0 }, { patterns: 2 }]) {
+    store.state.workspaces[ALPHA.id].lastScan.ignoreUsage = bad
+    const reloaded = createTelemetry({ store, clock: () => NOW, catalog: CATALOG })
+    assert.equal(
+      'ignoreUsage' in (await reloaded.snapshot({ days: 7, workspace: ALPHA.id })).lastScan,
+      false,
+      `a corrupt block ${JSON.stringify(bad)} survived the load`,
+    )
+    await reloaded.flush()
+    assert.equal('ignoreUsage' in store.state.workspaces[ALPHA.id].lastScan, false)
+  }
+})
+
 //#region 0.12.0: a reset erases what it names, and never the counters it does not
 
 /**

@@ -93,6 +93,7 @@ export async function scan({ cwd, paths, rules = RULES, signal, limits = SCAN_LI
     skippedTotal: number,
     skippedByReason: Record<string, number>,
     ignoreProblems: { line: number | null, reason: 'malformed'|'unreadable' }[],
+    ignoreUsage?: { line: number, pattern: string, matched: boolean }[],
     truncated: boolean,
   },
   findings: { path: string, line: number, column: number, ruleId: string, guideId: string | null, confidence: string, message: string, snippet: string, lines: number[], occurrences: number }[],
@@ -271,6 +272,27 @@ Two precedence rules, both from the same module header. A pattern covers the pat
 ancestor**, so a file named explicitly inside an ignored directory is skipped as `scanignore` rather than
 read behind the ignore file's back. And a path that is both inside a dot-directory and matched by a pattern
 is reported **once**, as `dot-directory`, because that check runs first.
+
+**What each line did (0.12.0).** `scanned.ignoreUsage` answers the question the file itself cannot: one row
+per pattern, in file order, as `{ line, pattern, matched }` — the 1-based source line, the trimmed pattern
+text, and whether the walk met a path that pattern covers. Usage is recorded **per source line, never per
+effect**: `report/` and `/report/` mean one thing and are two rows, because the duplicate a reader may now
+delete is the point. `matched` follows the *match*, not the reason the walk printed for the path: a pattern
+covering a directory skipped as `dot-directory`, a `SKIP_DIRECTORIES` name or a directory the caller named
+is credited, because it did exclude something, and a directory pattern is credited once, for the subtree
+root rather than once per file under it. And a `.scanignore` that could not be read — or one that holds no
+pattern at all — yields **no** `ignoreUsage` key, never an empty list: a consumer that reads an absent list
+as "every pattern is idle" would print `3 patterns, 3 matched nothing` about a file nobody read, which is
+the one lie this counter exists to prevent. At most 20 rows come back, the same cap as `ignoreProblems`, and
+a file past the cap under-reports rather than inventing — the trade `skipped` already makes against
+`skippedTotal`.
+
+**The rows are transient, and that is the design.** A `.scanignore` line is a path fragment from one
+project, and `stats.json` is one profile-wide document serving every project, so the rows live in the scan
+value for the session that produced them and never touch disk: the stored `lastScan` keeps the summary as
+two integers, `ignoreUsage: { patterns, idle }`, and the report and the panel build their sentence from
+those counts alone. A future maintainer who "simplifies" the two into one by persisting the rows would be
+turning a fact about an ignore file into a map of someone's directory layout.
 
 The same holds for a file pattern, and this is the part a user does not expect: naming the parked file
 explicitly, `scan({ cwd, paths: ['src/pages/styleguide.astro'] })`, returns **0 files and 0 findings** with

@@ -883,6 +883,47 @@ test('a scan call still returns the value and the text it always did, byte for b
   }
 })
 
+test('the ignore audit is stored as two counts, and no pattern text reaches stats.json', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('ignore-audit')
+  await mkdir(join(workspace, 'src'), { recursive: true })
+  await writeFile(join(workspace, 'src', 'app.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+  // The distinctive line is the whole point of this test: a `.scanignore` entry is a path fragment
+  // from one project, and `stats.json` is one profile-wide file serving every project.
+  const DISTINCTIVE = 'src/very-specific-path/'
+  await writeFile(join(workspace, '.scanignore'), `${DISTINCTIVE}\ngone/\n`, 'utf8')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+    const value = await tool.execute({ paths: ['.'] }, headerAt(workspace))
+    // The scan value carries the rows, patterns and all: they are what the session that ran the scan
+    // sees, and they never leave it.
+    assert.deepEqual(value.scanned.ignoreUsage, [
+      { line: 1, pattern: DISTINCTIVE, matched: false },
+      { line: 2, pattern: 'gone/', matched: false },
+    ])
+
+    raiseScan(registered, value)
+    await settle()
+    // Disposing the plugin flushes the counters, which is the only way to read what was written down.
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+
+    const raw = await readFile(countersFile(home), 'utf8')
+    assert.equal(raw.includes('very-specific-path'), false, 'stats.json kept a .scanignore pattern')
+    assert.equal(raw.includes('gone/'), false, 'stats.json kept a .scanignore pattern')
+    const document = JSON.parse(raw)
+    const bucket = Object.values(document.workspaces).find((entry) => entry.lastScan !== undefined)
+    assert.deepEqual(bucket.lastScan.ignoreUsage, { patterns: 2, idle: 2 })
+  } finally {
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
 test('two scans of one workspace produce the comparison line and a two-row ring', async () => {
   const home = await isolatedHome()
   const workspace = await workspaceDir('scan-story')

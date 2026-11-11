@@ -695,6 +695,56 @@ test('renderJson passes the audit fields through, trims them and defaults an old
   assert.deepEqual(malformed.lastScan.skipped, {})
 })
 
+// --- The ignore file's own audit: one sentence, never an edit --------------------------------
+
+test('the report counts the ignore file lines and says how many matched nothing', () => {
+  const audited = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, ignoreUsage: { patterns: 3, idle: 1 } },
+  })
+  assert.match(audited, /^\.scanignore: 3 patterns, 1 matched nothing\.$/m)
+  // The sentence is its own line, below the scan it describes: it counts lines of an ignore file,
+  // not findings, and folding it into the last-scan line would make the two counts look related.
+  assert.equal(audited.split('\n').filter((entry) => entry.startsWith('.scanignore')).length, 1)
+})
+
+test('the sentence keeps the grammar of the count it was given', () => {
+  const one = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, ignoreUsage: { patterns: 1, idle: 0 } } })
+  assert.match(one, /^\.scanignore: 1 pattern, 0 matched nothing\.$/m)
+  // A file where every line does work still says so: silent and healthy would otherwise be the same
+  // report, and a reader could not tell whether the audit ran at all.
+  const healthy = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, ignoreUsage: { patterns: 12, idle: 0 } } })
+  assert.match(healthy, /^\.scanignore: 12 patterns, 0 matched nothing\.$/m)
+})
+
+test('the sentence is absent, not empty, when the counters kept no block', () => {
+  // A state document written before 0.12.0, or a scan whose ignore file could not be read: the
+  // report says nothing at all. Rendering "0 patterns, 0 matched nothing" would be a claim about
+  // evidence that does not exist, and it is the exact lie the field exists to prevent.
+  const plain = renderReport(RICH)
+  assert.doesNotMatch(plain, /\.scanignore/)
+  // Same for a block that cannot be made to agree with itself: dropped whole, never printed as zeros.
+  for (const broken of [{ patterns: 1, idle: 4 }, { patterns: 0, idle: 0 }, { patterns: 3 }, { patterns: 'many', idle: 0 }]) {
+    const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, ignoreUsage: broken } })
+    assert.doesNotMatch(text, /\.scanignore/, `a broken block ${JSON.stringify(broken)} reached the report`)
+    assert.equal('ignoreUsage' in renderJson({ ...RICH, lastScan: { ...RICH.lastScan, ignoreUsage: broken } }).lastScan, false)
+  }
+})
+
+test('renderJson carries the two counts, never a pattern', () => {
+  const json = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, ignoreUsage: { patterns: 3, idle: 1 } } })
+  assert.deepEqual(json.lastScan.ignoreUsage, { patterns: 3, idle: 1 })
+  // The counters keep two integers because a `.scanignore` line is a path fragment; a snapshot that
+  // smuggles a pattern in must not reach the JSON, and one that does not is absent rather than null.
+  const leaky = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, ignoreUsage: { patterns: 3, idle: 1, pattern: 'src/very-specific-path/' } },
+  })
+  assert.deepEqual(leaky.lastScan.ignoreUsage, { patterns: 3, idle: 1 })
+  assert.equal(JSON.stringify(leaky).includes('very-specific-path'), false)
+  assert.equal('ignoreUsage' in renderJson(RICH).lastScan, false)
+})
+
 // --- The branch label: one suffix on the last-scan line (ADR-0002) ---------------------------
 
 test('the last-scan line appends the branch label in the line own punctuation', () => {

@@ -119,7 +119,7 @@ test('every Chinese value keeps the placeholders of its English source', () => {
 })
 
 test('the Chinese dictionary defines all three plural forms with the same text', () => {
-  for (const base of ['call', 'hit', 'miss', 'file', 'finding']) {
+  for (const base of ['call', 'hit', 'miss', 'file', 'finding', 'pattern']) {
     const forms = ['one', 'few', 'many'].map((form) => ZH.get(`${base}.${form}`))
     assert.ok(forms.every((form) => typeof form === 'string'), `${base} is missing a plural form`)
     assert.equal(new Set(forms).size, 1, `${base} plural forms differ, but Chinese has no plural`)
@@ -231,6 +231,7 @@ const SCANNER_KEYS = [
   'scanner.last',
   'scanner.skipped',
   'scanner.cut',
+  'scanner.ignoreUsage',
   'scanner.rules',
   'scanner.lifetime',
   'scanner.lifetimeSince',
@@ -267,8 +268,8 @@ test('every scanner string exists in all three dictionaries and is rendered', ()
     assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
     assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
   }
-  // The two counts the scan sections print go through the plural helper, which needs both bases.
-  for (const base of ['file', 'finding']) {
+  // The counts the scan sections print go through the plural helper, which needs each base's forms.
+  for (const base of ['file', 'finding', 'pattern']) {
     assert.ok(CLIENT_SOURCE.includes(`plural(t, '${base}'`), `client.js never pluralizes ${base}`)
     assert.ok(EN.has(`${base}.many`), `EN has no ${base} plural forms`)
   }
@@ -1312,6 +1313,64 @@ test('the muted count is reported beside the scan it belongs to, and a missing c
   const stable = (texts) => texts.filter((text) => !text.startsWith(clock))
   assert.deepEqual(stable(zero), stable(plain), 'an explicit zero changed the panel')
   assert.equal(plain.some((text) => text.startsWith('Suppressed')), false, 'a pre-C report grew a suppressed line')
+})
+
+test('the ignore audit is one sentence from two counts, and is absent when the host kept none', async () => {
+  const scan = { at: '2026-11-11', files: 70, findings: 85, rules: [] }
+  const lineOf = async (lastScan) => {
+    const { tree } = await mountPanel(reportOf({ lastScan }))
+    return elementIn(tree, (element) => element.props?.key === 'scan-ignore-usage')
+  }
+
+  // Two counts in, one sentence out — and the noun is pluralized by the panel's own helper, so the
+  // file name stays untranslated while `pattern` does not.
+  const used = await lineOf({ ...scan, ignoreUsage: { patterns: 3, idle: 1 } })
+  assert.ok(used !== undefined, 'the ignore audit is not rendered')
+  assert.equal(
+    used.children.join(''),
+    translate('scanner.ignoreUsage', { patterns: translate('pattern.many', { count: 3 }), unused: 1 }),
+  )
+  // A single pattern is `1 pattern`, not `1 patterns`: the panel reuses the plural machinery instead
+  // of hand-building the number.
+  const single = await lineOf({ ...scan, ignoreUsage: { patterns: 1, idle: 0 } })
+  assert.ok(single !== undefined, 'a one-pattern file renders no audit line')
+  assert.equal(
+    single.children.join(''),
+    translate('scanner.ignoreUsage', { patterns: translate('pattern.one', { count: 1 }), unused: 0 }),
+  )
+  assert.match(single.children.join(''), /^\.scanignore: 1 pattern, 0 matched nothing/, 'the pinned sentence changed')
+
+  // Absence is not a zero: a state file written before 0.12.0, or one whose file could not be read,
+  // draws no line at all. This is the case the whole item exists for.
+  const plain = textsOf((await mountPanel(reportOf({ lastScan: scan }))).tree)
+  assert.equal(plain.some((text) => text.includes('.scanignore')), false, 'a pre-0.12.0 report grew an ignore line')
+  // Nor does a pair that contradicts itself get printed as zeros: the reader drops the block and the
+  // panel renders exactly what it rendered before the field existed. `{ patterns: 3 }` is the invented
+  // zero this field exists to prevent — a missing `idle` must not read as "none of them is idle".
+  for (const inconsistent of [{ patterns: 1, idle: 4 }, { patterns: 0, idle: 0 }, { patterns: 3 }, { patterns: '3', idle: 0 }]) {
+    const texts = textsOf((await mountPanel(reportOf({ lastScan: { ...scan, ignoreUsage: inconsistent } }))).tree)
+    assert.equal(
+      texts.some((text) => text.includes('.scanignore')),
+      false,
+      `an inconsistent block ${JSON.stringify(inconsistent)} was printed as a claim`,
+    )
+  }
+})
+
+test('the ignore audit exists in all three languages and names the same two numbers', () => {
+  for (const name of DICTIONARIES) {
+    const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+    assert.deepEqual(placeholders(dictionary.get('scanner.ignoreUsage')), ['patterns', 'unused'], `${name} does not take both counts`)
+    assert.ok(dictionary.get('scanner.ignoreUsage').includes('.scanignore'), `${name} stopped naming the file`)
+  }
+  assert.match(RU.get('scanner.ignoreUsage'), /[\u0400-\u04ff]/, 'RU.scanner.ignoreUsage is not Russian')
+  assert.match(ZH.get('scanner.ignoreUsage'), CJK, 'ZH.scanner.ignoreUsage has no Chinese text')
+  assert.notEqual(RU.get('scanner.ignoreUsage'), EN.get('scanner.ignoreUsage'), 'RU.scanner.ignoreUsage is copied from English')
+  assert.notEqual(ZH.get('scanner.ignoreUsage'), EN.get('scanner.ignoreUsage'), 'ZH.scanner.ignoreUsage is copied from English')
+  // The panel reads the two counts and never a pattern: the host keeps the file's text on the machine
+  // that owns it, so the client's reader has no place to put one.
+  assert.match(CLIENT_SOURCE, /ignoreUsage: readIgnoreUsage\(value\.ignoreUsage\)/, 'the report reader drops the counts')
+  assert.match(CLIENT_SOURCE, /if \(last !== null && last\.ignoreUsage !== null\)/, 'the audit line is unconditional')
 })
 
 test('the panel scan counts its muted findings and tags them, and offers the action only to a site it can name', async () => {
