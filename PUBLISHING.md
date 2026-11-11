@@ -17,9 +17,18 @@ checks. What is missing is the repo itself.
 > through a one-off granular token instead, because a package must exist before a trusted publisher
 > can be attached to it; that token and its `NPM_TOKEN` secret are gone.
 >
-> 0.13.0 is in preparation, dispatch pending: `package.json`, `docs/releases/v0.13.0.md`, the three
-> READMEs and the counts below are written and measured on this tree, and the release waits on a manual
-> dispatch of `.github/workflows/release.yml`.
+> 0.13.0 is **released on GitHub and staged on npm, waiting on one human approval**. The dispatch ran,
+> the suite inside the job was green, `npm publish --provenance` answered `+ dsh-modern-web-guidance@0.13.0`
+> with a sigstore statement (logIndex 3815381867) — and the version then arrived **staged** rather than
+> published, because npm is restricting tokens that bypass 2FA and OIDC trusted publishing no longer skips
+> that confirmation on this account. The registry still lists 18 versions with `latest` at 0.12.0, the
+> 0.13.0 tarball 404s, and a second dispatch refuses correctly with `409 Conflict - Cannot publish over
+> previously staged version "0.13.0"`. Finishing it needs the owner: approve the staged version (npmjs.com →
+> the package's staged versions, or `npm stage approve dsh-modern-web-guidance@0.13.0` after `npm login`),
+> then re-dispatch `.github/workflows/release.yml` at `v0.13.0` — the workflow skips the publish once the
+> version is on the registry, attaches the tarball, and publishes `docs/releases/v0.13.0.md` as the release
+> body. This banner becomes "0.13.0 is live" the moment that succeeds; until then `main` and the tag are
+> pushed and nothing else is pending.
 >
 > 0.8.1 is on the registry but **broken for the host**: its `package.json` shipped with a UTF-8
 > byte-order mark, and the host validates the manifest with `JSON.parse`, which throws on one, so an
