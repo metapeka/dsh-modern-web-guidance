@@ -10,6 +10,7 @@
  */
 
 import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,6 +18,15 @@ import { createGuidance } from './lib/guidance.js'
 import { renderJson, renderReport, workspaceLabel } from './lib/report.js'
 import { RULES, selectRules } from './lib/scan-rules.js'
 import { ScanError, scan } from './lib/scan.js'
+import {
+  clampReason,
+  isSiteKey,
+  MAX_SUPPRESSIONS,
+  MAX_SUPPRESS_BYTES,
+  parseSuppressions,
+  serializeSuppressions,
+  SUPPRESS_FILE,
+} from './lib/suppress.js'
 import { createFileStore, defaultStatePath } from './lib/store.js'
 import { branchLabel, classifyCall, createTelemetry, workspaceId } from './lib/telemetry.js'
 
@@ -198,7 +208,13 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
     ? Number(scanned.skippedTotal)
     : Array.isArray(scanned.skipped) ? scanned.skipped.length : 0
   const summary = `Scanned ${files} file(s) (${formatBytes(scanned.bytes)}) — ${findings.length} finding(s)`
-  const lines = [`${summary}.`]
+  // The muted count rides on the summary only when it is positive, as the result's own number or —
+  // for a hand-built value without one — the flags on the findings. It is a subset of the count
+  // before it, never a subtraction from it: "85 findings, 3 suppressed" says three of the 85 are
+  // muted and still findings, which is exactly what the counters' diff refuses to call a fix.
+  const flagged = findings.filter((finding) => finding.suppressed === true).length
+  const suppressed = Number.isFinite(value?.suppressed) ? Math.max(0, Math.floor(value.suppressed)) : flagged
+  const lines = [`${summary}${suppressed > 0 ? `, ${suppressed} suppressed` : ''}.`]
 
   // Why the walk refused what it refused, counted per reason. `skipped` here is `skippedTotal`, not
   // the capped sample, so the number is true even when the sample truncated. Ordering is count desc
@@ -227,6 +243,23 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
     lines.push('Could not read .scanignore; the scan ran without ignore patterns.')
   }
 
+  // `.suppress` diagnostics, also not file skips. The file-level token prints raw like a skip reason —
+  // a reader checks it against the contract's four (`unreadable`, `too-large`, `malformed`, `version`)
+  // rather than against a translated phrase — and the entry-level line only counts what was dropped,
+  // because "the rest applied" is the reassuring half and has to be true for the sentence to be used.
+  const suppressProblems = Array.isArray(value?.suppressProblems) ? value.suppressProblems : []
+  const fileProblem = suppressProblems.find((problem) => problem !== null && typeof problem === 'object' && problem.key === null)
+  if (fileProblem !== undefined) {
+    lines.push(`Suppression file: ${String(fileProblem.reason)}; nothing is muted this scan.`)
+  }
+  const ignoredEntries = suppressProblems.filter((problem) => problem !== null && typeof problem === 'object'
+    && typeof problem.key === 'string').length
+  if (ignoredEntries > 0) {
+    lines.push(
+      `Suppression file: ${ignoredEntries} ${ignoredEntries === 1 ? 'entry' : 'entries'} ignored; the rest applied.`,
+    )
+  }
+
   if (findings.length === 0) {
     lines.push('No rule in the table matched. That is not proof of modern code: the scanner works line by line and sees markers, not behaviour.')
   } else {
@@ -240,7 +273,8 @@ function renderScan(_args, value, ruleIds = ALL_RULE_IDS) {
       const location = finding.occurrences > 1 && finding.lines.length > 1
         ? `${finding.path}:${first}-${last}${dense ? '' : ` (${finding.occurrences} hits)`}`
         : `${finding.path}:${finding.line}:${finding.column}`
-      lines.push(`- ${location} ${finding.ruleId} (${finding.confidence}) ${finding.message}`)
+      const muted = finding.suppressed === true ? ' (suppressed)' : ''
+      lines.push(`- ${location} ${finding.ruleId} (${finding.confidence}) ${finding.message}${muted}`)
     }
     if (findings.length > SCAN_RENDER_LIMIT.findings) {
       lines.push(`… and ${findings.length - SCAN_RENDER_LIMIT.findings} more finding(s).`)
@@ -706,6 +740,177 @@ function buildScanCommand(scanner, ruleSet, usage) {
         usage.record('web_guidance_legacy_scan', { paths: args.paths, rules: args.rules, format: args.format }, undefined, true)
         // The scanner's own refusals already came back as values; this is the unexpected case.
         return { kind: 'error', text: `The scan could not run: ${error instanceof Error ? error.message : String(error)}` }
+      }
+    },
+  }
+}
+
+/**
+ * Parse a `/guidance-suppress` line: `<siteId> [--dry-run] [--reason <text>]`.
+ *
+ * The site id is positional and there is exactly one; `--dry-run` may appear anywhere; `--reason`
+ * takes the rest of its token, quoted or not. Nothing here checks that the id names a real finding:
+ * the id is a hash of a site the caller was shown, and the file only ever gains one key.
+ *
+ * @param {string} line raw arguments after the command name.
+ * @returns {{ siteId: string, dryRun: boolean, reason: string }}
+ */
+function parseSuppressArguments(line) {
+  const text = String(line ?? '')
+  const dryRun = /(?:^|\s)--dry-run(?:\s|$)/.test(text)
+  const reasonMatch = text.match(/--reason(?:\s+|=)(?:"([^"]*)"|'([^']*)'|(\S+))/)
+  const siteId = text
+    .replace(/(?:^|\s)--dry-run(?=\s|$)/g, ' ')
+    .replace(/--reason(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0 && !token.startsWith('--'))
+    .join(' ')
+  const reason = reasonMatch === null ? '' : clampReason(reasonMatch[1] ?? reasonMatch[2] ?? reasonMatch[3] ?? '')
+  return { siteId, dryRun, reason }
+}
+
+/** Today's date as the suppression file records it: the day the mute was confirmed, in UTC. */
+function suppressDate() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * Read the suppression file for the one command that may extend it.
+ *
+ * Stricter than the scan's reader on purpose: a scan degrades to *more* findings and never repairs
+ * anything, while a writer that parsed a broken file and serialised it again would delete entries the
+ * user wrote. So any problem here is a refusal, and the file is left exactly as it is.
+ *
+ * @param {string} file absolute path of the workspace suppression file.
+ * @returns {Promise<{ entries: Map<string, {reason: string, at: string}> } | { refusal: string, token: string }>}
+ */
+async function readSuppressionsForWrite(file) {
+  let info
+  try {
+    info = await lstat(file)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { entries: new Map() }
+    return { refusal: `Refused: ${file} could not be read.`, token: 'unreadable' }
+  }
+  if (!info.isFile() || info.isSymbolicLink()) {
+    return { refusal: `Refused: ${file} is not a regular file.`, token: 'unreadable' }
+  }
+  if (info.size > MAX_SUPPRESS_BYTES) {
+    return { refusal: `Refused: ${file} is larger than the ${MAX_SUPPRESS_BYTES}-byte limit.`, token: 'too-large' }
+  }
+  let text
+  try {
+    text = await readFile(file, 'utf8')
+  } catch {
+    return { refusal: `Refused: ${file} could not be read.`, token: 'unreadable' }
+  }
+  const parsed = parseSuppressions(text)
+  const fileProblem = parsed.problems.find((problem) => problem.key === null)
+  if (fileProblem !== undefined) {
+    return {
+      refusal: `Refused (${fileProblem.reason}): ${file} has to be fixed by hand before another entry can be added.`,
+      token: fileProblem.reason,
+    }
+  }
+  if (parsed.problems.length > 0) {
+    const count = parsed.problems.length
+    return {
+      refusal: `Refused (invalid): ${file} has ${count} ${count === 1 ? 'entry' : 'entries'} that cannot be read; remove ${count === 1 ? 'it' : 'them'} by hand first.`,
+      token: 'invalid',
+    }
+  }
+  return { entries: parsed.entries }
+}
+
+/**
+ * The human command that mutes one scanned site. It is the product's only writer, which is why it
+ * has two forms: `--dry-run` prints the plan — the absolute file, the exact entry and the count —
+ * and the same line without the flag applies it. The panel calls the first, shows it, and calls the
+ * second only after a distinct confirmation, so no single action can write.
+ *
+ * Every outcome is a complete sentence the caller renders verbatim, and only a write that did not
+ * happen reports `kind: 'error'`: an entry that is already there is a named no-op, not a failure.
+ *
+ * @returns {object} a CommandDefinition.
+ */
+function buildSuppressCommand() {
+  return {
+    name: 'guidance-suppress',
+    description: 'Mute one code site by its siteId so later scans report it as suppressed instead of counting it as fixed. Shows the plan with --dry-run and writes only without it.',
+    input: { hint: '<siteId> [--dry-run] [--reason <text>]' },
+    recordInput: false,
+    async handler(invocation) {
+      const args = parseSuppressArguments(invocation?.rawInput)
+      const id = args.siteId.trim().toLowerCase()
+      if (id === '') {
+        return {
+          kind: 'error',
+          text: 'No site id: pass the 8-character id a scan result shows after the rule id, for example /guidance-suppress 96cb61de --dry-run.',
+        }
+      }
+      if (!isSiteKey(id)) {
+        return {
+          kind: 'error',
+          text: `Not a site id: "${args.siteId}" must be 8 lowercase hex characters, exactly as a scan result prints it after the rule id.`,
+        }
+      }
+
+      const directory = workspaceDirectory(commandCwd(invocation))
+      const file = join(directory, SUPPRESS_FILE)
+      const current = await readSuppressionsForWrite(file)
+      if (!(current.entries instanceof Map)) {
+        return { kind: 'error', text: current.refusal }
+      }
+      if (current.entries.has(id)) {
+        return {
+          kind: 'success',
+          text: args.dryRun
+            ? `Already present: ${id} is already in ${file}, so this line would write nothing.`
+            : `Already present: ${id} is in ${file}; nothing was written.`,
+        }
+      }
+
+      const entry = { reason: args.reason, at: suppressDate() }
+      const count = current.entries.size
+      // The plan is one paragraph rather than a block of labelled lines, because the panel renders the
+      // host's text verbatim in a single node — a folded line there, a run-on sentence here — and both
+      // surfaces must read the same. It carries the three facts ADR-0003 asks for: the absolute file,
+      // the exact entry (reason and date included, so the confirmation is of a payload and not of an
+      // intention) and the current count against the cap.
+      const payload = JSON.stringify(entry)
+      const full = count >= MAX_SUPPRESSIONS
+      if (args.dryRun) {
+        return {
+          kind: 'success',
+          text: full
+            ? `Suppression plan for ${id}: append ${payload} to ${file}, which already holds the cap of ${MAX_SUPPRESSIONS} entries, so this write would be refused and nothing has been written.`
+            : `Suppression plan for ${id}: append ${payload} to ${file}, which would go from ${count} to ${count + 1} ${count + 1 === 1 ? 'entry' : 'entries'} (cap ${MAX_SUPPRESSIONS}). Nothing has been written; run the same line without --dry-run to write it.`,
+        }
+      }
+      if (full) {
+        return {
+          kind: 'error',
+          text: `Refused: ${file} already holds the maximum of ${MAX_SUPPRESSIONS} entries; remove one before adding another.`,
+        }
+      }
+
+      const entries = new Map(current.entries)
+      entries.set(id, entry)
+      const temporary = `${file}.tmp`
+      try {
+        await mkdir(dirname(file), { recursive: true })
+        await writeFile(temporary, serializeSuppressions(entries), 'utf8')
+        await rename(temporary, file)
+      } catch (error) {
+        return {
+          kind: 'error',
+          text: `Refused: the write to ${file} failed (${error instanceof Error ? error.message : String(error)}).`,
+        }
+      }
+      return {
+        kind: 'success',
+        text: `Suppressed ${id} in ${file}; the file now holds ${count + 1} ${count + 1 === 1 ? 'entry' : 'entries'}. The site is muted, not fixed: the next scan still counts it as a finding and reports it as suppressed.`,
       }
     },
   }
@@ -1186,6 +1391,10 @@ export function apply(ctx, config = {}) {
   if (commands !== undefined && commands !== null && typeof commands.register === 'function') {
     const scanCommand = buildScanCommand({ scan, ScanError }, { RULES, selectRules }, usage)
     ctx.effect(() => commands.register(scanCommand), `modern-web-guidance /${scanCommand.name}`)
+    // The one writer in the product, and the only way the panel can mute a finding: two lines, one
+    // plan and one apply, so a single click can never write.
+    const suppressCommand = buildSuppressCommand()
+    ctx.effect(() => commands.register(suppressCommand), `modern-web-guidance /${suppressCommand.name}`)
   }
 
   for (const definition of SKILL_DEFINITIONS) {

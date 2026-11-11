@@ -282,8 +282,23 @@ function scanEntry(findings, files = 1, scanned = {}, truncated = false) {
   })
 }
 
-/** The stored last scan with the audit defaults a state file written before 0.7.3 reads as. */
-function lastScanOf({ at, files, findings, rules, skipped = {}, truncated = false }) {
+/**
+ * The stored last scan with the audit defaults a state file written before 0.7.3 reads as, plus the
+ * suppression count every completed scan writes from 0.12.0 on — `0` included, because the scan ran
+ * and muted nothing. A positive count may carry its per-rule split.
+ */
+function lastScanOf({ at, files, findings, rules, skipped = {}, truncated = false, suppressed = 0, suppressedRules }) {
+  const summary = { at, files, findings, rules, skipped, truncated, suppressed }
+  if (suppressed > 0 && suppressedRules !== undefined) summary.suppressedRules = suppressedRules
+  return summary
+}
+
+/**
+ * A last scan as a document written before suppression normalises to: the six keys and no
+ * `suppressed` member at all. There is no zero here to claim — nothing was muted because nothing could
+ * be — and a report on this document must render exactly what it rendered before 0.12.0.
+ */
+function lastScanBefore({ at, files, findings, rules, skipped = {}, truncated = false }) {
   return { at, files, findings, rules, skipped, truncated }
 }
 
@@ -553,7 +568,7 @@ test('the stored scan block is rebuilt defensively from a hand-edited document',
   const snapshot = await telemetry.snapshot()
   assert.deepEqual(snapshot.topRules, [ruleRow('ls-02', 2)])
   assert.deepEqual(snapshot.topScanGuides, [{ guideId: 'dialog', count: 1 }])
-  assert.deepEqual(snapshot.lastScan, lastScanOf({
+  assert.deepEqual(snapshot.lastScan, lastScanBefore({
     at: new Date(NOW - 1000).toISOString(),
     files: 0,
     findings: 0,
@@ -735,7 +750,7 @@ test('a last scan stored before the audit fields existed normalises without loss
   const snapshot = await telemetry.snapshot()
   // Exactly the six documented keys, with the audit fields defaulted rather than absent.
   assert.deepEqual(Object.keys(snapshot.lastScan), ['at', 'files', 'findings', 'rules', 'skipped', 'truncated'])
-  assert.deepEqual(snapshot.lastScan, lastScanOf({
+  assert.deepEqual(snapshot.lastScan, lastScanBefore({
     at: new Date(NOW - 1000).toISOString(),
     files: 70,
     findings: 97,
@@ -793,7 +808,7 @@ function legacyDocument() {
     retrieved: {},
     scanRules: { 'ls-13': 4, 'ls-02': 2 },
     scanGuides: { dialog: 4 },
-    lastScan: lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }),
+    lastScan: lastScanBefore({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }),
     recent: [],
   }
 }
@@ -812,7 +827,7 @@ test('a document written before workspace scoping keeps every counter and its la
   const snapshot = await telemetry.snapshot({ days: 7 })
   assert.equal(snapshot.workspace, null)
   assert.deepEqual(snapshot.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
-  assert.deepEqual(snapshot.lastScan, lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
+  assert.deepEqual(snapshot.lastScan, lastScanBefore({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
   // The pre-partition numbers surface as one synthetic bucket instead of disappearing.
   assert.deepEqual(snapshot.workspaces, [
     { id: '_unattributed', name: '', findings: 6, rules: 2, lastScanAt: LEGACY_AT },
@@ -869,6 +884,7 @@ test('two workspaces keep their scan counters disjoint while calls stay profile-
       rules: { 'ls-13': 1 },
       skipped: {},
       truncated: false,
+      suppressed: 0,
     }],
     lastSites: null,
     scanDiff: { against: null, partial: 'sites-unknown' },
@@ -924,7 +940,7 @@ test("selecting '_unattributed' reads only the legacy root counters", async () =
   assert.deepEqual(legacy.workspace, { id: '_unattributed', name: '' })
   // The root's rules, not the union with the bucket that exists beside it.
   assert.deepEqual(legacy.topRules, [ruleRow('ls-13', 4), ruleRow('ls-02', 2)])
-  assert.deepEqual(legacy.lastScan, lastScanOf({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
+  assert.deepEqual(legacy.lastScan, lastScanBefore({ at: LEGACY_AT, files: 9, findings: 6, rules: ['ls-02', 'ls-13'] }))
 })
 
 test('an unknown workspace id reads as the aggregate rather than as an empty report', async () => {
@@ -1678,4 +1694,44 @@ test('ranked rule rows carry the days the rule was seen, null when the scope has
 
   const bucket = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
   assert.deepEqual(bucket.topRules, [ruleRow('ls-13', 2, localDay(NOW - 3 * DAY), localDay(NOW))])
+})
+
+test('a muted count is written by a scan, clamped to its findings, and never by another call', async () => {
+  const { telemetry, store } = telemetryWith()
+
+  // A guidance call that happens to carry the member must not mint one: only a completed scan can
+  // claim what it muted, because only a completed scan had findings to mute.
+  await telemetry.record({ at: NOW, tool: 'search', outcome: 'hit', query: 'dialog', suppressed: 5 })
+  await telemetry.record({
+    at: NOW,
+    tool: 'legacy-scan',
+    workspace: ALPHA,
+    ...scanEntry([finding('ls-13', 'guide-a'), finding('ls-17', 'guide-b')], 2),
+  })
+
+  const clean = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal(clean.lastScan.suppressed, 0, 'the scan ran and muted nothing, so it says 0')
+  assert.equal('suppressedRules' in clean.lastScan, false, 'a split with nothing in it is not written')
+  assert.equal(clean.scanHistory[0].suppressed, 0)
+  await telemetry.flush()
+  assert.equal('suppressed' in store.state, false, 'one scan is never a lifetime total')
+
+  // A muted pair, and a caller that claims more mutes than the scan returned findings.
+  await telemetry.record({
+    at: NOW + DAY,
+    tool: 'legacy-scan',
+    workspace: ALPHA,
+    ...scanEntry([
+      { ...finding('ls-13', 'guide-a'), suppressed: true },
+      { ...finding('ls-13', 'guide-a', 'src/other.css'), suppressed: true },
+    ], 2),
+    suppressed: 99,
+  })
+
+  const muted = await telemetry.snapshot({ days: 7, workspace: ALPHA.id })
+  assert.equal(muted.lastScan.suppressed, 2, 'a subset can never exceed its whole')
+  assert.deepEqual(muted.lastScan.suppressedRules, { 'ls-13': 2 })
+  assert.equal(muted.lastScan.findings, 2, 'the muted findings are still findings')
+  assert.equal(muted.scanHistory[0].suppressed, 2)
+  assert.equal(muted.scanHistory[1].suppressed, 0)
 })

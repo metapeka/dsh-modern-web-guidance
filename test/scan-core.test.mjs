@@ -92,8 +92,11 @@ test('a relative directory is walked and findings carry the contract shape', asy
 
     const [finding] = result.findings
     assert.deepEqual(Object.keys(finding).sort(), [
-      'column', 'confidence', 'guideId', 'line', 'lines', 'message', 'occurrences', 'path', 'ruleId', 'snippet',
+      'column', 'confidence', 'guideId', 'line', 'lines', 'message', 'occurrences', 'path', 'ruleId',
+      'siteId', 'snippet',
     ])
+    assert.equal(result.suppressed, 0)
+    assert.equal('suppressProblems' in result, false)
     assert.equal(finding.lines.length, 1)
     assert.equal(finding.occurrences, 1)
     assert.equal(finding.path, 'src/app.js')

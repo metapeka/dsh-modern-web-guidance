@@ -1285,3 +1285,81 @@ test('a 0.10.0 snapshot renders the report it always did, line for line', () => 
 
 //#endregion
 
+
+// --- Suppression in the report: a subset on its own line, never a total ----------------------
+
+test('the suppressed count prints on its own line under the last scan it belongs to', () => {
+  const text = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressed: 3, suppressedRules: { 'ls-08': 1, 'ls-13': 2 } },
+  })
+
+  assert.match(text, /^Suppressed: 3 in the last scan \(ls-13 2, ls-08 1\) - muted, still findings$/m)
+  const lines = text.split('\n')
+  const lastAt = lines.findIndex((line) => line.startsWith('Last scan:'))
+  const suppressedAt = lines.findIndex((line) => line.startsWith('Suppressed:'))
+  assert.equal(suppressedAt, lastAt + 1, 'the line rides immediately under the scan it describes')
+  // Never folded into the KPI line above it, and never a second Last scan row.
+  assert.equal(lines.filter((line) => line.startsWith('Last scan:')).length, 1)
+  assert.doesNotMatch(lines[lastAt], /suppressed/i)
+})
+
+test('a suppressed count without a per-rule split prints without a parenthesis', () => {
+  const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressed: 2 } })
+  assert.match(text, /^Suppressed: 2 in the last scan - muted, still findings$/m)
+  assert.doesNotMatch(text, /Suppressed: 2 in the last scan \(/)
+})
+
+test('a zero, an absent field or a malformed one prints nothing, and a pre-C document is unchanged', () => {
+  const golden = renderReport(RICH)
+  for (const suppressed of [0, undefined, null, 'lots', -1, Number.NaN]) {
+    const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressed } })
+    assert.equal(text, golden, `suppressed=${String(suppressed)}`)
+  }
+  assert.doesNotMatch(golden, /Suppressed:/)
+  const json = renderJson(RICH)
+  assert.equal('suppressed' in json.lastScan, false, 'a pre-C value gains no member')
+})
+
+test('a suppressed count is clamped to the findings it is a subset of', () => {
+  const text = renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressed: 99 } })
+  assert.match(text, /^Suppressed: 4 in the last scan - muted, still findings$/m)
+})
+
+test('the split stops at five rules and ranks by count then id', () => {
+  const text = renderReport({
+    ...RICH,
+    lastScan: {
+      ...RICH.lastScan,
+      findings: 20,
+      suppressed: 9,
+      suppressedRules: { 'ls-01': 1, 'ls-02': 2, 'ls-03': 2, 'ls-04': 1, 'ls-05': 1, 'ls-06': 2, 'ls-33': 1 },
+    },
+  })
+  assert.match(text, /^Suppressed: 9 in the last scan \(ls-02 2, ls-03 2, ls-06 2, ls-01 1, ls-04 1\) - muted, still findings$/m)
+  assert.doesNotMatch(text, /ls-33/)
+})
+
+test('a split that contradicts its count is dropped, so the line never shows more mutes than mutes', () => {
+  const text = renderReport({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressed: 2, suppressedRules: { 'ls-13': 9 } },
+  })
+  assert.match(text, /^Suppressed: 2 in the last scan - muted, still findings$/m)
+  assert.doesNotMatch(text, /ls-13 9/)
+})
+
+test('renderJson carries the suppressed members on lastScan and never at the top level', () => {
+  const json = renderJson({
+    ...RICH,
+    lastScan: { ...RICH.lastScan, suppressed: 3, suppressedRules: { 'ls-13': 2, 'ls-08': 1 } },
+  })
+  assert.equal(json.lastScan.suppressed, 3)
+  assert.deepEqual(json.lastScan.suppressedRules, { 'ls-13': 2, 'ls-08': 1 })
+  assert.equal('suppressed' in json, false, 'one scan is not a total, so it never rides on the document')
+  assert.equal('suppressedRules' in json, false)
+  // And a zero is a member of the value, never of the text.
+  const zero = renderJson({ ...RICH, lastScan: { ...RICH.lastScan, suppressed: 0 } })
+  assert.equal(zero.lastScan.suppressed, 0)
+  assert.doesNotMatch(renderReport({ ...RICH, lastScan: { ...RICH.lastScan, suppressed: 0 } }), /Suppressed:/)
+})

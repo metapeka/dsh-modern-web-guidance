@@ -286,7 +286,7 @@ test('the scanner section is fed by the report and can start a scan', () => {
   const truncated = CLIENT_SOURCE.match(/t\('scan\.truncated'/g) ?? []
   assert.ok(truncated.length >= 2, 'the truncation notice is missing from the panel or the chat row')
   // The section renders in the empty state too: its button is the only way to scan from the panel.
-  assert.match(CLIENT_SOURCE, /renderEmpty\(t, report\)[\s\S]{0,160}renderScanner\(t, report, scan, busy, runScan\)/)
+  assert.match(CLIENT_SOURCE, /renderEmpty\(t, report\)[\s\S]{0,160}renderScanner\(t, report, scan, busy, scannerActions\)/)
 })
 
 test('the scan caveats are read from the value and rendered, not dropped', () => {
@@ -726,6 +726,82 @@ function elementIn(tree, predicate) {
   return elementsOf(tree).find(predicate)
 }
 
+/** The one button whose visible text is `label`, or undefined when the panel draws none. */
+function buttonOf(tree, label) {
+  return elementIn(tree, (element) => element.type === 'button' && element.children.includes(label))
+}
+
+/** A Remote envelope whose result is a success carrying `text`. */
+function textEnvelope(text) {
+  return { ok: true, value: { result: { kind: 'success', text } } }
+}
+
+/** A Remote envelope whose result is a refusal — the shape a refused write arrives in. */
+function refusalEnvelope(text) {
+  return { ok: true, value: { result: { kind: 'error', text } } }
+}
+
+/**
+ * The panel with a bridge that answers each command line with its own envelope.
+ *
+ * A flow needs that: the report, the scan and the two halves of a write cannot all be answered by
+ * the same fixture. `answers` is keyed by command line, `'*'` answers anything the test did not name,
+ * and a line with no answer fails the test instead of resolving into a state no assertion can explain.
+ */
+async function mountScriptedPanel(report, answers) {
+  const panel = loadClient().get('main:guidance')
+  assert.equal(typeof panel, 'function', 'the panel is not registered under the main slot')
+  const bridge = {
+    lines: [],
+    call(sessionId, line) {
+      bridge.lines.push(line)
+      const answer = answers[line] === undefined ? answers['*'] : answers[line]
+      assert.notEqual(answer, undefined, `the test answered no line: ${line}`)
+      return Promise.resolve(answer)
+    },
+  }
+  const props = { t: translate, bridge, useSessions: () => 'session-1' }
+  renderOnce(panel, props)
+  await new Promise((resolve) => setImmediate(resolve))
+  return { tree: renderOnce(panel, props), panel, props, bridge }
+}
+
+/** Let the last command answer, then render what the panel settled on. */
+async function settle(panel, props) {
+  await new Promise((resolve) => setImmediate(resolve))
+  return renderOnce(panel, props)
+}
+
+/** One `/guidance-scan --format json` value, as phase C writes it. */
+function scanValueOf(extra = {}) {
+  return {
+    scanned: { files: 2, bytes: 240, skippedByReason: {} },
+    findings: [],
+    guides: [],
+    truncated: false,
+    suppressed: 0,
+    ...extra,
+  }
+}
+
+/** One finding of that value, with the site id a mute needs. */
+function findingOf(extra = {}) {
+  return {
+    ruleId: 'ls-13',
+    confidence: 'high',
+    path: 'src/app.css',
+    line: 12,
+    column: 3,
+    guideId: 'anchor-positioning',
+    message: 'Position the anchor instead of nudging the element',
+    snippet: 'left: 1px',
+    lines: [12],
+    occurrences: 1,
+    siteId: '96cb61de',
+    ...extra,
+  }
+}
+
 /** The `<option>` elements a rendered `<select>` carries, in order. */
 function optionsOf(select) {
   return elementsOf(select).filter((element) => element.type === 'option')
@@ -1113,4 +1189,315 @@ test('scanSeries is data for a later chart, so the panel draws none', async () =
   const withSeries = textsOf((await mountPanel(reportOf({ scanSeries: series, lastScan: { at: '2026-11-10', files: 70, findings: 85, rules: [] } }))).tree)
   const without = textsOf((await mountPanel(reportOf({ lastScan: { at: '2026-11-10', files: 70, findings: 85, rules: [] } }))).tree)
   assert.deepEqual(withSeries, without, 'a scanSeries changed the panel')
+})
+
+/** The strings the suppression half added, in the order the contract names them. */
+const SUPPRESS_KEYS = [
+  'scan.suppressed',
+  'scan.suppressedTag',
+  'scan.suppressProblem',
+  'scan.mute',
+  'scan.muteConfirm',
+  'scan.muteFailed',
+]
+
+test('the suppression strings exist in all three dictionaries, in the contract order', () => {
+  const english = [...EN.keys()]
+  const positions = SUPPRESS_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the keys are out of order')
+  // One group, in the same place in every dictionary: the scan strings, before the chat row's.
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.equal(positions[index], positions[index - 1] + 1, 'the suppression keys are not one contiguous group')
+  }
+  for (const key of SUPPRESS_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // The count and the rules it belongs to; one word for the tag; one raw token in the problem note.
+  assert.deepEqual(placeholders(EN.get('scan.suppressed')), ['count', 'rules'])
+  assert.deepEqual(placeholders(EN.get('scan.suppressedTag')), [])
+  assert.deepEqual(placeholders(EN.get('scan.suppressProblem')), ['reason'])
+  // The problem sentence is the one the text renderer prints, so the two surfaces say the same thing.
+  assert.equal(
+    EN.get('scan.suppressProblem'),
+    'Suppression file: {reason}; nothing is muted this scan.',
+    'the problem note no longer matches the text renderer',
+  )
+  // A muted finding is not a fixed one: neither reporting string may claim a repair.
+  for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+    for (const key of ['scan.suppressed', 'scan.suppressedTag']) {
+      assert.doesNotMatch(dictionary.get(key), /fixed|исправлено|已修复/i, `${name}.${key} claims a fix`)
+    }
+  }
+  // The second click names the file it appends to, and a file name is never translated.
+  for (const dictionary of [EN, RU, ZH]) {
+    assert.match(dictionary.get('scan.muteConfirm'), /\.suppress/, 'the confirmation does not name the file it writes')
+  }
+  assert.deepEqual(placeholders(EN.get('scan.muteFailed')), ['message'])
+})
+
+test('the muted count is reported beside the scan it belongs to, and a missing count renders nothing', async () => {
+  const scan = { at: '2026-11-11', files: 70, findings: 85, rules: [] }
+  const muted = textsOf(
+    (await mountPanel(reportOf({ lastScan: { ...scan, suppressed: 3, suppressedRules: { 'ls-08': 1, 'ls-13': 2 } } }))).tree,
+  )
+  assert.ok(muted.includes('Suppressed 3 (ls-13 2, ls-08 1)'), 'the panel does not report the muted count with its rules')
+  // A muted finding is still a finding: the scan's own count is not reduced.
+  assert.ok(muted.includes('Last scan: 2026-11-11 · 70 files · 85 findings'), 'the muted count was subtracted from the scan')
+  const plain = textsOf((await mountPanel(reportOf({ lastScan: scan }))).tree)
+  const zero = textsOf((await mountPanel(reportOf({ lastScan: { ...scan, suppressed: 0, suppressedRules: {} } }))).tree)
+  // Absence and an explicit zero render the same panel — never a fabricated "0 suppressed". The
+  // timestamp is the one text that changes between two mounts, so it is compared out.
+  const clock = EN.get('updated').split('{time}')[0]
+  const stable = (texts) => texts.filter((text) => !text.startsWith(clock))
+  assert.deepEqual(stable(zero), stable(plain), 'an explicit zero changed the panel')
+  assert.equal(plain.some((text) => text.startsWith('Suppressed')), false, 'a pre-C report grew a suppressed line')
+})
+
+test('the panel scan counts its muted findings and tags them, and offers the action only to a site it can name', async () => {
+  const value = scanValueOf({
+    findings: [
+      findingOf(),
+      findingOf({ ruleId: 'ls-02', path: 'src/app.js', line: 3, siteId: 'aa11bb22', suppressed: true }),
+      // A pre-C finding: the host sends no site id, so nothing may offer to mute it.
+      findingOf({ ruleId: 'ls-08', path: 'src/legacy.js', line: 8, siteId: undefined }),
+    ],
+    suppressed: 1,
+  })
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(value)),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  const texts = textsOf(scanned)
+  assert.ok(texts.includes('Scanned 2 files, 3 findings · Suppressed 1 (ls-02 1)'), 'the summary does not report the muted count')
+  assert.ok(texts.includes('src/app.css:12'), 'the scan result lists no place for its findings')
+  // The tag is a word on the muted row, and only there.
+  const tags = elementsOf(scanned).filter(
+    (element) => element.children.length === 1 && element.children[0] === EN.get('scan.suppressedTag'),
+  )
+  assert.equal(tags.length, 1, 'the muted row is not tagged exactly once')
+  // Of the three rows only the first can be muted: the second already is, the third has no site id
+  // to name, and an action with no target must not be drawn at all.
+  const offers = elementsOf(scanned).filter(
+    (element) => element.type === 'button' && element.children.includes(EN.get('scan.mute')),
+  )
+  assert.equal(offers.length, 1, 'a row without a site id, or an already muted one, offers the action')
+})
+
+test('muting asks for a plan, writes only on the second click, and reports the outcome', async () => {
+  const value = scanValueOf({ findings: [findingOf()] })
+  const plan = 'Plan: append 96cb61de (ls-13) to /work/app/.suppress — file exists, 3 entries, cap 200'
+  const outcome = 'Appended 96cb61de to /work/app/.suppress — 4 entries'
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(value)),
+    '/guidance-suppress 96cb61de --dry-run': textEnvelope(plan),
+    '/guidance-suppress 96cb61de': textEnvelope(outcome),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.mute')).props.onClick()
+  const planned = await settle(panel, props)
+  // One click, one command: the plan, which writes nothing.
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-suppress')),
+    ['/guidance-suppress 96cb61de --dry-run'],
+    'the first click did not stop at the plan',
+  )
+  const plannedTexts = textsOf(planned)
+  assert.ok(plannedTexts.includes(plan), 'the host plan is not shown verbatim')
+  assert.ok(plannedTexts.includes('96cb61de · ls-13 · src/app.css:12'), 'the plan does not name the site, the rule and the place')
+  // It sits under the row it came from, so a long list cannot separate a confirmation from its target.
+  const order = elementsOf(planned)
+  const placeAt = order.findIndex((element) => element.children.includes('src/app.css:12'))
+  const factsAt = order.findIndex((element) => element.children.includes('96cb61de · ls-13 · src/app.css:12'))
+  assert.ok(placeAt !== -1 && factsAt > placeAt, 'the plan is not rendered under the row it came from')
+  const confirm = buttonOf(planned, EN.get('scan.muteConfirm'))
+  assert.equal(typeof confirm, 'object', 'the plan has no second, distinct button')
+  confirm.props.onClick()
+  const done = await settle(panel, props)
+  // The second click applies the same plan: same command, no `--dry-run`.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-suppress')), [
+    '/guidance-suppress 96cb61de --dry-run',
+    '/guidance-suppress 96cb61de',
+  ])
+  const doneTexts = textsOf(done)
+  assert.ok(doneTexts.includes(outcome), 'the outcome the host reported is not shown')
+  assert.equal(doneTexts.some((text) => text.startsWith(EN.get('scan.muteFailed').split('{')[0])), false, 'a success renders the refusal sentence')
+  assert.equal(typeof buttonOf(done, EN.get('scan.muteConfirm')), 'undefined', 'the plan outlived its confirmation')
+})
+
+test('an "already present" answer is the no-op the host names, and it is shown as one', async () => {
+  const noop = '96cb61de is already in /work/app/.suppress — nothing written'
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-suppress 96cb61de --dry-run': textEnvelope('Plan: append 96cb61de (ls-13) to /work/app/.suppress'),
+    '/guidance-suppress 96cb61de': textEnvelope(noop),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.mute')).props.onClick()
+  const planned = await settle(panel, props)
+  buttonOf(planned, EN.get('scan.muteConfirm')).props.onClick()
+  const done = await settle(panel, props)
+  const texts = textsOf(done)
+  // The panel keeps the host's words: it neither calls the no-op a success of its own nor a failure.
+  assert.ok(texts.includes(noop), 'the no-op the host named is not shown')
+  assert.equal(
+    texts.some((text) => text.startsWith(EN.get('scan.muteFailed').split('{')[0])),
+    false,
+    'a no-op is reported as a refusal',
+  )
+})
+
+test('a refused write is an error with its code, never an outcome', async () => {
+  const value = scanValueOf({ findings: [findingOf()] })
+  const refusal = 'Error: cap-reached — .suppress already holds the 200 entries the cap allows'
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(value)),
+    '/guidance-suppress 96cb61de --dry-run': textEnvelope('Plan: append 96cb61de (ls-13) to /work/app/.suppress'),
+    '/guidance-suppress 96cb61de': refusalEnvelope(refusal),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.mute')).props.onClick()
+  const planned = await settle(panel, props)
+  buttonOf(planned, EN.get('scan.muteConfirm')).props.onClick()
+  const refused = await settle(panel, props)
+  const sentence = translate('scan.muteFailed', { message: refusal })
+  const texts = textsOf(refused)
+  assert.ok(texts.includes(sentence), 'the refusal is not reported with its code')
+  assert.equal(texts.includes(refusal), false, 'the refusal is rendered as an outcome')
+  // It is drawn as an error, so it cannot be mistaken for the outcome branch.
+  const styled = elementIn(refused, (element) => element.children.includes(sentence))
+  assert.equal(styled.props.style.color, 'var(--dsw-alias-state-error-primary)', 'a refusal is not styled as an error')
+  assert.equal(typeof buttonOf(refused, EN.get('scan.muteConfirm')), 'undefined', 'a refusal leaves a live confirmation')
+  // Nothing was written by the refusal, and no third line was ever asked for.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-suppress')), [
+    '/guidance-suppress 96cb61de --dry-run',
+    '/guidance-suppress 96cb61de',
+  ])
+})
+
+test('a refused plan writes nothing and leaves no confirmation to press', async () => {
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-suppress 96cb61de --dry-run': refusalEnvelope('Error: site-unknown — no site 96cb61de in this workspace'),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.mute')).props.onClick()
+  const refused = await settle(panel, props)
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-suppress')), ['/guidance-suppress 96cb61de --dry-run'])
+  assert.ok(
+    textsOf(refused).includes(translate('scan.muteFailed', { message: 'Error: site-unknown — no site 96cb61de in this workspace' })),
+    'a refused plan is not reported with its code',
+  )
+  assert.equal(typeof buttonOf(refused, EN.get('scan.muteConfirm')), 'undefined', 'a refused plan leaves a live confirmation')
+})
+
+test('without a scan there is no finding list and no mute to press', async () => {
+  const { tree } = await mountScriptedPanel(reportOf(), { '*': reportEnvelope(reportOf()) })
+  const texts = textsOf(tree)
+  // Unavailable, not a button that fails: with no scan there is no site to name.
+  assert.equal(texts.includes(EN.get('scan.mute')), false, 'the panel offers a mute before any scan ran')
+  assert.equal(texts.includes(EN.get('scan.muteConfirm')), false, 'a confirmation is on screen without a plan')
+  assert.equal(texts.some((text) => text.startsWith('Scanned ')), false, 'a scan result appeared with no scan')
+})
+
+test('a muted finding is tagged in the chat row, and the two readers agree on it', () => {
+  const row = loadClient().get('tool.call.toolview:web_guidance_legacy_scan')
+  assert.equal(typeof row, 'function', 'the chat row is not registered under the scan wire name')
+  const fromValue = (payload) =>
+    row({ phase: 'result', t: translate, block: { kind: 'result', isError: false, content: [{ type: 'text', text: JSON.stringify(payload) }] } })
+  const fromText = (text) =>
+    row({ phase: 'result', t: translate, block: { kind: 'result', isError: false, content: [{ type: 'text', text }] } })
+  const value = (muted) => ({
+    scanned: { files: 1, bytes: 10, skippedByReason: {} },
+    guides: [],
+    truncated: false,
+    suppressed: muted ? 1 : 0,
+    findings: [
+      {
+        ruleId: 'ls-13',
+        confidence: 'high',
+        path: 'src/app.css',
+        line: 12,
+        column: 3,
+        guideId: 'anchor-positioning',
+        message: 'Position the anchor instead of nudging',
+        snippet: '',
+        lines: [12],
+        occurrences: 1,
+        siteId: '96cb61de',
+        ...(muted ? { suppressed: true } : {}),
+      },
+    ],
+  })
+  const mutedRow = fromValue(value(true))
+  const plainRow = fromValue(value(false))
+  const dimmed = (tree) => elementIn(tree, (element) => element.props?.style?.opacity === '0.65')
+  // The tag is a word inside the rule cell, so the four columns and the grid do not move.
+  assert.ok(textsOf(mutedRow).includes(`ls-13 ${EN.get('scan.suppressedTag')}`), 'the muted row is not tagged')
+  assert.notEqual(dimmed(mutedRow), undefined, 'the muted row is not dimmed')
+  assert.equal(dimmed(plainRow), undefined, 'an unmuted row is dimmed')
+  assert.ok(textsOf(mutedRow).includes('src/app.css:12'), 'the muted row lost its place')
+  // A muted finding is still counted: the header keeps the findings total.
+  assert.ok(textsOf(mutedRow).includes('Scanned 1 file, 1 finding'), 'the header count changed with a muted finding')
+  // The pre-C row is exactly the row it always was: no tag anywhere, no dimming.
+  assert.equal(textsOf(plainRow).some((text) => text.includes(EN.get('scan.suppressedTag'))), false, 'a pre-C row grew a tag')
+  // The text reader agrees with the value reader, marker and all: the same call renders the same row.
+  const textRow = fromText(
+    'Scanned 1 file(s) — 1 finding(s), 1 suppressed.\n- src/app.css:12:3 ls-13 (high) Position the anchor instead of nudging (suppressed)',
+  )
+  assert.ok(textsOf(textRow).includes(`ls-13 ${EN.get('scan.suppressedTag')}`), 'the text reader does not tag a muted row')
+  assert.notEqual(dimmed(textRow), undefined, 'the text reader does not dim a muted row')
+  // The marker is stripped, so the tooltip is the rule's message and not the bookkeeping.
+  assert.equal(
+    elementIn(textRow, (element) => element.props.title === 'Position the anchor instead of nudging (suppressed)'),
+    undefined,
+    'the suppression marker leaked into the tooltip',
+  )
+  assert.notEqual(
+    elementIn(textRow, (element) => element.props.title === 'Position the anchor instead of nudging'),
+    undefined,
+    'the text row lost the rule message tooltip',
+  )
+  // A suppression file that could not be read mutes nothing, and the row says so in one line — the
+  // same sentence the text renderer prints, with the host's raw token.
+  const problemNote = translate('scan.suppressProblem', { reason: 'malformed' })
+  const withProblem = fromValue({ ...value(false), suppressProblems: [{ key: null, reason: 'malformed' }] })
+  assert.ok(textsOf(withProblem).includes(problemNote), 'a file-level suppression problem is silent')
+  assert.equal(textsOf(plainRow).some((text) => text.includes('Suppression file')), false, 'a clean result grew a problem note')
+  // A per-entry problem is not a note: that finding is on screen, which is its report.
+  const entryProblem = fromValue({ ...value(false), suppressProblems: [{ key: 'aa11bb22', reason: 'invalid' }] })
+  assert.equal(
+    textsOf(entryProblem).some((text) => text.includes('Suppression file')),
+    false,
+    'a dropped entry was reported as a file-level failure',
+  )
+  // The text reader reads the same sentence back, so a summary answer carries the note too.
+  assert.ok(
+    textsOf(fromText(`Suppression file: malformed; nothing is muted this scan.\n- src/app.css:12:3 ls-13 (high) Nudge`)).includes(
+      problemNote,
+    ),
+    'the text reader drops the problem sentence',
+  )
 })

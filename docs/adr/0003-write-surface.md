@@ -88,7 +88,16 @@ write is never a side effect of reading, and a panel that merely renders never p
 
 ### 4. Confirm before, report after: plan, then apply
 
-Both commands obey one protocol:
+Both commands obey one protocol. The suppression line is fixed, because the panel is written against it
+and a second name would be a second implementation:
+
+```
+/guidance-suppress <siteId> --dry-run    the plan, writes nothing
+/guidance-suppress <siteId>              applies it, prints what changed
+```
+
+A future third line (the C-2 `.scanignore` one) follows the same protocol under its own name, not as a
+flag on these.
 
 - **`--dry-run` answers the plan and writes nothing**: the absolute target path, the exact line or
   entry that would be added, whether the file exists, how many entries it holds now, and the remaining

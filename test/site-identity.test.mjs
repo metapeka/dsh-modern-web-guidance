@@ -10,6 +10,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import { siteId as moduleSiteId, SITE_KEY } from '../lib/site.js'
 import { classifyCall, siteId } from '../lib/telemetry.js'
 
 /** One finding as `lib/scan.js` reports it: the first hit's snippet, plus the file it is in. */
@@ -121,4 +122,21 @@ test('the site map stops at the scanner cap and says that it did', () => {
 
   assert.equal(total, 200)
   assert.equal(classified.sitesComplete, false)
+})
+
+test('the counters re-export the one hash the scanner ships, so a mute can never miss', () => {
+  // 0.12.0 needs the same identity in three places — the scan's `finding.siteId`, the counters' site
+  // map and the suppression file — and two implementations would drift into a mute that silently
+  // mutes nothing. `lib/telemetry.js` therefore re-exports `lib/site.js` rather than carrying a copy.
+  assert.equal(siteId, moduleSiteId)
+  assert.equal(SITE_KEY.test(siteId('src/app.css', 'ls-13', '::-webkit-scrollbar')), true)
+
+  const shipped = siteId('src/app.css', 'ls-13', '::-webkit-scrollbar')
+  const classified = classifyScan([{ ...hit('src/app.css', 'ls-13'), siteId: shipped }])
+  assert.deepEqual(classified.sites, { 'ls-13': [shipped] })
+
+  // A finding whose shipped key is not a key is re-hashed from its own triple, so a hand-built value
+  // can never put a non-key into the baseline.
+  const rebuilt = classifyScan([{ ...hit('src/app.css', 'ls-13'), siteId: 'not-a-key' }])
+  assert.deepEqual(rebuilt.sites, { 'ls-13': [shipped] })
 })

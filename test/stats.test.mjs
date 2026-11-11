@@ -76,7 +76,7 @@ test('the plugin registers four tools, two skills and one human command', async 
     'web_guidance_legacy_scan',
   ])
   assert.deepEqual(registered.skills.map((skill) => skill.name), ['modern-web-guidance', 'chrome-extensions'])
-  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-stats'])
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress', 'guidance-stats'])
   assert.ok(registered.listeners.some((listener) => listener.event === 'tools/result'))
 
   await rm(home, { recursive: true, force: true })
@@ -159,7 +159,7 @@ test('enabled: false writes nothing and leaves only the scanner command', async 
 
   apply(ctx, { enabled: false })
 
-  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan'])
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress'])
   assert.equal(registered.listeners.length, 0)
   assert.equal(registered.tools.length, 4)
 
@@ -832,8 +832,9 @@ test('a scan call still returns the value and the text it always did, byte for b
     const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
     const value = await tool.execute({ paths: ['.'] }, headerAt(workspace))
 
-    // The whole value, member for member: the scanner is not part of the history work, and a member
-    // gained, lost or renamed by a surface change would fail here rather than at a user's scan.
+    // The whole value, member for member: a member gained, lost or renamed by a surface change fails
+    // here rather than at a user's scan. 0.12.0 adds exactly two: every finding carries its `siteId`
+    // (a mute target, even when no suppression file exists) and the result carries `suppressed: 0`.
     assert.deepEqual({ ...value, cwd: '<workspace>' }, {
       format: 'summary',
       cwd: '<workspace>',
@@ -857,9 +858,11 @@ test('a scan call still returns the value and the text it always did, byte for b
         snippet: 'document.write("<p>hi</p>")',
         lines: [1],
         occurrences: 1,
+        siteId: '3b21c842',
       }],
       guides: [{ id: 'html', findings: 1 }],
       truncated: false,
+      suppressed: 0,
     })
 
     // And the rendered text, character for character, through the one renderer both surfaces share.
@@ -967,3 +970,65 @@ test('the counters are given the rule table, so a table change can be detected',
 
 //#endregion
 
+
+test('a suppressed finding reaches the report as its own line and never as a fix', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-suppressed')
+  await writeFile(join(workspace, 'legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const tool = registered.tools.find((entry) => entry.name === 'web_guidance_legacy_scan')
+    const command = statsCommand(registered)
+    const header = headerAt(workspace)
+    const scan = async () => {
+      // The value is shaped once and raised through the host event, exactly as a real call would be.
+      const value = await tool.execute({ paths: ['.'] }, header)
+      raiseScan(registered, value)
+      await settle()
+      return value
+    }
+    const report = async (rawInput = '') => (await command.handler({ rawInput, ...header })).text
+
+    await scan()
+    assert.doesNotMatch(await report(), /Suppressed:/)
+
+    const value = await tool.execute({ paths: ['.'] }, header)
+    const id = value.findings[0].siteId
+    const suppress = registered.commands.find((entry) => entry.name === 'guidance-suppress')
+    assert.ok(suppress !== undefined)
+    // The panel's two lines: the plan, then the write.
+    const planned = await suppress.handler({ rawInput: `${id} --dry-run`, ...header })
+    assert.equal(planned.kind, 'success')
+    assert.match(planned.text, /Nothing has been written/)
+    const applied = await suppress.handler({ rawInput: id, ...header })
+    assert.equal(applied.kind, 'success')
+
+    const muted = await scan()
+    assert.equal(muted.suppressed, 1)
+
+    const text = await report()
+    assert.match(text, /^Suppressed: 1 in the last scan \(ls-17 1\) - muted, still findings$/m)
+    // The same scan, same site, same finding count: one is muted and nothing was fixed.
+    assert.match(text, /^Last scan: \d{4}-\d{2}-\d{2}, 1 file, 1 finding \(rules: ls-17\)/m)
+    assert.match(text, /^Since the scan of \d{4}-\d{2}-\d{2} \d{2}:\d{2}: 0 no longer present, 1 still open, 0 new$/m)
+
+    const json = JSON.parse(await report('--json'))
+    assert.equal(json.lastScan.suppressed, 1)
+    assert.deepEqual(json.lastScan.suppressedRules, { 'ls-17': 1 })
+    assert.equal(json.lastScan.findings, 1)
+    assert.equal('suppressed' in json, false)
+    assert.equal(json.scanHistory[0].suppressed, 1)
+    assert.equal(json.scanDiff.resolved, 0)
+    assert.equal(json.scanDiff.stillOpen, 1)
+    assert.equal(json.scanDiff.new, 0)
+    assert.equal(json.scanDiff.partial, null)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})

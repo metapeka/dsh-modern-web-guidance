@@ -203,14 +203,14 @@ all — the fields are the truth.
 
 ## `.scanignore` (0.7.2)
 
-`<cwd>/.scanignore` — at the workspace root, never in a subdirectory — is the one file the scanner reads
-without being asked. It is read at the start of every scan, so an edit takes effect on the next scan. The
-grammar below is **quoted verbatim from the module header of `lib/scan.js`**, which is the normative
-copy; if the two ever disagree, the header wins and this file is a bug.
+`<cwd>/.scanignore` — at the workspace root, never in a subdirectory — is one of the **two** files the
+scanner reads without being asked; the other is [`.suppress`](#suppress-0110) (0.11.0), and it changes
+nothing about the walk, only the reporting. It is read at the start of every scan, so an edit takes effect
+on the next scan. The grammar below is **quoted verbatim from the module header of `lib/scan.js`**, which
+is the normative copy; if the two ever disagree, the header wins and this file is a bug.
 
 ```text
-`.scanignore` is the one file the scanner reads without being asked. Its grammar is exactly this
-subset, no more:
+`.scanignore`'s grammar is exactly this subset, no more:
 
   - The file is read as UTF-8; a leading BOM is dropped and CRLF is read as LF.
   - One pattern per line. A line whose first non-space character is `#` is a comment. A line that
@@ -282,6 +282,31 @@ want the page read.
 `.scanignore` is **not a security boundary**. It is a convenience for a project that knows what it means by
 "here"; the scanner is already confined to `realpath(cwd)` by containment, so an ignore file can only make
 a scan read less than it was already allowed to read, never more.
+
+## `.suppress` (0.11.0)
+
+`<cwd>/.suppress` is the second file the scanner reads without being asked, and the only one whose read
+was licensed by an ADR rather than by convenience: [ADR-0003](../adr/0003-write-surface.md) allows exactly
+two writes, and this file is one of them — appended to by `/guidance-suppress <siteId>`, never by a scan.
+
+Four rules, in the order they matter:
+
+- **It changes reporting, never the walk.** `.scanignore` decides which files are read; `.suppress` decides
+  which *findings* are marked muted after they are found. An ignored path is never scanned; a suppressed
+  site is scanned, counted, and then flagged, so it keeps its place, its order and its count while gaining
+  `suppressed: true`.
+- **A suppressed finding is muted, not fixed.** The scan result counts it in `suppressed` and never removes
+  it; the diff may not turn it into "resolved". "Fixed" and "muted" must never look like the same number.
+- **Its format is JSON, not patterns**: `{ version: 1, entries: { <siteId>: { reason, at } } }`, keyed by
+  the same FNV-1a site identity the counters use — never a line, never a whole rule. The parser, the caps
+  (200 entries, 200-character reason, 256 KiB) and the canonical serialiser are `lib/suppress.js`; the
+  scanner only reads and matches.
+- **A failed read mutes nothing and fails nothing.** A malformed entry is dropped, the good ones stand, and
+  the file-level failure surfaces as one raw-token row in `suppressProblems`.
+
+The semantics — what the text, the JSON, the panel and the chat row each say, and what a pre-C host
+renders — are [docs/notes/suppression-contract.md](suppression-contract.md), which is the authority. This
+section fixes only the scanner's side of the interface.
 
 ## What a self-scan looks like (measured on this tree)
 

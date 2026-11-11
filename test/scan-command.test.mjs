@@ -203,7 +203,7 @@ test('registers /guidance-scan beside the tools, with the syntax in its hint', (
 
   assert.deepEqual(
     registered.commands.map((entry) => entry.name),
-    ['guidance-scan'],
+    ['guidance-scan', 'guidance-suppress'],
   )
   assert.equal(command.input.hint, '<paths> [--rules ls-01,ls-13] [--format summary|json]')
   assert.equal(command.recordInput, false)
@@ -269,7 +269,9 @@ test('--format json prints exactly the value the tool returns', async () => {
   const result = await command.handler(invocation(`${DIRTY} --format json`))
   assert.equal(result.kind, 'success')
   const payload = JSON.parse(result.text)
-  assert.deepEqual(Object.keys(payload).sort(), ['cwd', 'findings', 'format', 'guides', 'scanned', 'truncated'])
+  assert.deepEqual(Object.keys(payload).sort(), [
+    'cwd', 'findings', 'format', 'guides', 'scanned', 'suppressed', 'truncated',
+  ])
   assert.equal(payload.format, 'json')
   assert.equal(payload.scanned.files, 3)
   assert.equal(payload.findings.length, 8)
@@ -334,7 +336,7 @@ test('enabled: false keeps /guidance-scan and drops the counting command', async
 
   assert.deepEqual(
     registered.commands.map((entry) => entry.name),
-    ['guidance-scan'],
+    ['guidance-scan', 'guidance-suppress'],
   )
   assert.deepEqual(registered.listeners, [])
   assert.equal(registered.tools.length, 4)

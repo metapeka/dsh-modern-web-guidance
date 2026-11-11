@@ -65,6 +65,11 @@ window.__ModuleLoader__.load({
      * that path means. JSON output, because the panel renders counters, not sentences.
      */
     const SCAN_LINE = '/guidance-scan . --format json'
+    /**
+     * The one write the panel may ask for: one site, one file, and — ADR-0003 §4 — a plan first.
+     * `--dry-run` answers the plan and writes nothing; the same line without it applies that plan.
+     */
+    const SUPPRESS_LINE = '/guidance-suppress'
     /** The wire name of the scan tool: the key ui-tool dispatches a row by, and the name in the log. */
     const SCAN_TOOL_NAME = 'web_guidance_legacy_scan'
     /** Three skip reasons fit the rail width; the rest are counted on the same line. */
@@ -128,6 +133,12 @@ window.__ModuleLoader__.load({
       'scan.skippedMore': '+{more} more',
       'scan.clean': 'No rule matched.',
       'scan.truncated': 'Truncated: the scan hit a cap, so this list is incomplete.',
+      'scan.suppressed': 'Suppressed {count} ({rules})',
+      'scan.suppressedTag': 'muted',
+      'scan.suppressProblem': 'Suppression file: {reason}; nothing is muted this scan.',
+      'scan.mute': 'Mute',
+      'scan.muteConfirm': 'Append to .suppress',
+      'scan.muteFailed': 'The entry was not written: {message}',
       'row.title': 'Legacy scan',
       'row.preparing': 'Preparing the scan...',
       'row.running': 'Scanning...',
@@ -226,6 +237,12 @@ window.__ModuleLoader__.load({
       'scan.skippedMore': '+{more} ещё',
       'scan.clean': 'Ни одно правило не сработало.',
       'scan.truncated': 'Список обрезан: сканирование упёрлось в лимит, поэтому он неполный.',
+      'scan.suppressed': 'Заглушено {count} ({rules})',
+      'scan.suppressedTag': 'заглушено',
+      'scan.suppressProblem': 'Файл подавлений: {reason}; в этом сканировании ничего не заглушено.',
+      'scan.mute': 'Заглушить',
+      'scan.muteConfirm': 'Дописать в .suppress',
+      'scan.muteFailed': 'Запись не выполнена: {message}',
       'row.title': 'Сканер устаревшего кода',
       'row.preparing': 'Готовлю сканирование...',
       'row.running': 'Сканирую...',
@@ -328,6 +345,12 @@ window.__ModuleLoader__.load({
       'scan.skippedMore': '另有 {more} 项',
       'scan.clean': '没有规则命中。',
       'scan.truncated': '已截断：扫描触到上限，所以这份清单不完整。',
+      'scan.suppressed': '已屏蔽 {count}（{rules}）',
+      'scan.suppressedTag': '已屏蔽',
+      'scan.suppressProblem': '屏蔽文件：{reason}；本次扫描未屏蔽任何内容。',
+      'scan.mute': '屏蔽',
+      'scan.muteConfirm': '追加到 .suppress',
+      'scan.muteFailed': '未写入条目：{message}',
       'row.title': '遗留代码扫描',
       'row.preparing': '正在准备扫描...',
       'row.running': '正在扫描...',
@@ -750,8 +773,12 @@ window.__ModuleLoader__.load({
      * missing map reads as empty and a missing flag as false and the line is simply shorter. `branch`
      * is the same bargain one layer later: absent unless the scan could read one.
      *
+     * `suppressed` is the third bargain: a muted finding is still a finding, so its count sits beside
+     * the scan's own and its rule breakdown beside that. A state file written before phase C has
+     * neither member, and then no line is drawn — never a fabricated "0 suppressed".
+     *
      * @param {unknown} value
-     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null } | null}
+     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null, suppressed: number, suppressedRules: Array<{ name: string, calls: number }> } | null}
      */
     function readLastScan(value) {
       if (value === null || typeof value !== 'object') return null
@@ -765,6 +792,8 @@ window.__ModuleLoader__.load({
         skipped: readSkipMap(value.skipped),
         truncated: value.truncated === true,
         branch: readBranch(value.branch),
+        suppressed: asCount(value.suppressed),
+        suppressedRules: rankedEntries(value.suppressedRules),
       }
     }
 
@@ -1069,8 +1098,11 @@ window.__ModuleLoader__.load({
      * text line each would bury the table, so the reader hovers a rule to see what it asks for and a
      * place to see the code. An older host sends neither, and both read as ''.
      *
+     * A finding also carries the site identity a mute names and, when a person already muted it, the
+     * boolean that makes the row tagged rather than hidden: it is still a finding.
+     *
      * @param {Record<string, unknown>} row
-     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string, lines: number[], occurrences: number, message: string, snippet: string }}
+     * @returns {{ ruleId: string, confidence: string, path: string, line: number, column: number, guideId: string, lines: number[], occurrences: number, message: string, snippet: string, siteId: string, suppressed: boolean }}
      */
     function readFinding(row) {
       const lines = Array.isArray(row.lines)
@@ -1087,7 +1119,33 @@ window.__ModuleLoader__.load({
         occurrences: asCount(row.occurrences) || lines.length || 1,
         message: asText(row.message),
         snippet: asText(row.snippet),
+        // The site identity is what a mute names, so it is read on every finding, muted or not: a
+        // pre-C host sends none, and then no row offers the action instead of offering a broken one.
+        siteId: asText(row.siteId),
+        // The boolean on a finding, never the number: the count lives on the scan result (§6).
+        suppressed: row.suppressed === true,
       }
+    }
+
+    /**
+     * The problems a suppression file reported, as rows: `{ key, reason }`, with `''` for a file-level
+     * problem (the host writes `key: null` for one that mutes nothing).
+     *
+     * A bad entry drops that entry and the rest apply; the finding coming back on screen is the report
+     * for it, so only a file-level failure becomes a visible note. Both are read, because the value
+     * carries both and the count is the host's business, not this file's guess.
+     *
+     * @param {unknown} value
+     * @returns {Array<{ key: string, reason: string }>}
+     */
+    function readSuppressProblems(value) {
+      const rows = []
+      for (const row of asRows(value)) {
+        const reason = asText(row.reason)
+        if (reason === '') continue
+        rows.push({ key: asText(row.key), reason })
+      }
+      return rows
     }
 
     /**
@@ -1138,7 +1196,7 @@ window.__ModuleLoader__.load({
      * made.
      *
      * @param {unknown} payload
-     * @returns {{ files: number, bytes: number, findings: Array<object>, guides: Array<{ id: string, findings: number }>, skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, rules: Array<{ name: string, calls: number }> }}
+     * @returns {{ files: number, bytes: number, findings: Array<object>, guides: Array<{ id: string, findings: number }>, skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, suppressed: number, suppressProblems: Array<{ key: string, reason: string }>, rules: Array<{ name: string, calls: number }> }}
      */
     function readScanValue(payload) {
       if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -1153,6 +1211,10 @@ window.__ModuleLoader__.load({
         const id = asText(row.id)
         if (id !== '') guides.push({ id, findings: asCount(row.findings) })
       }
+      // The count, never a subtraction: a muted finding is still in `findings`, so the summary can
+      // report it beside the total instead of shrinking the total. A pre-C value has neither the
+      // member nor the flags, and both read as 0, which renders no clause at all.
+      const flagged = findings.filter((finding) => finding.suppressed).length
       return {
         files: asCount(scanned.files),
         bytes: asCount(scanned.bytes),
@@ -1160,6 +1222,11 @@ window.__ModuleLoader__.load({
         guides,
         skipped: readSkipMap(scanned.skippedByReason),
         truncated: payload.truncated === true,
+        suppressed: 'suppressed' in payload ? asCount(payload.suppressed) : flagged,
+        // A corrupt file mutes nothing and the host says so in one raw token; that sentence is the
+        // only suppression problem a table can carry, because a bad entry announces itself by the
+        // finding that came back on screen.
+        suppressProblems: readSuppressProblems(payload.suppressProblems),
         rules: ruleCounts(findings).slice(0, MAX_SCAN_RULES),
       }
     }
@@ -1179,11 +1246,17 @@ window.__ModuleLoader__.load({
       const findings = []
       const guides = []
       const skips = new Map()
+      // The text renderer marks a muted row with ` (suppressed)` after the message and counts the muted
+      // findings in the summary. Reading both here is what makes this reader agree with the JSON one
+      // (§12): the same call must not render differently depending on the format it answered with.
+      const marker = /\s*\(suppressed\)$/
+      const problems = []
       let truncated = false
       for (const line of text.split('\n')) {
         const trimmed = line.trim()
         const match = /^-\s+(.+?):(\d+):(\d+)\s+(\S+)\s+\(([^)]+)\)\s+(.*)$/.exec(trimmed)
         if (match !== null) {
+          const muted = marker.test(match[6])
           findings.push({
             ruleId: match[4],
             confidence: match[5],
@@ -1193,8 +1266,11 @@ window.__ModuleLoader__.load({
             guideId: '',
             // The summary line prints the rule's message after the confidence, so the chat row can
             // keep the same hover hint for it as it does for a JSON answer.
-            message: match[6],
+            message: muted ? match[6].replace(marker, '') : match[6],
             snippet: '',
+            // A text answer names no site, so no row of it offers a mute: the action needs a target.
+            siteId: '',
+            suppressed: muted,
           })
           continue
         }
@@ -1219,8 +1295,19 @@ window.__ModuleLoader__.load({
           continue
         }
         if (trimmed.startsWith('Truncated:')) truncated = true
+        // `Suppression file: malformed; nothing is muted this scan.` — the sentence the chat row prints,
+        // read back so a text answer loses nothing the JSON answer reports. The entry-level note is not
+        // read here: the findings it dropped are on screen, and that is their report.
+        const suppression = /^Suppression file: (.+?); nothing is muted this scan\.?$/.exec(trimmed)
+        if (suppression !== null) {
+          problems.push({ key: '', reason: suppression[1] })
+          continue
+        }
       }
       const scannedMatch = /Scanned (\d+) file\(s\)/.exec(text)
+      // `— 85 finding(s), 3 suppressed.` The count is the host's; the flags are the fallback for a text
+      // whose summary line was cut, so the number never contradicts the tags on the rows below it.
+      const suppressedMatch = /, (\d+) suppressed\b/.exec(text)
       return {
         files: scannedMatch === null ? 0 : asCount(scannedMatch[1]),
         bytes: 0,
@@ -1228,6 +1315,8 @@ window.__ModuleLoader__.load({
         guides,
         skipped: readSkipMap(Object.fromEntries(skips)),
         truncated,
+        suppressed: suppressedMatch === null ? findings.filter((finding) => finding.suppressed).length : asCount(suppressedMatch[1]),
+        suppressProblems: problems,
         rules: ruleCounts(findings).slice(0, MAX_SCAN_RULES),
       }
     }
@@ -1257,6 +1346,44 @@ window.__ModuleLoader__.load({
         if (payload !== undefined) return readScanValue(payload)
       }
       return readScanText(text)
+    }
+
+    /**
+     * The one write this panel may ask for, as the command line a person would type.
+     *
+     * `--dry-run` answers the plan and writes nothing; the same line without it applies that plan
+     * (`docs/adr/0003-write-surface.md` §4). The site id is data, never a path: the
+     * command resolves it against this workspace and refuses anything it cannot name, so the panel
+     * never composes a target of its own.
+     *
+     * @param {string} siteId the eight-hex site identity the scan reported.
+     * @param {boolean} dryRun whether this line only asks for the plan.
+     * @returns {string}
+     */
+    function suppressLine(siteId, dryRun) {
+      return `${SUPPRESS_LINE} ${siteId}${dryRun === true ? ' --dry-run' : ''}`
+    }
+
+    /**
+     * One write command's answer: its text on success, or its refusal as an error.
+     *
+     * The shape is the scan button's (`{ kind, text }`), and so is the rule: a refusal is
+     * `kind: 'error'` with a stable code in its text, so it becomes an error state and can never be
+     * rendered as a success. A success with no text is not a success either — the ADR says a write
+     * reports what it changed and where, and "already suppressed, nothing written" says exactly that
+     * in words, so a silent answer is a broken host, not a no-op.
+     *
+     * @param {unknown} envelope
+     * @param {string} line the command line the envelope should be answering.
+     * @returns {string} the command's own text.
+     */
+    function readWriteEnvelope(envelope, line) {
+      const outcome = commandOutcome(envelope, line)
+      const text = asText(outcome.text)
+      if (outcome.kind === 'error') throw panelError('write', text === '' ? 'the write command reported an error' : text)
+      if (outcome.kind !== 'success') throw panelError('write', 'the write command returned no result')
+      if (text === '') throw panelError('write', 'the write command returned no text')
+      return text
     }
 
     //#endregion
@@ -1505,6 +1632,58 @@ window.__ModuleLoader__.load({
         lineHeight: 1.45,
         overflowWrap: 'anywhere',
       },
+      // The place of a finding in the panel's own scan: the one place it shows a path, because the
+      // user scanned their own workspace and the mute action has to name a site.
+      scanPlace: {
+        flex: '1 1 auto',
+        minWidth: 0,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize: '11px',
+        color: 'var(--dsw-alias-label-secondary)',
+      },
+      // `muted` is a word, not a colour: a reader with no colour still sees that the finding was
+      // muted, and it is the same word in the chat row.
+      mutedTag: {
+        flex: '0 0 auto',
+        padding: '0 5px',
+        borderRadius: '5px',
+        background: 'var(--dsw-alias-fill-l2)',
+        color: 'var(--dsw-alias-label-secondary)',
+        fontSize: '10px',
+      },
+      // The mute action is a quiet text button: it is the panel's only write, so it must not look
+      // like the scan button that produces numbers.
+      muteAction: {
+        flex: '0 0 auto',
+        marginLeft: 'auto',
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        color: 'var(--dsw-alias-label-secondary)',
+        font: 'inherit',
+        fontSize: '11px',
+        textDecoration: 'underline',
+        cursor: 'pointer',
+      },
+      muteActionBusy: { color: 'var(--dsw-alias-label-tertiary)', cursor: 'default' },
+      // A refused write is an error on screen, never a quieter success: its own sentence and the
+      // error colour, and the outcome branch below is not where it lands.
+      muteError: { fontSize: '12px', color: 'var(--dsw-alias-state-error-primary)', lineHeight: 1.5 },
+      // The plan before the second click: the site, the rule, the file and the entry the host would
+      // add, boxed so it cannot be mistaken for a result.
+      mutePlan: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        marginTop: '2px',
+        padding: '6px 8px',
+        border: '0.5px solid var(--dsw-alias-border-l1)',
+        borderRadius: 'var(--dsw-radius-lg)',
+        background: 'var(--dsw-alias-bg-layer-1)',
+        minWidth: 0,
+      },
       // Two lines of the rule's own text, clamped here rather than sliced by the client so the whole
       // sentence stays in the element (and in its title); the panel stays a summary, not a manual.
       // `-webkit-line-clamp` takes an integer, hence the string: a number would be sent as `2px`.
@@ -1606,6 +1785,9 @@ window.__ModuleLoader__.load({
       },
       note: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary)', lineHeight: 1.5 },
       failed: { fontSize: '12px', color: 'var(--dsw-alias-state-error-primary)', lineHeight: 1.5 },
+      // A muted row is dimmed as well as tagged, but never dimmed alone: the word is the signal and
+      // the dimming only says the row is not the table's subject any more.
+      muted: { opacity: '0.65' },
     }
 
     //#endregion
@@ -1918,21 +2100,147 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * A `{ name: count }` map as the line prints it: `ls-13 2, ls-08 1`.
+     *
+     * Raw rule ids and their counts, exactly like every other id in this panel: a muted finding is
+     * counted under the rule that caught it, and neither word is this file's to translate.
+     *
+     * @param {Array<{ name: string, calls: number }>} rows ranked rows.
+     * @returns {string}
+     */
+    function ruleList(rows) {
+      return rows.map((row) => `${row.name} ${row.calls}`).join(', ')
+    }
+
+    /**
+     * One finding of the panel's own scan, as the row that offers to mute it.
+     *
+     * `ls-13 · src/app.css:12` plus the `muted` tag when the host says the site is suppressed, with the
+     * finding's message as the row's tooltip. This is the one place in the panel that shows a path: the
+     * user scanned their own workspace, and a mute is a decision about one site of it (the counters
+     * above keep their "ids and numbers, never a path" rule).
+     *
+     * A muted row offers no button — the decision is already made — and neither does a row without a
+     * `siteId`, which is every row of a host that predates suppression: the action names its target, so
+     * a row that cannot name one must not offer it rather than fail when clicked.
+     *
+     * @param {Function} t bound translator.
+     * @param {object} finding one normalized finding.
+     * @param {number} index its position: zero draws no separator above it.
+     * @param {boolean} blocked whether a scan or a write is in flight.
+     * @param {Function} onMute asks the host for the plan that would mute this finding.
+     * @returns {object} the row.
+     */
+    function findingLine(t, finding, index, blocked, onMute) {
+      const place = findingPlace(finding)
+      const message = asText(finding.message)
+      const head = [
+        h('span', { style: S.scanName, key: 'rule', title: message === '' ? finding.ruleId : message }, finding.ruleId),
+      ]
+      if (place !== '') head.push(h('span', { style: S.scanPlace, key: 'place' }, place))
+      if (finding.suppressed === true) head.push(h('span', { style: S.mutedTag, key: 'tag' }, t('scan.suppressedTag')))
+      if (finding.suppressed !== true && finding.siteId !== '') {
+        head.push(
+          h(
+            'button',
+            {
+              type: 'button',
+              key: 'mute',
+              style: blocked ? { ...S.muteAction, ...S.muteActionBusy } : S.muteAction,
+              disabled: blocked,
+              onClick: () => onMute(finding),
+            },
+            t('scan.mute'),
+          ),
+        )
+      }
+      return h(
+        'div',
+        { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `finding-${index}` },
+        h('div', { style: S.scanRuleHead }, head),
+      )
+    }
+
+    /**
+     * The write, in the states it may be in: the plan with its second button, the outcome the host
+     * reported, and the refusal.
+     *
+     * One click never writes ([ADR-0003](docs/adr/0003-write-surface.md) §4). The first click asks only
+     * for the plan, and this draws it: the site, the rule and the place the row came from, then the
+     * host's own plan text, which names the absolute target and the exact entry — the panel does not
+     * restate a path it was not given. The entry is appended by the distinct button underneath.
+     *
+     * The outcome is the host's text verbatim, so a write reports what it changed and where, and
+     * "already suppressed, nothing written" reads as the no-op it is. A refusal takes its own sentence
+     * and its own colour: it can never be mistaken for the outcome.
+     *
+     * @param {Function} t bound translator.
+     * @param {{ status: string, siteId: string, rule: string, place: string, text: string, message: string }} mute
+     * @param {Function} onConfirm applies the plan that is on screen.
+     * @returns {object|null}
+     */
+    function renderMute(t, mute, onConfirm) {
+      if (mute.status === 'done') return h('div', { style: S.stateBody, key: 'scan-mute-done' }, asText(mute.text))
+      if (mute.status === 'error') {
+        return h(
+          'div',
+          { style: S.muteError, key: 'scan-mute-error' },
+          t('scan.muteFailed', { message: asText(mute.message) }),
+        )
+      }
+      if (mute.status !== 'planning' && mute.status !== 'plan' && mute.status !== 'writing') return null
+      const facts = [asText(mute.siteId), asText(mute.rule), asText(mute.place)].filter((fact) => fact !== '')
+      const plan = asText(mute.text)
+      // Disabled until the plan is on screen, and again while it is being applied: the second click is
+      // only a click when there is a plan it can mean.
+      const pending = mute.status !== 'plan'
+      return h(
+        'div',
+        { style: S.mutePlan, key: 'scan-mute-plan' },
+        facts.length === 0 ? null : h('div', { style: S.note, key: 'facts' }, facts.join(' · ')),
+        plan === '' ? null : h('div', { style: S.note, key: 'plan' }, plan),
+        h(
+          'div',
+          { style: S.scanActions, key: 'actions' },
+          h(
+            'button',
+            {
+              type: 'button',
+              style: pending ? { ...S.action, ...S.actionBusy } : S.action,
+              disabled: pending,
+              onClick: onConfirm,
+            },
+            t('scan.muteConfirm'),
+          ),
+        ),
+      )
+    }
+
+    /**
      * What the scanner catches, plus the button that runs one.
      *
      * The section reads the counters the report carries — the last scan, the rules that matched, the
-     * guides to load — and answers its own button with the result of *that* scan. Counters are not
-     * evidence: this section shows ids, their counts and the rule's own message, never a path and
-     * never a snippet. The chat row renders those, because there they belong to a call the session
-     * already made.
+     * guides to load — and answers its own button with the result of *that* scan. The counters keep
+     * their "ids, counts and the rule's own message, never a path, never a snippet" rule; only the
+     * panel's own scan result lists its findings with their places, because there a person mutes one.
+     * The chat row renders the findings of a call the session already made.
      *
      * @param {Function} t bound translator.
      * @param {object} report the normalized report.
      * @param {{ status: string, value?: object, message?: string }} scan the panel's own scan state.
      * @param {boolean} busy whether the report is still loading.
-     * @param {Function} onScan starts a scan.
+     * @param {{ onScan: Function, onMute: Function, onConfirm: Function, mute: object }} actions the
+     *   scan's button and the one write ADR-0003 allows.
      */
-    function renderScanner(t, report, scan, busy, onScan) {
+    function renderScanner(t, report, scan, busy, actions) {
+      // The panel always passes the write state; the default is for a caller that renders the section
+      // without one, which then draws no action at all.
+      const mute = actions.mute ?? { status: 'idle', siteId: '', rule: '', place: '', text: '', message: '' }
+      // No second write while one is in flight, and none while a scan is starting: the answer to that
+      // scan is about to replace the rows a mute would have named.
+      const running = scan.status === 'running'
+      const writing = mute.status === 'planning' || mute.status === 'writing'
+      const blocked = running || busy
       const last = report.lastScan
       // The last scan is one line: date, two counts, and — when the stored scan has them — how many
       // paths were skipped and whether the list was cut. Older state files carry neither, so the
@@ -1967,6 +2275,19 @@ window.__ModuleLoader__.load({
       // two scans, so it stays next to the second one and never becomes a lifetime number.
       const comparison = diffLine(t, report.scanDiff)
       if (comparison !== null) children.push(h('div', { style: S.note, key: 'scan-diff' }, comparison))
+      // A muted finding is still a finding, so its count sits beside the scan's own and is never taken
+      // out of it. Both members have to be there: the panel names the rules the number belongs to and
+      // invents neither. A state file written before phase C has neither, so the line is absent —
+      // never a fabricated "0 suppressed".
+      if (last !== null && last.suppressed > 0 && last.suppressedRules.length > 0) {
+        children.push(
+          h(
+            'div',
+            { style: S.note, key: 'scan-suppressed' },
+            t('scan.suppressed', { count: last.suppressed, rules: ruleList(last.suppressedRules) }),
+          ),
+        )
+      }
       if (report.topRules.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-rules-head' }, t('scanner.rules')))
         // The ranked rules are lifetime counters: they are not the {days} window the tiles above
@@ -2017,8 +2338,6 @@ window.__ModuleLoader__.load({
           ),
         )
       }
-      const running = scan.status === 'running'
-      const blocked = running || busy
       children.push(
         h(
           'div',
@@ -2029,7 +2348,7 @@ window.__ModuleLoader__.load({
               type: 'button',
               style: blocked ? { ...S.action, ...S.actionBusy } : S.action,
               disabled: blocked,
-              onClick: onScan,
+              onClick: actions.onScan,
             },
             running ? t('scanner.scanning') : t('scanner.scan'),
           ),
@@ -2037,16 +2356,21 @@ window.__ModuleLoader__.load({
       )
       if (scan.status === 'ready' && scan.value !== undefined) {
         const value = scan.value
-        children.push(
-          h(
-            'div',
-            { style: S.note, key: 'scan-result' },
-            t('scan.summary', {
-              files: plural(t, 'file', value.files),
-              findings: plural(t, 'finding', value.findings.length),
-            }),
-          ),
-        )
+        // The summary's facts, one clause each. A muted finding is still a finding, so its count is
+        // added here and never taken out of the total above: the host counted it, and this panel does
+        // not do arithmetic the host did not do. Only the rows it tagged can contribute the rules, so
+        // a value without the tag gives no clause at all.
+        const muted = value.findings.filter((finding) => finding.suppressed === true)
+        const facts = [
+          t('scan.summary', {
+            files: plural(t, 'file', value.files),
+            findings: plural(t, 'finding', value.findings.length),
+          }),
+        ]
+        if (value.suppressed > 0 && muted.length > 0) {
+          facts.push(t('scan.suppressed', { count: value.suppressed, rules: ruleList(ruleCounts(muted)) }))
+        }
+        children.push(h('div', { style: S.note, key: 'scan-result' }, facts.join(' · ')))
         // What the walk refused and whether it was cut: the two caveats that turn the counts above
         // from a claim into a report. Both are already in the value the command returned.
         if (value.skipped.total > 0) {
@@ -2057,6 +2381,31 @@ window.__ModuleLoader__.load({
           for (const [index, rule] of value.rules.entries()) children.push(scanRuleLine(t, rule, index === 0))
         } else {
           children.push(h('div', { style: S.note, key: 'scan-clean' }, t('scan.clean')))
+        }
+        // The findings themselves, one row per site, capped like the chat row. This is the only place
+        // the panel lists a place, and it is the only place a mute is offered: the action has to name
+        // a site, so no scan value — or a host that predates suppression and sends no `siteId` — means
+        // no action at all, never a button that fails when pressed.
+        let mutePlaced = false
+        if (value.findings.length > 0) {
+          const shownFindings = value.findings.slice(0, MAX_TOOL_ROWS)
+          for (const [index, finding] of shownFindings.entries()) {
+            children.push(findingLine(t, finding, index, blocked || writing, actions.onMute))
+            // The plan, its confirmation and its outcome sit under the row they belong to, so a long
+            // list cannot separate a confirmation from the finding it would write.
+            const muteBlock = mute.siteId !== '' && finding.siteId === mute.siteId ? renderMute(t, mute, actions.onConfirm) : null
+            if (muteBlock !== null) {
+              children.push(muteBlock)
+              mutePlaced = true
+            }
+          }
+          const rest = value.findings.length - shownFindings.length
+          if (rest > 0) children.push(h('div', { style: S.note, key: 'scan-more' }, t('row.more', { count: rest })))
+        }
+        // A plan whose row fell outside the cap is still shown, at the end rather than not at all.
+        if (mutePlaced === false) {
+          const muteBlock = renderMute(t, mute, actions.onConfirm)
+          if (muteBlock !== null) children.push(muteBlock)
         }
       } else if (scan.status === 'error') {
         children.push(
@@ -2266,11 +2615,19 @@ window.__ModuleLoader__.load({
           // still ask a row what it means and what it caught.
           const ruleHint = asText(finding.message)
           const placeHint = asText(finding.snippet)
+          // A muted finding keeps its four cells and its place: the tag rides inside the rule cell as
+          // a word, so the grid does not shift and colour is never the only signal, and the row is
+          // dimmed as well. It is still a finding — the header's count does not change.
+          const muted = finding.suppressed === true
           body.push(
             h(
               'div',
-              { style: T.row, key: `finding-${index}`, title: place },
-              h('span', { style: T.rule, title: ruleHint === '' ? finding.ruleId : ruleHint }, finding.ruleId),
+              { style: muted ? { ...T.row, ...T.muted } : T.row, key: `finding-${index}`, title: place },
+              h(
+                'span',
+                { style: T.rule, title: ruleHint === '' ? finding.ruleId : ruleHint },
+                muted ? `${finding.ruleId} ${t('scan.suppressedTag')}` : finding.ruleId,
+              ),
               h('span', { style: T.place, title: placeHint === '' ? place : placeHint }, place),
               h('span', { style: T.confidence }, finding.confidence),
               finding.guideId === ''
@@ -2283,6 +2640,19 @@ window.__ModuleLoader__.load({
         if (rest > 0) body.push(h('div', { style: T.note, key: 'more' }, t('row.more', { count: rest })))
       } else {
         body.push(h('div', { style: T.note, key: 'clean' }, t('scan.clean')))
+      }
+      // One line under the table when the suppression file could not be read at all: the token is the
+      // host's, raw like a skip reason, and it says nothing was muted so the table cannot suggest
+      // otherwise. A pre-C result carries no problems and prints no line.
+      const suppressionProblem = value.suppressProblems.find((row) => row.key === '')
+      if (suppressionProblem !== undefined) {
+        body.push(
+          h(
+            'div',
+            { style: T.note, key: 'suppress-problem' },
+            t('scan.suppressProblem', { reason: suppressionProblem.reason }),
+          ),
+        )
       }
       if (value.skipped.total > 0) {
         body.push(h('div', { style: T.note, key: 'skipped' }, skipLine(t, value.skipped, SKIP_REASONS_SHOWN)))
@@ -2317,9 +2687,10 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The panel. It is read-only apart from the scan button: the header picks the window and the
+     * The panel. It is read-only apart from two command lines: the header picks the window and the
      * workspace whose counters are on screen, Refresh re-runs the counters command, and the scan
-     * button asks the host to scan the workspace folder.
+     * button asks the host to scan the workspace folder. The one write (ADR-0003) is the mute action:
+     * it asks for a plan, shows it, and only a second, distinct click appends the entry.
      * Every subscription it starts is component-local, so unmounting it releases them.
      */
     function GuidancePanel(props) {
@@ -2332,11 +2703,16 @@ window.__ModuleLoader__.load({
       // report's own `workspace` then says which one that was.
       const [workspace, setWorkspace] = useState('')
       const [scan, setScan] = useState({ status: 'idle', value: undefined, message: '' })
+      // The one write, as a small state machine: `planning` asks for the plan, `plan` is on screen,
+      // `writing` applies it, `done` carries the host's outcome, `error` its refusal. `idle` draws
+      // nothing at all, and no state of it is reachable without a plan having been asked for.
+      const [mute, setMute] = useState({ status: 'idle', siteId: '', rule: '', place: '', text: '', message: '' })
       const alive = useRef(true)
       // Every load takes a ticket; a response whose ticket is no longer current is dropped, so
       // switching the window mid-request shows the answer to the window the user ended up on.
       const ticket = useRef(0)
       const scanTicket = useRef(0)
+      const muteTicket = useRef(0)
 
       useEffect(() => {
         alive.current = true
@@ -2418,7 +2794,104 @@ window.__ModuleLoader__.load({
           })
       }, [bridge, sessionId, load, t])
 
+      /**
+       * Ask the host what muting one finding would write. Nothing is written by this click.
+       *
+       * The answer is the plan ([ADR-0003](docs/adr/0003-write-surface.md) §4): the absolute target
+       * file, the exact entry, whether the file exists and the cap's headroom. It is shown verbatim —
+       * the host is what will write it, so the panel does not restate a path it was not given — and
+       * the row the click came from is put beside it, so the plan is about a named site of a named
+       * rule in a named place rather than about an id.
+       */
+      const requestMute = useCallback(
+        (finding) => {
+          // The row drew this action only for a finding carrying a site id, and reading it again here
+          // is what keeps the command line provably the row's own target.
+          const siteId = asText(finding.siteId)
+          const rule = asText(finding.ruleId)
+          const place = findingPlace(finding)
+          if (bridge === undefined || typeof bridge.call !== 'function') {
+            setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.bridge') })
+            return
+          }
+          if (typeof sessionId !== 'string' || sessionId === '') {
+            setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.session') })
+            return
+          }
+          const mine = muteTicket.current + 1
+          muteTicket.current = mine
+          // `--dry-run` answers the plan and writes nothing; the second, distinct button below is what
+          // appends the entry.
+          const line = suppressLine(siteId, true)
+          setMute({ status: 'planning', siteId, rule, place, text: '', message: '' })
+          let pending
+          try {
+            pending = Promise.resolve(bridge.call(sessionId, line))
+          } catch (error) {
+            pending = Promise.reject(error)
+          }
+          pending
+            .then((envelope) => {
+              if (!alive.current || muteTicket.current !== mine) return
+              setMute({ status: 'plan', siteId, rule, place, text: readWriteEnvelope(envelope, line), message: '' })
+            })
+            .catch((error) => {
+              if (!alive.current || muteTicket.current !== mine) return
+              setMute({ status: 'error', siteId, rule, place, text: '', message: messageOf(error) })
+            })
+        },
+        [bridge, sessionId, t],
+      )
+
+      /**
+       * Apply the plan that is on screen: the same command without `--dry-run`.
+       *
+       * The line is rebuilt from the plan's own site id, so the click can only ever confirm the plan
+       * the person read. Its answer is shown verbatim — a success reports the entry it appended, the
+       * "already suppressed, nothing written" no-op says exactly that — and a refusal is an error,
+       * never an outcome.
+       */
+      const confirmMute = useCallback(() => {
+        if (mute.status !== 'plan') return
+        const siteId = asText(mute.siteId)
+        const rule = asText(mute.rule)
+        const place = asText(mute.place)
+        if (bridge === undefined || typeof bridge.call !== 'function') {
+          setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.bridge') })
+          return
+        }
+        if (typeof sessionId !== 'string' || sessionId === '') {
+          setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.session') })
+          return
+        }
+        const mine = muteTicket.current + 1
+        muteTicket.current = mine
+        const line = suppressLine(siteId, false)
+        setMute({ status: 'writing', siteId, rule, place, text: mute.text, message: '' })
+        let pending
+        try {
+          pending = Promise.resolve(bridge.call(sessionId, line))
+        } catch (error) {
+          pending = Promise.reject(error)
+        }
+        pending
+          .then((envelope) => {
+            if (!alive.current || muteTicket.current !== mine) return
+            setMute({ status: 'done', siteId, rule, place, text: readWriteEnvelope(envelope, line), message: '' })
+            // The report is refetched rather than adjusted: the suppressed count is the host's, and
+            // the scan's own value cannot be re-read — a write is not a scan and changes no counter.
+            load()
+          })
+          .catch((error) => {
+            if (!alive.current || muteTicket.current !== mine) return
+            setMute({ status: 'error', siteId, rule, place, text: '', message: messageOf(error) })
+          })
+      }, [bridge, sessionId, load, mute, t])
+
       const busy = state.status === 'loading'
+      // What the scanner section may ask for: its own scan, and the one write — the latter only ever
+      // through the plan-then-confirm pair above.
+      const scannerActions = { onScan: runScan, onMute: requestMute, onConfirm: confirmMute, mute }
       const header = h(
         'header',
         { style: S.header },
@@ -2472,7 +2945,7 @@ window.__ModuleLoader__.load({
                 React.Fragment,
                 null,
                 renderEmpty(t, report),
-                renderScanner(t, report, scan, busy, runScan),
+                renderScanner(t, report, scan, busy, scannerActions),
               )
             : h(
                 React.Fragment,
@@ -2480,7 +2953,7 @@ window.__ModuleLoader__.load({
                 renderKpis(t, report),
                 renderSeries(t, report),
                 renderBreakdown(t, report),
-                renderScanner(t, report, scan, busy, runScan),
+                renderScanner(t, report, scan, busy, scannerActions),
                 renderQueries(t, report),
                 renderCoverage(t, report),
                 renderMisses(t, report),

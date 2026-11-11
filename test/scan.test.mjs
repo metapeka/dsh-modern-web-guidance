@@ -666,3 +666,24 @@ test('a run with a gap prints its hit count, because the range would overclaim',
   const text = render(args, value)
   assert.match(text, /^- card\.css:2-4 \(2 hits\) ls-05 \(/m)
 })
+
+test('the suppression file is read only at the workspace root, never from a scanned path', async (t) => {
+  // The read path is fixed by the contract, not steered by the caller: a `.suppress` a scan happens
+  // to walk past is an ordinary skipped file, and one inside the scanned directory must never mute
+  // anything. Otherwise "pass a different path" would change which mutes apply.
+  const root = await tempDir(t, 'legacy-suppress-root-')
+  await mkdir(join(root, 'src'), { recursive: true })
+  await writeFile(join(root, 'src', 'legacy.js'), 'document.write("<p>hi</p>")\n', 'utf8')
+  const before = await scan({ cwd: root, paths: ['src'] })
+  const id = before.findings[0].siteId
+
+  await writeFile(join(root, 'src', '.suppress'), JSON.stringify({ version: 1, entries: { [id]: { reason: 'nested', at: '2026-11-11' } } }), 'utf8')
+  const inner = await scan({ cwd: root, paths: ['src'] })
+  assert.equal(inner.suppressed, 0, 'a nested .suppress is not the suppression file')
+  assert.equal(inner.findings[0].suppressed, undefined)
+  assert.equal(inner.scanned.skippedByReason.dot ?? 0, 0)
+
+  await writeFile(join(root, '.suppress'), JSON.stringify({ version: 1, entries: { [id]: { reason: 'root', at: '2026-11-11' } } }), 'utf8')
+  const outer = await scan({ cwd: root, paths: ['src'] })
+  assert.equal(outer.suppressed, 1, 'the workspace-root file is the one that mutes')
+})

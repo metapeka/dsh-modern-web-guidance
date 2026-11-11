@@ -134,8 +134,9 @@ the chat side — the keyed `tool.call.toolview` slot under `web_guidance_legacy
 scan call as a table (rule, place, confidence, guide) and leaves the generic card on every other tool.
 The panel holds no filesystem authority: it has two actions, and both are command lines the host runs.
 The scan button asks for `/guidance-scan . --format json`. Phase C adds one more request
-([ADR-0003](docs/adr/0003-write-surface.md)): a suppression entry or one `.scanignore` line, and only
-after the plan (`--dry-run`) is shown and a second, distinct confirmation is given — so a scan or a
+([ADR-0003](docs/adr/0003-write-surface.md)): a suppression entry or one `.scanignore` line — the
+suppression one is `/guidance-suppress <siteId> --dry-run` and then the same line without the flag — and
+only after the plan is shown and a second, distinct confirmation is given — so a scan or a
 render never writes, and a single click never writes.
 See `docs/notes/client-panel-spike.md` for the verified contract.
 
