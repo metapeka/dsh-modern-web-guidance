@@ -252,6 +252,49 @@ temp workspace and prints the exact command and output (see Repro artifacts belo
 
 ---
 
+## F9 — Info — 0.11.0 read surface: the branch label
+
+Added with the release after 0.10.0 (2026-11-11, [ADR-0002](../docs/adr/0002-branch-labels.md)). The
+usage counters are the second surface that reads outside the package — one fixed file at the end of a
+completed scan — so its boundary is stated here rather than inferred from the attribution contract.
+
+- **One fixed path, one pointer hop.** `index.js` reads `<resolved workspace>/.git/HEAD`. When `.git` is
+  a directory, that is the whole read; when it is a **file** (a linked worktree, which is what this
+  repository's own agent worktrees are), its single `gitdir: <path>` line is followed and
+  `<gitdir>/HEAD` is read instead — a relative pointer resolves against the workspace root. Two reads
+  maximum, both of them a file named `HEAD`.
+- **No enumeration, no other git file, no process, no network.** No `readdir`, no `.git/config`, no
+  `.git/logs`, no `packed-refs`, no ref resolution, no `commondir` walk; no `child_process` and no
+  client. `git rev-parse` is deliberately not used — the file is parsed by hand because spawning is out.
+- **Nothing the caller names reaches it.** The directory comes from the session header's `cwd`, or from
+  the process directory when the host sends no header (`index.js:431`); never from a tool argument, a
+  command argument or a scan `paths` entry. The `HEAD` suffix is a literal.
+- **Bounded.** Both files are size-guarded at 1 KiB before reading. The parse accepts only
+  `ref: refs/heads/<name>` with `<name>` matching `[A-Za-z0-9._/-]{1,80}` (no `..`, no `//`, no leading
+  `-`), or a bare 40/64-hex object id whose first seven characters become `detached at <sha7>`.
+  Everything else — an empty file, another ref namespace, a partial hex string, a missing target — is
+  refused. A refused or failed read is **no label**: no error, no log line, and no change to the scan's
+  result, text or counted numbers.
+- **The label never reaches the model.** It is produced on the counters' own record path, after the
+  tool's value already exists, and is never added to it: `web_guidance_legacy_scan`'s result and its
+  rendering are unchanged. It is rendered only by `/guidance-stats`, its `--json` output and the panel's
+  last-scan line.
+
+Residual risk, accepted: the `gitdir:` **pointer is workspace content**, so a repository picks the
+directory the second read happens in — the one place where attacker- or model-writable data reaches this
+read surface. The object read is still exactly a file named `HEAD`, at most 1 KiB, and its bytes never
+leave the parser: only a clamped branch name or seven hex characters are stored, so the worst case is one
+read of one fixed filename in a repo-chosen directory, surfaced as a short label to the local user. A
+symlinked `.git` or `HEAD` is likewise followed by the filesystem rather than refused, and the same clamp
+bounds it. This is why the label is per scan and never a counter key: the blast radius of a hostile
+pointer is one string on one line.
+
+Not covered by this section: the counters' own write of the profile's `stats.json` (0.2.0 onward)
+predates this audit's "Filesystem writes: none" snapshot and is not rewritten here — this section records
+the new **read** only.
+
+---
+
 ## Areas verified clean (what I checked, not a checklist)
 
 - **Code execution:** no `eval`, `new Function`, `vm`, `require`, dynamic `import()` of non-literals,

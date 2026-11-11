@@ -232,22 +232,21 @@ a branch name is not a stable identity (detached HEAD, rebase, deletion, worktre
 If per-branch totals are genuinely wanted later, that is a new decision: it multiplies the state
 document and needs its own migration.
 
-> **Status of the branch label: gated, not assumed.** Reading `<cwd>/.git/HEAD` is a fixed path and so
-> does not violate the audit's rule about model-controlled input, but it falsifies two things the repo
-> says out loud: [AGENTS.md](../AGENTS.md) ("the scanner is the only tool that reads caller-named
-> files") and the counters' own promise of "ids and numbers, never a path". It is therefore ADR-level,
-> and the same change must touch a new append-only section of [audit/security.md](../audit/security.md),
-> AGENTS.md, an ADR, the three READMEs and the panel's JSON contract.
+> **Status of the branch label: decided, and narrowed on the way.** ADR-0002
+> ([docs/adr/0002-branch-labels.md](adr/0002-branch-labels.md)) accepted a read of exactly
+> `<workspace>/.git/HEAD`, once per completed scan: one `gitdir:` hop when `.git` is a file (a worktree),
+> no enumeration, no second git file, no ref resolution, no subprocess, both files clamped at 1 KiB. It
+> answers the four shapes the mechanics throw at it — directory, worktree file, detached, unborn — and
+> makes every other shape **silence rather than a label**. The label lives on `lastScan.branch`, either
+> `{ kind: 'branch', name }` or `{ kind: 'detached', sha }`, and it renders on the last-scan line only.
 >
-> The mechanics are also worse than a one-line read: in **this very workspace `.git` is a file, not a
-> directory** (a worktree), so `join(cwd, '.git', 'HEAD')` fails with `ENOTDIR` and the `gitdir:` line
-> has to be followed; a detached HEAD is a bare object id with no ref; `git rev-parse` is not available
-> because the plugin never spawns a process. Details and citations:
-> [docs/notes/workspace-scoping-facts.md](notes/workspace-scoping-facts.md).
+> What it costs: `AGENTS.md`'s read-surface sentence gains one named exception, and the three READMEs'
+> "ids and numbers, never a path" sentence gains one clause. What it does not cost: no path is stored, the
+> workspace stays a name and an id, and **the panel's workspace chip stays workspace-only** — a chip
+> outlives a scan, so it would keep advertising a branch after `git switch`.
 >
-> **Fallback, by design:** if the opt-in is off or the read fails, the branch label is "unknown" and the
-> phase still delivers its whole value from the workspace key alone. A missing label must never cost a
-> row, a bucket or a scan.
+> The fallback is corrected too: a failed read is a **missing** label, not an "unknown" one. A token
+> printed on every non-git project would be noise shaped like data.
 
 ### Decision: D-3 — partition additively; never bump the version
 
@@ -311,10 +310,10 @@ exact shapes; this is the summary and the list of places where reality differed 
 
 **Where this differs from the design above, and why:**
 
-- **`branch` is absent** from the JSON and from the chip. Reading `.git/HEAD` is still ADR-level (it would
-  falsify both the one-read-surface promise and the "ids and numbers, never a path" promise), and D-2
-  already made branch a label rather than a key — so its absence costs no structure. Acceptance bullet 1
-  is therefore met **per workspace**; "per branch" stays open, gated on that ADR.
+- **`branch` landed after this phase, not inside it.** ADR-0002 accepted the one-file `HEAD` read, so the
+  label now rides on `lastScan.branch` and prints on the last-scan line; the panel's chip still names only
+  the workspace. Acceptance bullet 1 is therefore met **per workspace**, and "per branch" remains what D-2
+  said it is — a *view over scan history* (B-2), never a fourth counter bucket.
 - **`path` is neither stored nor emitted** (D-6): name plus id only, and two checkouts sharing a name are
   told apart by the id suffix the panel appends (`app · aaaa`).
 - **The `_unattributed` label is the client's**, not the host's: the host sends an empty name and the panel
@@ -327,6 +326,13 @@ exact shapes; this is the summary and the list of places where reality differed 
 **Goal:** answer "when" and "did the fix land" without turning the scanner into a stateful linter.
 
 Precondition: phase D, because a timeline per workspace is meaningless while workspaces share a file.
+
+**Interface:** [docs/notes/scan-history-contract.md](notes/scan-history-contract.md) fixes the shapes —
+`scanByDay` and `ruleFirstSeen`/`ruleLastSeen` per bucket, a 20-deep `scanHistory`, and B-3's `siteId`
+(FNV-1a over path + rule id + snippet, **hash only, never a line number**) with a `lastSites` baseline and a
+`scanDiff`. Its two open questions are answered here: the path hash stays, because eight bytes of derived
+data are not a path and the READMEs will say so; and the recent-scans block stays in the text report,
+because "when" is the question and the panel is not always open.
 
 - **B-1 — per-day scan counters.** `scanByDay` next to the existing `byDay`, so a rule gets a
   sparkline and "first seen / last seen / trend". Today only `lastScan` survives, and it is
@@ -390,8 +396,9 @@ an explicit user action and a visible confirmation**.
    `main` and a feature branch keep separate totals? The second is possible but needs its own schema.
 2. **Workspace renames and moves** — a moved project becomes a new workspace. Merge/rename tooling is
    deliberately out of scope for D; is that acceptable, or does D need a `--rename-workspace`?
-3. **`.git/HEAD` reads** — the branch label is ADR-level (see D-2). Fallback is a label of "unknown";
-   confirm that is acceptable, or decide that the ADR work is worth doing in D rather than later.
+3. **`.git/HEAD` reads** — **resolved by [ADR-0002](adr/0002-branch-labels.md)**: one fixed file, one
+   `gitdir:` hop, silence on anything else, and the drafted "unknown" fallback dropped. What stays open is
+   only the per-branch *view* (item 1), not the label.
 4. **Retention vs lifetime** — `lastScan` is pruned after 90 days while `scanRules` never is. Should
    the lifetime counters gain an explicit "since" date in the panel (they already have one in the
    state document), or is that noise?

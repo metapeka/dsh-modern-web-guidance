@@ -20,7 +20,8 @@ Four model-facing tools: `web_guidance_search`, `web_guidance_retrieve` and `web
 (`lib/guidance.js`), plus `web_guidance_legacy_scan` (`lib/scan.js`). Two skills
 (`modern-web-guidance`, `chrome-extensions`), two human commands (`/guidance-stats`, `/guidance-scan`) and one panel.
 The scanner is the only tool that reads caller-named files, and it is confined to the session
-workspace; everything else reads the bundled corpus.
+workspace; everything else reads the bundled corpus, except the counters' branch label, which reads
+exactly one fixed file, `<workspace>/.git/HEAD` ([ADR-0002](docs/adr/0002-branch-labels.md)).
 
 ## The legacy scanner
 
@@ -82,8 +83,12 @@ exists to prevent.
   and an absent bucket draws empty instead of borrowing the aggregate.
 - **Guidance counters stay profile-wide.** They measure the bundled corpus, not a project; a workspace
   dimension would make "hit rate" mean nothing. Scan counters are the only partitioned ones.
-- **Branch is a label, not a key — and nothing reads `.git` yet.** `.git/HEAD` stays unread until an ADR
-  accepts that read surface, so attribution is per workspace and "per branch" remains open.
+- **Branch is a label, not a key, and it comes from one fixed file.** A completed scan may read exactly
+  `<workspace>/.git/HEAD` — one hop through a worktree's `gitdir:` pointer, no enumeration, no second git
+  file, no subprocess — and stores `lastScan.branch` as `{kind:'branch',name}` or
+  `{kind:'detached',sha}`, never as a counter key. A failed read is a missing label: no error, no guess,
+  no "unknown" token. The scope, the four shapes and the tests are
+  [ADR-0002](docs/adr/0002-branch-labels.md).
 
 ## CI
 

@@ -180,7 +180,8 @@ screen. The numbers were not wrong; the sentence was incomplete.
 - **The host sends no display name for the legacy bucket.** `_unattributed` arrives with an empty `name`,
   and the panel renders `workspace.unattributed`; a duplicated name gets an id suffix (`app · aaaa`) so
   two checkouts of the same project never collapse into one option.
-- **No branch, deliberately.** The chip would have had a second half ("name · branch"), but reading
-  `.git/HEAD` is a read-surface decision with an ADR attached, and nothing in the panel should depend on a
-  promise the host has not made. A workspace label alone already answers "whose numbers are these".
+- **The chip stays workspace-only, by decision.** It would have had a second half ("name · branch"), and
+  [ADR-0002](../adr/0002-branch-labels.md) settled it the other way: the branch belongs to one scan, not to
+  the workspace, so it appears on the last-scan line (`scanner.branch` / `scanner.detached`) while the chip
+  keeps naming only the workspace. A chip outlives a scan and would keep claiming a branch after `git switch`.
 

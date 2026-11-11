@@ -17,7 +17,7 @@ value already carries `cwd` — so the information was never stored, not merely 
 - **`version` stays `1`.** `normalizeState()` reads any other version as an empty document and the next
   flush overwrites the file, so a bump is silent total data loss. Partitioning is additive.
 - **Zero runtime dependencies, no network, no process spawn, no new read surface.** Nothing reads
-  `.git` in this phase.
+  `.git` in this phase (ADR-0002 later accepts one fixed read for the release after it).
 - **`lib/telemetry.js` stays filesystem-free.** It takes a store, a clock and a catalog; path
   resolution (`realpathSync`, `basename`) happens in `index.js`.
 - **No path is stored.** A bucket keeps a name and an id; the full directory path never enters the
@@ -161,6 +161,12 @@ one workspace's lifetime or the aggregate's.
 
 ## 10. Not in this phase
 
-The branch label (needs an ADR for reading `.git/HEAD`; the fallback is "no branch, still works"),
-per-window scan counts and scan history (B), suppression and reset granularity (C), and any change to
-the `recent` ring.
+The branch label is **decided, not built**: [ADR-0002](../adr/0002-branch-labels.md) accepts a single
+read of `<workspace>/.git/HEAD` — one hop through a worktree's `gitdir:` pointer — stored as
+`lastScan.branch` (`{kind:'branch',name}` or `{kind:'detached',sha}`, absent when there is no label) and
+rendered on the last-scan line only. It changes nothing else in this document: the workspace key, the
+`_unattributed` bucket, the selector and the `recent` ring are untouched, and `lastScan` merely gains one
+optional member.
+
+Still out of this phase: per-window scan counts and scan history (B), suppression and reset granularity
+(C), and any change to the `recent` ring.

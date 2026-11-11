@@ -365,6 +365,10 @@ ids. Misses are the point — a count of misses that cannot be reproduced cannot
 0.5.0 adds a fourth row (`legacy-scan`) and a findings total to the same report. 0.7.0 keeps the scan detail with it:
 the rules and guides the findings pointed at, and the last completed scan (when, files read, findings), which the report
 prints as `Most matched rules: …` and `Last scan: …`. That detail is ids and numbers, never a path and never a snippet.
+Since 0.10.0 the same detail is also kept **per workspace** — keyed by an id derived from the directory, not
+by the directory itself — and the last scan may carry the one thing that is neither an id nor a number: a
+**branch label**, read from the workspace's `.git/HEAD` (one hop through a worktree's `gitdir:` pointer,
+nothing else, no `git` process) and printed on the `Last scan:` line. A failed read prints nothing at all.
 
 Where it lives: the profile's durable storage, the same trust boundary that already holds session logs. Retention
 defaults to 90 days, and `--reset --yes` erases it.

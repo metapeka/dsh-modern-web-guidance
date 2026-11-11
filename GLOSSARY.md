@@ -124,6 +124,13 @@ a counter bucket. Stable across runs, and the only thing that tells two same-nam
 itself is never stored.
 _Avoid_: project id, slug, key
 
+**Branch label**:
+The branch a scan ran on, read from `<workspace>/.git/HEAD` when that scan finishes: a branch name
+(`main`), `detached at a1b2c3d` for a detached checkout, or nothing at all — a failed read is a missing
+label, never "unknown". It is recorded per scan and never used as a counter key, so switching branches
+never splits a workspace's totals; the scope and the four shapes are ADR-0002.
+_Avoid_: branch bucket, per-branch counters, revision, tag
+
 **Unattributed**:
 The bucket holding scan counters written before per-workspace attribution existed (0.10.0). It is offered in
 the switcher and selectable by id rather than hidden, and nothing writes to it any more.
