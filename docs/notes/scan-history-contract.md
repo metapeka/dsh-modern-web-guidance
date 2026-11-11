@@ -687,3 +687,31 @@ serialised with `JSON.stringify`:
   to any paired `scanRules`/`scanGuides` lifetime counter.
 - **A branch dimension in any counter.** ADR-0002's label is printed, never keyed; per-branch views
   remain a view over this history, not a fourth bucket.
+
+## 16. The slope (0.13.0, phase F-1)
+
+A direction is a claim about a *ring*, so it is derived in `lib/report.js` at render time and stored
+nowhere: reporting one leaves `stats.json` byte-identical, and the test compares bytes across a second
+instance and again after the debounce window.
+
+- **Rates, not counts.** Each half is `Σfindings / Σfiles × 100`, rounded once to one decimal before
+  either surface reads it, and `delta` is computed from the rounded halves — so the text, the JSON and
+  the arithmetic a reader does in their head agree. Raw counts are not comparable between a wide and a
+  narrow scan; the walk's own caps make sure of that.
+- **Two adjacent halves of the newest comparable entries.** `n = floor(comparable / 2)`, older entries
+  ignored, no sliding window and no fixed sample. `sample` is what was actually weighed.
+- **A truncated entry is a hole, not a zero.** It is dropped *before* the halves are cut and the halves
+  are re-cut, so the sample shrinks and the boundary moves; counting a truncated scan as "found
+  nothing" would be the single most flattering lie the report could tell.
+- **Refusal precedence**: `aggregate` → `too-few-scans` → `branch-changed` → `no-files`. Each is a
+  token, and `branch-changed` needs two labelled halves that disagree: a half carries a label only when
+  every entry in it does and they agree, so one labelled half states its slope and says nothing about
+  branches. `no-files` names the half whose denominator is missing. `too-few-scans` names nothing,
+  because naming halves it could not fill would be a number without a sample.
+- **`aggregate` prints**, unlike `scanDiff`, which stays silent for an aggregate: a slope is the
+  per-workspace claim par excellence, so the aggregate is exactly where a reader must be told why there
+  is none.
+- **Absent, not falsy.** A snapshot with no ring yields no `scanSlope` member at all; a ring that is not
+  an array yields `scanSlope: null` (this host cannot tell); an empty ring yields
+  `{ refusal: 'too-few-scans' }` (a real refusal). Three states, because "cannot tell" and "not enough
+  data" are different answers.

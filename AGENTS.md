@@ -111,6 +111,15 @@ exists to prevent.
   are, and a line number is never part of it. Unless the token is `no-baseline`, a refusal must not replace
   what the last comparable scan said. The spec is
   [docs/notes/scan-history-contract.md](docs/notes/scan-history-contract.md).
+- **A direction is derived, never stored** (0.13.0, F-1): the report reads the ring and states
+  `findings per 100 files` for the newest comparable half versus the half before it, or refuses with a
+  bare token — `too-few-scans`, `branch-changed`, `no-files` (naming the half), `aggregate`. Rates
+  rather than counts, because the walk's caps make raw counts incomparable; a truncated scan is a
+  **hole, not a zero**, so it is dropped before the halves are cut. Refusing is the normal outcome here:
+  a slope needs a sample, one tree and a denominator, and the report says which one is missing instead
+  of printing a number that looks like progress. `likelihood` is not a word this product uses: the sign
+  of `delta` is the whole claim, and no surface colours it as a recovery. The deriving rules are §16 of
+  `docs/notes/scan-history-contract.md`.
 
 ## CI
 
