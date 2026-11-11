@@ -1016,6 +1016,96 @@ test('two scans of one workspace produce the comparison line and a two-row ring'
   }
 })
 
+test('a report states the slope it derived, and leaves stats.json byte-identical', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-slope')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    // Six completed scans: the three oldest raised twenty findings over fifty files, the three newest
+    // ten — a project that improved, which is the only kind of claim this line is allowed to make.
+    // A millisecond between the raises matters: the ring is ordered by `at`, and a tie would make
+    // which half an entry falls into a coin flip.
+    for (const findings of [20, 20, 20, 10, 10, 10]) {
+      raiseScan(registered, scanAt(workspace, { files: 50, findings }))
+      await new Promise((resolve) => setTimeout(resolve, 3))
+    }
+    // The counters debounce their write and `void` the promise, so disposing the instance is the only
+    // way to make the document readable now. A second instance on the same profile then reads it back:
+    // the report is a read of what was written, never a rebuild from memory.
+    for (const dispose of registered.disposers) dispose()
+    await settleCounters(home)
+    const before = await readFile(countersFile(home), 'utf8')
+
+    const second = createContext()
+    apply(second.ctx, {})
+    const command = statsCommand(second.registered)
+    const header = headerAt(workspace)
+
+    const text = (await command.handler({ rawInput: '', ...header })).text
+    assert.match(text, /^Slope: 6 scans: 40\.0 → 20\.0 findings per 100 files$/m)
+    const payload = JSON.parse((await command.handler({ rawInput: '--json', ...header })).text)
+    assert.deepEqual(payload.scanSlope, { from: 40, to: 20, delta: -20, sample: 6 })
+    assert.equal(payload.scanHistory.length, 6)
+
+    // Reporting a trend writes nothing. The file is compared as bytes rather than as parsed JSON, so
+    // a rewritten key order or an added member counts as a change, and the comparison is made twice:
+    // immediately, and after the counters' own debounce window — which is when a write the report had
+    // scheduled on the way out would have landed.
+    assert.equal(await readFile(countersFile(home), 'utf8'), before)
+    await settleCounters(home)
+    const after = await readFile(countersFile(home), 'utf8')
+    assert.equal(after, before)
+    // And the slope is nowhere in the document: F-1 derives it from the ring, it does not store it.
+    assert.equal(after.includes('scanSlope'), false)
+  } finally {
+    await removeHome(home)
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('the slope is a per-workspace claim, so the aggregate refuses it with a token', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('scan-slope-all')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const command = statsCommand(registered)
+    const header = headerAt(workspace)
+    for (const findings of [20, 20, 10, 10]) {
+      raiseScan(registered, scanAt(workspace, { files: 50, findings }))
+      await new Promise((resolve) => setTimeout(resolve, 3))
+    }
+    await settleCounters(home)
+
+    // No session header: the report aggregates every bucket, and a slope across two projects would be
+    // a claim about neither. The token is raw and the line carries no number at all.
+    const aggregateText = (await command.handler({ rawInput: '' })).text
+    assert.match(aggregateText, /^Slope: not comparable \(aggregate\)$/m)
+    assert.deepEqual(JSON.parse((await command.handler({ rawInput: '--json' })).text).scanSlope, {
+      refusal: 'aggregate',
+    })
+
+    // The same ring read as one workspace is four comparable scans: two of twenty findings over fifty
+    // files, two of ten — 40.0 per 100 against 20.0.
+    const scopedText = (await command.handler({ rawInput: '', ...header })).text
+    assert.match(scopedText, /^Slope: 4 scans: 40\.0 → 20\.0 findings per 100 files$/m)
+    assert.deepEqual(JSON.parse((await command.handler({ rawInput: '--json', ...header })).text).scanSlope, {
+      from: 40,
+      to: 20,
+      delta: -20,
+      sample: 4,
+    })
+  } finally {
+    await removeHome(home)
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
 test('the counters are given the rule table, so a table change can be detected', async () => {
   const home = await isolatedHome()
   const workspace = await workspaceDir('scan-rules')

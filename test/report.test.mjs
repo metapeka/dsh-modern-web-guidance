@@ -1277,9 +1277,9 @@ test('a merged history row carries its workspace label, a single-bucket row does
   assert.doesNotMatch(renderReport(HISTORICAL), /\[\w/)
 })
 
-test('renderJson carries the three history keys, after the workspace keys, only when present', () => {
+test('renderJson carries the four history keys, after the workspace keys, only when present', () => {
   const json = renderJson(HISTORICAL)
-  assert.deepEqual(Object.keys(json).slice(-3), ['scanSeries', 'scanHistory', 'scanDiff'])
+  assert.deepEqual(Object.keys(json).slice(-4), ['scanSeries', 'scanHistory', 'scanDiff', 'scanSlope'])
   // Snapshot data is passed through, not rebuilt: a consumer can depend on the reference.
   assert.equal(json.scanSeries, HISTORICAL.scanSeries)
   assert.equal(json.scanHistory, HISTORICAL.scanHistory)
@@ -1287,17 +1287,24 @@ test('renderJson carries the three history keys, after the workspace keys, only 
   assert.equal(json.scanCountsScope, undefined)
   assert.equal(renderJson(HISTORICAL, { rules: [] }).scanCountsScope, 'lifetime')
 
+  // The slope is the one history key the report derives rather than copies: it is a claim about the
+  // ring, so it is computed once here and printed by both surfaces from the same rounded numbers.
+  assert.deepEqual(json.scanSlope, { from: 137.9, to: 106.7, delta: -31.2, sample: 12 })
+
   // Presence, not truthiness: an unscanned bucket sends three empty values, and the panel needs
-  // them to tell "nothing yet" from "this host cannot tell me".
+  // them to tell "nothing yet" from "this host cannot tell me". An empty ring is a ring with nothing
+  // in it, so the slope is the sample refusal — a token, never a zero.
   const empty = renderJson({ ...HISTORICAL, scanSeries: [], scanHistory: [], scanDiff: null })
   assert.deepEqual([empty.scanSeries, empty.scanHistory, empty.scanDiff], [[], [], null])
+  assert.deepEqual(empty.scanSlope, { refusal: 'too-few-scans' })
 
-  // A 0.10.0 snapshot has none of the three, and its own keys stay exactly where they were.
+  // A 0.10.0 snapshot has none of the four, and its own keys stay exactly where they were.
   const preB = renderJson(PRE_B)
   assert.deepEqual(Object.keys(preB).slice(-2), ['workspace', 'workspaces'])
   assert.equal('scanSeries' in preB, false)
   assert.equal('scanHistory' in preB, false)
   assert.equal('scanDiff' in preB, false)
+  assert.equal('scanSlope' in preB, false)
 })
 
 test('renderJson describes the days a rule was first and last seen, only in the described path', () => {
@@ -1521,3 +1528,167 @@ test('renderJson carries the review rows as the panel needs them, and invents no
   assert.deepEqual(older.lastScan.suppressions, { entries: 1, matching: 0, unused: ['aaaaaaaa'] })
   assert.equal('items' in older.lastScan.suppressions, false)
 })
+
+//#region the project's slope (F-1)
+
+/**
+ * A ring for the slope tests: `scans` entries, oldest first in the array the snapshot hands over as
+ * newest first, with the two counts each half sums. Written as a builder so a test says which fact it
+ * is changing — a truncated entry, a branch label, a zero-file scan — instead of diffing 12 literals.
+ */
+function slopeEntry(day, { files = 50, findings = 0, truncated = false, branch } = {}) {
+  const entry = {
+    at: `2026-11-${String(day).padStart(2, '0')}T08:00:00.000Z`,
+    outcome: findings > 0 ? 'findings' : 'clean',
+    files,
+    findings,
+    rules: {},
+    skipped: {},
+    truncated,
+  }
+  if (branch !== undefined) entry.branch = branch === null ? null : { kind: 'branch', name: branch }
+  return entry
+}
+
+/** A snapshot whose only interesting member is the ring, scoped to one workspace. */
+function slopeSnapshot(history, extra = {}) {
+  return { ...HISTORICAL, scanHistory: history, ...extra }
+}
+
+test('the slope states two halves, the delta and the sample, on the report and in the JSON', () => {
+  // Newest six scans: 36 findings over 360 files (10.0 per 100). The six before: 54 over 360 (15.0).
+  // Files, not findings, are the denominator: a wide and a narrow scan are not comparable in raw
+  // counts, and that is the lesson the comparison line already learned as `fewer-files`.
+  const history = [
+    ...Array.from({ length: 6 }, (_, index) => slopeEntry(20 - index, { files: 60, findings: 6, branch: 'main' })),
+    ...Array.from({ length: 6 }, (_, index) => slopeEntry(14 - index, { files: 60, findings: 9, branch: 'main' })),
+  ]
+  const snapshot = slopeSnapshot(history)
+  const json = renderJson(snapshot)
+  assert.deepEqual(json.scanSlope, { from: 15, to: 10, delta: -5, sample: 12 })
+
+  const text = renderReport(snapshot)
+  assert.match(text, /^Slope: 12 scans: 15\.0 → 10\.0 findings per 100 files$/m)
+  // The line sits directly under the comparison it generalises: one scan against the one before it,
+  // then half the ring against the half before that. A line anywhere else would be a second, unrelated
+  // claim about the same counters.
+  const lines = text.split('\n')
+  const slopeAt = lines.findIndex((line) => line.startsWith('Slope:'))
+  const diffAt = lines.findIndex((line) => line.startsWith('Since the '))
+  assert.ok(diffAt >= 0, text)
+  assert.equal(slopeAt, diffAt + 1, text)
+})
+
+test('a truncated scan is a hole, not a zero: it is dropped and both halves are re-cut', () => {
+  // Eight entries, the third newest truncated and reporting zero findings. Read as a zero it would
+  // drag the newest half's rate down to 6.7; read as a data point it would be a drop the scan never
+  // measured. It is a hole: eight entries become seven comparable, the halves are re-cut three and
+  // three, and the entry that fell out of the newer half re-joins the older one.
+  const history = [
+    slopeEntry(20, { files: 100, findings: 10 }),
+    slopeEntry(19, { files: 100, findings: 10 }),
+    slopeEntry(18, { files: 100, findings: 0, truncated: true }),
+    slopeEntry(17, { files: 100, findings: 12 }),
+    slopeEntry(16, { files: 100, findings: 12 }),
+    slopeEntry(15, { files: 100, findings: 20 }),
+    slopeEntry(14, { files: 100, findings: 20 }),
+    slopeEntry(13, { files: 100, findings: 20 }),
+  ]
+  const json = renderJson(slopeSnapshot(history))
+  // Seven comparable: three newest (32 findings over 300 files), three before (52 over 300).
+  assert.deepEqual(json.scanSlope, { from: 17.3, to: 10.7, delta: -6.6, sample: 6 })
+  // The two ways to get this wrong, named: counting the hole as a zero (6.7) and keeping the raw
+  // eight-entry split with the hole overwritten (also 6.7), or keeping all seven in one half.
+  assert.notEqual(json.scanSlope.to, 6.7)
+  assert.equal(json.scanSlope.sample, 6)
+  assert.match(renderReport(slopeSnapshot(history)), /^Slope: 6 scans: 17\.3 → 10\.7 findings per 100 files$/m)
+})
+
+test('a slope refuses with a token when the ring is short, mixed or missing a denominator', () => {
+  // Three comparable entries: two halves of one is a difference between two points, not a direction.
+  const short = slopeSnapshot([slopeEntry(20), slopeEntry(19), slopeEntry(18)])
+  assert.deepEqual(renderJson(short).scanSlope, { refusal: 'too-few-scans' })
+  const shortText = renderReport(short)
+  assert.match(shortText, /^Slope: not comparable \(too-few-scans\)$/m)
+  // The token stands alone: no halves, no counts, not even the ring size it could not fill.
+  const line = shortText.split('\n').find((row) => row.startsWith('Slope:'))
+  assert.equal(line.replace(/[^0-9]/g, ''), '', `a refusal printed a number: ${line}`)
+
+  // Both halves labelled, labels differ: the difference may be the tree and not the project.
+  const mixed = slopeSnapshot([
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(20 - index, { files: 10, findings: 1, branch: 'main' })),
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(16 - index, { files: 10, findings: 2, branch: 'release' })),
+  ])
+  assert.deepEqual(renderJson(mixed).scanSlope, {
+    refusal: 'branch-changed',
+    halves: { older: { kind: 'branch', name: 'release' }, newer: { kind: 'branch', name: 'main' } },
+  })
+  const mixedLine = renderReport(mixed).split('\n').find((row) => row.startsWith('Slope:'))
+  assert.equal(mixedLine, 'Slope: not comparable (branch-changed)')
+  assert.equal(mixedLine.replace(/[^0-9]/g, ''), '', 'a refusal printed a number')
+
+  // Only one half carries a label: no label is not disagreement, so the slope is stated and says
+  // nothing about branches. This is the refusal that must not fire, and it is the one a careless
+  // `!==` between two possibly-missing labels would fire.
+  const halfLabel = slopeSnapshot([
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(20 - index, { files: 10, findings: 1, branch: 'main' })),
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(16 - index, { files: 10, findings: 2 })),
+  ])
+  assert.deepEqual(renderJson(halfLabel).scanSlope, { from: 20, to: 10, delta: -10, sample: 8 })
+  assert.doesNotMatch(renderReport(halfLabel), /branch-changed/)
+
+  // A half that read no files has no denominator, and the token names which half.
+  const noFiles = slopeSnapshot([
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(20 - index, { files: 10, findings: 1 })),
+    ...Array.from({ length: 4 }, (_, index) => slopeEntry(16 - index, { files: 0, findings: 0 })),
+  ])
+  assert.deepEqual(renderJson(noFiles).scanSlope, { refusal: 'no-files', half: 'older' })
+  assert.match(renderReport(noFiles), /^Slope: not comparable \(no-files, older half\)$/m)
+
+  // The aggregate has no single ring to read: a slope is a per-workspace claim.
+  const aggregate = slopeSnapshot(
+    Array.from({ length: 8 }, (_, index) => slopeEntry(20 - index, { files: 10, findings: 1 })),
+    { workspace: null },
+  )
+  assert.deepEqual(renderJson(aggregate).scanSlope, { refusal: 'aggregate' })
+  assert.match(renderReport(aggregate), /^Slope: not comparable \(aggregate\)$/m)
+})
+
+test('a half is its findings divided by its files, not the mean of its scans', () => {
+  // Two scans per half with different sizes, so the two candidate readings disagree: 21 findings over
+  // 120 files is 17.5 per 100, while the mean of the two scans' own rates (20.0 and 5.0) is 12.5. The
+  // slope is a ratio of totals — the mean would let a three-file scan weigh as much as a hundred-file
+  // one, which is the fog the denominator exists to clear.
+  const json = renderJson(slopeSnapshot([
+    slopeEntry(20, { files: 60, findings: 3 }),
+    slopeEntry(19, { files: 60, findings: 3 }),
+    slopeEntry(18, { files: 100, findings: 20 }),
+    slopeEntry(17, { files: 20, findings: 1 }),
+  ]))
+  assert.deepEqual(json.scanSlope, { from: 17.5, to: 5, delta: -12.5, sample: 4 })
+})
+
+test('a document with no ring renders the 0.12.0 report: no slope, no line, no member', () => {
+  // The counter and the ring arrived in different phases; a document from before the ring has no
+  // `scanHistory` member at all, and F-1 must not add a line to it — not a refusal, not a blank.
+  for (const snapshot of [PRE_B, HISTORICAL_NO_HISTORY()]) {
+    assert.equal('scanSlope' in renderJson(snapshot), false, JSON.stringify(Object.keys(renderJson(snapshot))))
+    assert.doesNotMatch(renderReport(snapshot), /^Slope:/m)
+  }
+
+  // A ring that cannot be read at all is not the same answer as a ring with nothing in it: the first
+  // is this host saying nothing (null, like every other unreadable member), the second is a real
+  // sample refusal. A refusal that swallowed the difference would turn "cannot tell me" into a token
+  // the panel draws as a measurement it never made.
+  const junk = renderJson({ ...HISTORICAL, scanHistory: 'not a ring' })
+  assert.equal(junk.scanSlope, null)
+  assert.deepEqual(junk.scanHistory, [])
+})
+
+/** The phase-B snapshot with the ring removed, which is what a 0.10.0 document looks like. */
+function HISTORICAL_NO_HISTORY() {
+  const { scanHistory, scanDiff, ...rest } = HISTORICAL
+  return rest
+}
+
+//#endregion
