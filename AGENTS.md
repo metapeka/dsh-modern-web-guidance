@@ -18,7 +18,8 @@ Single-context: one `GLOSSARY.md` at the repo root, with ADRs in `docs/adr/`. Se
 
 Four model-facing tools: `web_guidance_search`, `web_guidance_retrieve` and `web_guidance_list`
 (`lib/guidance.js`), plus `web_guidance_legacy_scan` (`lib/scan.js`). Two skills
-(`modern-web-guidance`, `chrome-extensions`), two human commands (`/guidance-stats`, `/guidance-scan`) and one panel.
+(`modern-web-guidance`, `chrome-extensions`), four human commands (`/guidance-stats`, `/guidance-scan`,
+`/guidance-suppress`, `/guidance-scanignore`) and one panel.
 The scanner is the only tool that reads caller-named files, and it is confined to the session
 workspace; everything else reads the bundled corpus, except the counters' branch label, which reads
 exactly one fixed file, `<workspace>/.git/HEAD` ([ADR-0002](docs/adr/0002-branch-labels.md)).
@@ -132,12 +133,15 @@ entry and the panel's data call (`ctx.remote.commands.execute`). The panel regis
 `sidebar.panellist` id `guidance` and the keyed `main` slot with the same key; a third registration owns
 the chat side — the keyed `tool.call.toolview` slot under `web_guidance_legacy_scan`, which renders one
 scan call as a table (rule, place, confidence, guide) and leaves the generic card on every other tool.
-The panel holds no filesystem authority: it has two actions, and both are command lines the host runs.
-The scan button asks for `/guidance-scan . --format json`. Phase C adds one more request
-([ADR-0003](docs/adr/0003-write-surface.md)): a suppression entry or one `.scanignore` line — the
-suppression one is `/guidance-suppress <siteId> --dry-run` and then the same line without the flag — and
-only after the plan is shown and a second, distinct confirmation is given — so a scan or a
-render never writes, and a single click never writes.
+The panel holds no filesystem authority: every one of its actions is either a command line the host runs or
+a copy of data it already received.
+The scan button asks for `/guidance-scan . --format json`. Phase C adds the two writes ADR-0003 licenses
+([ADR-0003](docs/adr/0003-write-surface.md)): one suppression entry, `/guidance-suppress <siteId> --dry-run`
+then the same line without the flag, and one `.scanignore` line,
+`/guidance-scanignore <pattern> --dry-run` then the same line without the flag. Each writes only after the
+plan is shown and a second, distinct confirmation is given — so a scan or a render never writes, and a single
+click never writes. C-4's "copy as JSON" adds no third path: it copies the envelope the panel already holds,
+never a new host call and never a file.
 See `docs/notes/client-panel-spike.md` for the verified contract.
 
 Panel strings live in three dictionaries — `EN`, `RU` and `ZH` — registered in one

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { createGuidance } from './lib/guidance.js'
 import { renderJson, renderReport, workspaceLabel } from './lib/report.js'
 import { RULES, selectRules } from './lib/scan-rules.js'
-import { ScanError, scan } from './lib/scan.js'
+import { ScanError, parseScanIgnore, scan } from './lib/scan.js'
 import {
   clampReason,
   isSiteKey,
@@ -916,6 +916,287 @@ function buildSuppressCommand() {
   }
 }
 
+/** The ignore file the scanner reads at the workspace root; its grammar is `lib/scan.js`'s header. */
+const SCAN_IGNORE_FILE = '.scanignore'
+
+/**
+ * Split one command line into tokens.
+ *
+ * Whitespace separates tokens, `"..."` and `'...'` group one, and a backslash escapes the next
+ * character inside a quoted token. A `.scanignore` pattern is a path, and a path can contain a space
+ * or a quote, so a bare `split(/\s+/)` cannot carry it. The tokens are returned as written otherwise:
+ * this function interprets nothing, and the handler decides what one pattern is.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+function splitArguments(text) {
+  const tokens = []
+  let current = ''
+  let quoted = null
+  let escaped = false
+  let started = false
+  for (const character of text) {
+    if (escaped) {
+      current += character
+      escaped = false
+      started = true
+      continue
+    }
+    if (quoted !== null) {
+      if (character === '\\') {
+        escaped = true
+        continue
+      }
+      if (character === quoted) {
+        quoted = null
+        continue
+      }
+      current += character
+      continue
+    }
+    if (character === '"' || character === "'") {
+      quoted = character
+      started = true
+      continue
+    }
+    if (/\s/.test(character)) {
+      if (started) {
+        tokens.push(current)
+        current = ''
+        started = false
+      }
+      continue
+    }
+    current += character
+    started = true
+  }
+  if (started) tokens.push(current)
+  return tokens
+}
+
+/**
+ * Parse a `/guidance-scanignore` line: `<pattern> [--dry-run]`.
+ *
+ * The pattern is exactly one token and may be quoted, because a pattern is one line of the file and a
+ * path may contain a space. Two tokens are two patterns, and this command adds one: joining them into
+ * a line that matches nothing would be the silent write ADR-0003 forbids.
+ *
+ * @param {string} line raw arguments after the command name.
+ * @returns {{ tokens: string[], pattern: string, dryRun: boolean }}
+ */
+function parseScanIgnoreArguments(line) {
+  const text = String(line ?? '')
+  const dryRun = /(?:^|\s)--dry-run(?=\s|$)/.test(text)
+  const tokens = splitArguments(text.replace(/(?:^|\s)--dry-run(?=\s|$)/g, ' '))
+  return { tokens, pattern: tokens.length === 1 ? tokens[0] : '', dryRun }
+}
+
+/**
+ * What a compiled pattern means, independent of how it was spelled.
+ *
+ * The identity is the match, not the text: `/report/` and `report/` are one pattern with two
+ * spellings, so the no-op is named for the pattern that would change nothing rather than for the
+ * string the caller happened to type. `*` is compiled per segment, so the sources compare equal only
+ * when the patterns would skip the same paths.
+ *
+ * @param {{ segments: RegExp[], directoriesOnly: boolean }} pattern a `parseScanIgnore` entry.
+ * @returns {string}
+ */
+function ignoreSignature(pattern) {
+  const kind = pattern.directoriesOnly === true ? 'directory' : 'any'
+  return `${kind}:${pattern.segments.map((segment) => segment.source).join('/')}`
+}
+
+/**
+ * What one pattern will cover, in the words the plan can stand behind.
+ *
+ * The plan must not promise less than the reader does: a one-segment pattern matches that name at
+ * any depth, and a trailing slash skips a whole subtree, so both say so before the confirmation.
+ *
+ * @param {{ segments: RegExp[], directoriesOnly: boolean }} pattern
+ * @returns {string}
+ */
+function ignoreBreadth(pattern) {
+  if (pattern.directoriesOnly === true) {
+    return 'A trailing slash makes it a directory pattern, so the next scan skips that whole subtree.'
+  }
+  if (pattern.segments.length > 1) {
+    return 'The pattern has a slash, so it is anchored at the workspace root and the next scan skips exactly that path.'
+  }
+  return 'A one-segment pattern matches that name at any depth, so the next scan skips every path with that name.'
+}
+
+/**
+ * Read the ignore file for the one command that may extend it.
+ *
+ * The scan is forgiving about a broken `.scanignore`; the writer is not. Appending a valid line to a
+ * file whose own grammar the reader rejected would leave the file exactly as broken and add a line
+ * whose neighbours are still reported as malformed, so a problem here is a refusal and the file is
+ * left byte for byte as it is ([ADR-0003](docs/adr/0003-write-surface.md) §6).
+ *
+ * @param {string} file absolute path of the workspace ignore file.
+ * @returns {Promise<{ text: string, patterns: Array<object>, exists: boolean } | { refusal: string }>}
+ */
+async function readScanIgnoreForWrite(file) {
+  let info
+  try {
+    info = await lstat(file)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { text: '', patterns: [], exists: false }
+    return { refusal: `Refused: ${file} could not be read.` }
+  }
+  if (!info.isFile() || info.isSymbolicLink()) {
+    return { refusal: `Refused: ${file} is not a regular file.` }
+  }
+  let text
+  try {
+    text = await readFile(file, 'utf8')
+  } catch {
+    return { refusal: `Refused: ${file} could not be read.` }
+  }
+  const parsed = parseScanIgnore(text)
+  if (parsed.problems.length > 0) {
+    const count = parsed.problems.length
+    const lines = parsed.problems.map((problem) => problem.line).join(', ')
+    return {
+      refusal: `Refused (malformed): ${file} has ${count} ${count === 1 ? 'line' : 'lines'} outside the .scanignore grammar (line ${lines}); fix ${count === 1 ? 'it' : 'them'} by hand before another pattern is added.`,
+    }
+  }
+  return { text, patterns: parsed.patterns, exists: true }
+}
+
+/**
+ * The human command that adds one pattern to the workspace `.scanignore`.
+ *
+ * The product's second and last write ([ADR-0003](docs/adr/0003-write-surface.md)), obeying the
+ * suppression command's protocol exactly: `--dry-run` prints the plan and writes nothing, the same
+ * line without it appends the one line, an already-present pattern is a named no-op, and every
+ * refusal is `kind: 'error'` with its reason. What differs is what it writes and what that means: an
+ * ignore makes the next scan read less, so the outcome says "reads less" and never "muted".
+ *
+ * @returns {object} a CommandDefinition.
+ */
+function buildScanIgnoreCommand() {
+  return {
+    name: 'guidance-scanignore',
+    description: 'Add one pattern to the workspace .scanignore so later scans read that path no more. Shows the plan with --dry-run and appends the line only without it.',
+    input: { hint: '<pattern> [--dry-run]' },
+    recordInput: false,
+    async handler(invocation) {
+      const args = parseScanIgnoreArguments(invocation?.rawInput)
+      if (args.tokens.length === 0) {
+        return {
+          kind: 'error',
+          text: 'No pattern: pass the one workspace-relative path or name to add, for example /guidance-scanignore src/app.css --dry-run.',
+        }
+      }
+      // A flag this line does not know is a mistake, never a pattern: writing `--all` as a line would
+      // put a token in the file that matches nothing and is not the exclusion anyone asked for.
+      const unknown = args.tokens.filter((token) => token.startsWith('--'))
+      if (unknown.length > 0) {
+        return {
+          kind: 'error',
+          text: `Unknown option: ${unknown.join(', ')}. The only option this line takes is --dry-run; a path whose name begins with "--" has to be added to ${SCAN_IGNORE_FILE} by hand.`,
+        }
+      }
+      // A line the reader would treat as a comment excludes nothing, so it is refused as a pattern
+      // rather than written into the file where it would silently do nothing.
+      if (args.tokens[0].startsWith('#')) {
+        return {
+          kind: 'error',
+          text: 'Not a .scanignore pattern: a line that starts with "#" is a comment, and a comment excludes nothing.',
+        }
+      }
+      if (args.tokens.length > 1) {
+        return {
+          kind: 'error',
+          text: `One pattern at a time: "${args.tokens.join(' ')}" is ${args.tokens.length} arguments, and a path containing a space has to be quoted, for example /guidance-scanignore "src/my page.astro" --dry-run.`,
+        }
+      }
+
+      // Only what the reader accepts is written, so the next scan never reports the writer's own line
+      // as malformed (§6).
+      const parsed = parseScanIgnore(args.pattern)
+      if (parsed.patterns.length !== 1 || parsed.problems.length > 0) {
+        return {
+          kind: 'error',
+          text: `Not a .scanignore pattern: "${args.pattern}" is outside the grammar, which is one workspace-relative path per line, an optional trailing "/" for a directory, and "*" inside one segment — no "**", no "?" and no "!".`,
+        }
+      }
+      const pattern = parsed.patterns[0]
+      const written = pattern.source
+
+      const directory = workspaceDirectory(commandCwd(invocation))
+      if (directory === null) {
+        return { kind: 'error', text: 'Refused: this session reports no workspace directory, so there is nowhere to append a pattern.' }
+      }
+      const file = join(directory, SCAN_IGNORE_FILE)
+      const current = await readScanIgnoreForWrite(file)
+      if (current.refusal !== undefined) return { kind: 'error', text: current.refusal }
+
+      const signature = ignoreSignature(pattern)
+      const existing = current.patterns.find((entry) => ignoreSignature(entry) === signature)
+      if (existing !== undefined) {
+        // The no-op names the line the file holds, not the spelling that was typed: `/report/` and
+        // `report/` are one pattern, and the answer should point at what is there.
+        return {
+          kind: 'success',
+          text: args.dryRun
+            ? `Already present: ${existing.source} is in ${file}, so this line would write nothing.`
+            : `Already present: ${existing.source} is in ${file}; nothing was written.`,
+        }
+      }
+
+      const count = current.patterns.length
+      const patterns = (value) => `${value} ${value === 1 ? 'pattern' : 'patterns'}`
+      // The plan is one paragraph, like the suppression plan, because the panel renders the host's
+      // text verbatim in one node: the absolute file, the exact line, the count it would reach and
+      // what the pattern covers, all before the confirmation.
+      if (args.dryRun) {
+        const state = current.exists
+          ? `which would go from ${patterns(count)} to ${patterns(count + 1)}`
+          : 'which does not exist yet, so it would be created with that one pattern'
+        return {
+          kind: 'success',
+          text: `Ignore plan for ${written}: append ${written} to ${file}, ${state}. ${ignoreBreadth(pattern)} Nothing has been written; run the same line without --dry-run to write it.`,
+        }
+      }
+
+      // Append one line and nothing else: the separator is added when the file does not end with one,
+      // so two patterns never silently become one, and no line the user wrote is ever rewritten. The
+      // new line uses the file's own ending, so a CRLF file stays uniformly CRLF.
+      const ending = current.text.includes('\r\n') ? '\r\n' : '\n'
+      const separator = current.text === '' || current.text.endsWith('\n') ? '' : ending
+      const next = `${current.text}${separator}${written}${ending}`
+      // The result is put back through the reader before it is written (ADR-0003 §6): the file may not
+      // gain a line the next scan would report as malformed, and it may not gain two patterns when one
+      // was asked for. A file this command cannot write correctly is not written at all.
+      const checked = parseScanIgnore(next)
+      if (checked.problems.length > 0 || checked.patterns.length !== count + 1) {
+        return {
+          kind: 'error',
+          text: `Refused: the line this would append does not read back as one pattern in ${file}, so nothing was written. Add it by hand if it is the pattern you meant.`,
+        }
+      }
+      const temporary = `${file}.tmp`
+      try {
+        await writeFile(temporary, next, 'utf8')
+        await rename(temporary, file)
+      } catch (error) {
+        return {
+          kind: 'error',
+          text: `Refused: the write to ${file} failed (${error instanceof Error ? error.message : String(error)}).`,
+        }
+      }
+      return {
+        kind: 'success',
+        text: `Appended to ${file}: ${written}. The file now holds ${patterns(count + 1)}. The next scan reads less because of it: an ignore excludes a path from the walk, it does not fix or mute a finding, and no counter moves.`,
+      }
+    },
+  }
+}
+
 /** Read a skill body from the package; a missing file disables only that skill. */
 function readSkillBody(relativePath) {
   try {
@@ -1016,15 +1297,19 @@ function readCatalog() {
 
 /**
  * Parse a `/guidance-stats` line:
- * `[--days N] [--json] [--reset --yes] [--workspace <name|id|path>] [--all]`.
+ * `[--days N] [--json] [--reset --yes] [--scan-only] [--workspace <name|id|path>] [--all]`.
  *
  * Anything unparsable falls back to the default period, because a malformed argument should still
- * show the report rather than an error. The two selector flags are the exception: half a flag, or
- * two contradictory ones, would otherwise quietly read as "count everything", so they travel out as
- * an `error` string the handler returns before it takes a snapshot.
+ * show the report rather than an error. The selector flags are the exception: half a flag, or two
+ * contradictory ones, would otherwise quietly read as "count everything", so they travel out as an
+ * `error` string the handler returns before it takes a snapshot.
+ *
+ * `daysRaw` is the number as typed, before the period fallback: a reset may not widen a window the
+ * caller wrote as zero, so the reset branch needs to know the difference between `--days 7` and a
+ * malformed `--days 0` that the report path would silently read as the default week.
  *
  * @param {string} line raw arguments after the command name.
- * @returns {{ days: number, json: boolean, reset: boolean, yes: boolean, workspace: string | undefined, all: boolean, error: string | undefined }}
+ * @returns {{ days: number, daysRaw: number | undefined, daysDeclared: boolean, json: boolean, reset: boolean, yes: boolean, scanOnly: boolean, workspace: string | undefined, all: boolean, error: string | undefined }}
  */
 function parseStatsArguments(line) {
   const text = String(line ?? '')
@@ -1038,9 +1323,12 @@ function parseStatsArguments(line) {
   const workspace = workspaceMatch === null ? undefined : workspaceMatch[1]
   return {
     days: Number.isFinite(days) && days > 0 ? Math.min(Math.floor(days), 3650) : DEFAULT_PERIOD_DAYS,
+    daysRaw: matched === null ? undefined : Number(matched[1]),
+    daysDeclared: /--days\b/.test(text),
     json: /--json\b/.test(text),
     reset: /--reset\b/.test(text),
     yes: /--yes\b/.test(text),
+    scanOnly: /--scan-only\b/.test(text),
     workspace,
     all,
     error: statsSelectorError({ declared, workspace, all }),
@@ -1173,6 +1461,101 @@ function scopeWorkspace(snapshot, workspace) {
 }
 
 /**
+ * Why a reset line cannot be honoured, or undefined when it can.
+ *
+ * A reset erases exactly one slice at a time. Two selectors would make the sentence describe
+ * something narrower than the erasure — `--scan-only --workspace app` reads as "one workspace" but
+ * `--scan-only` names every one — so the combination is refused and the known selectors are
+ * listed, the same way an unknown `--workspace` lists the known names. `--days 0` is refused for
+ * the same reason: the report path reads a non-positive period as the default week, and a reset
+ * must never widen a window the caller wrote as nothing.
+ *
+ * @param {{ scanOnly: boolean, workspace: string | undefined, daysDeclared: boolean, daysRaw: number | undefined }} options
+ * @returns {string | undefined}
+ */
+function resetScopeError({ scanOnly, workspace, daysDeclared, daysRaw }) {
+  const chosen = [scanOnly ? '--scan-only' : '', workspace === undefined ? '' : '--workspace', daysDeclared ? '--days' : '']
+    .filter((flag) => flag !== '')
+  if (chosen.length > 1) {
+    return `Error: a reset erases one slice at a time, and ${chosen.join(', ')} cannot be combined. Pass one of --scan-only, --workspace or --days, or none to erase every counter.`
+  }
+  if (daysDeclared && !(Number.isFinite(daysRaw) && daysRaw >= 1)) {
+    return 'Error: --days needs a whole number of days, at least 1, for example /guidance-stats --reset --yes --days 30.'
+  }
+  return undefined
+}
+
+/**
+ * The erasure one `--reset` line asks for, as the counters' own scope object.
+ *
+ * With no selector this is the whole document — a bare `--reset --yes` must keep erasing exactly
+ * what it always erased, because narrowing a default is a silent behaviour change. A
+ * `--workspace` value is validated against the same list the report validates against, so a typo is
+ * an error naming what exists rather than a reset of nothing.
+ *
+ * @param {object} options parsed flags.
+ * @param {object} overview an aggregate snapshot, for its `workspaces` list.
+ * @param {string | undefined} sessionPath the session header's cwd, for a relative `--workspace` path.
+ * @returns {{ request: { scope: string, workspace?: string, days?: number }, workspace?: { id: string, name: string }, error?: string }}
+ */
+function resetTarget(options, overview, sessionPath) {
+  if (options.scanOnly) return { request: { scope: 'scans' } }
+  if (options.workspace !== undefined) {
+    const known = Array.isArray(overview?.workspaces) ? overview.workspaces : []
+    const match = matchWorkspace(options.workspace, known, sessionPath)
+    if (match.error !== undefined) return { error: match.error }
+    return { request: { scope: 'workspace', workspace: match.workspace.id }, workspace: match.workspace }
+  }
+  if (options.daysDeclared) return { request: { scope: 'window', days: options.days } }
+  return { request: { scope: 'all' } }
+}
+
+/**
+ * What a scoped reset would erase, before it happens: `/guidance-stats` has no undo, so the plan is
+ * the only chance to see the target and the selector that would erase it. The bare form keeps its
+ * own sentence, byte for byte.
+ *
+ * @param {{ request: { scope: string } }} target
+ * @param {object} options parsed flags.
+ * @param {object} overview an aggregate snapshot, for its `workspaces` list.
+ * @returns {string}
+ */
+function resetPlanText(target, options, overview) {
+  if (target.request.scope === 'scans') {
+    const scope = Array.isArray(overview?.workspaces) ? `of ${overview.workspaces.length} workspace(s)` : 'of every workspace'
+    return `This would erase the scan counters ${scope}: findings, rules, guides, history and baselines. Every call counter stays. Re-run /guidance-stats --reset --yes --scan-only to erase them.`
+  }
+  if (target.request.scope === 'workspace') {
+    return `This would erase the scan counters of ${workspaceLabel(target.workspace)}: its findings, rules, guides, history and baseline. Every other workspace and every call counter stays. Re-run /guidance-stats --reset --yes --workspace ${target.workspace.id} to erase them.`
+  }
+  return `This would erase the counters recorded in the last ${options.days} day(s), for every workspace. Lifetime rule and guide totals carry no day, so they stay. Re-run /guidance-stats --reset --yes --days ${options.days} to erase them.`
+}
+
+/**
+ * What a scoped reset erased, and what it left: a reset that reported only its own success would
+ * make "narrowed" and "everything" look the same.
+ *
+ * @param {{ scope: string, calls: number, findings: number, scans: number, workspaces: number }} tally
+ *   what the counters removed.
+ * @param {{ request: { scope: string }, workspace?: { id: string, name: string } }} target
+ * @param {object} options parsed flags.
+ * @returns {string}
+ */
+function resetDoneText(tally, target, options) {
+  // The suppression list lives in a workspace file, not in this state, and it must survive every
+  // reset: "muted" is a claim about intent, and erasing the numbers that show it would not unmute
+  // anything. Saying so is the only way the report can be trusted about the file it did not read.
+  const untouched = 'The suppression file was not touched: muting is not a counter.'
+  if (tally.scope === 'scans') {
+    return `Erased the scan counters of ${tally.workspaces} workspace(s): ${tally.findings} finding(s) and ${tally.scans} scan(s) of history. Every call counter, including how many scans were run, stays. ${untouched}`
+  }
+  if (tally.scope === 'workspace') {
+    return `Erased the scan counters of ${workspaceLabel(target.workspace)}: ${tally.findings} finding(s) and ${tally.scans} scan(s) of history. Every other workspace and every call counter stays. ${untouched}`
+  }
+  return `Erased the counters recorded in the last ${options.days} day(s): ${tally.calls} call(s), ${tally.findings} finding(s) and ${tally.scans} scan(s) of history. Lifetime rule and guide totals carry no day, so they stay. ${untouched}`
+}
+
+/**
  * The human command that reads the counters. It never becomes a tool: the numbers serve the
  * maintainer, not the model.
  * @param {object} telemetry counters instance from `lib/telemetry.js`.
@@ -1185,22 +1568,39 @@ function buildStatsCommand(telemetry, detail = {}) {
   return {
     name: 'guidance-stats',
     description: 'Local usage counters for the guidance tools: calls, outcomes, missed queries, category coverage and dead guides, plus the scan findings and rules of the workspace you ask for.',
-    input: { hint: '[--days N] [--json] [--workspace <name|id>] [--all] [--reset --yes]' },
+    input: { hint: '[--days N] [--json] [--workspace <name|id>] [--all] [--reset [--yes]] [--scan-only]' },
     recordInput: false,
     async handler(invocation) {
       try {
         const options = parseStatsArguments(invocation?.rawInput)
         if (options.error !== undefined) return { kind: 'error', text: options.error }
         if (options.reset) {
-          // Reset stays global: the counters are one document, and a selector must not make erasing
-          // look narrower than it is.
-          const before = await telemetry.snapshot({ days: options.days })
-          const calls = before?.totals?.calls ?? 0
+          const conflict = resetScopeError(options)
+          if (conflict !== undefined) return { kind: 'error', text: conflict }
+          // One aggregate snapshot answers both halves of the reset: it lists the workspaces a
+          // selector is validated against, and its windowed call count is what the plan promises to
+          // erase. It is read before any write, so a refusal costs a read and touches nothing.
+          const overview = await telemetry.snapshot({ days: options.days, workspace: 'all' })
+          const target = resetTarget(options, overview, sessionCwd(invocation))
+          if (target.error !== undefined) return { kind: 'error', text: target.error }
+          const calls = overview?.totals?.calls ?? 0
           if (!options.yes) {
-            return { kind: 'success', text: `This would erase counters covering ${calls} call(s). Re-run /guidance-stats --reset --yes to erase them.` }
+            // The bare plan is the 0.4.0 sentence, unchanged: its wording is the promise that a
+            // reset without a selector still erases everything.
+            return {
+              kind: 'success',
+              text: target.request.scope === 'all'
+                ? `This would erase counters covering ${calls} call(s). Re-run /guidance-stats --reset --yes to erase them.`
+                : resetPlanText(target, options, overview),
+            }
           }
-          await telemetry.reset()
-          return { kind: 'success', text: `Erased local usage counters (${calls} call(s) in the last ${options.days} day(s)). Tool behaviour is unchanged.` }
+          const tally = await telemetry.reset(target.request)
+          return {
+            kind: 'success',
+            text: target.request.scope === 'all'
+              ? `Erased local usage counters (${calls} call(s) in the last ${options.days} day(s)). Tool behaviour is unchanged.`
+              : resetDoneText(tally, target, options),
+          }
         }
 
         // One aggregate snapshot answers both questions: it lists the workspaces a selector can be
@@ -1395,6 +1795,10 @@ export function apply(ctx, config = {}) {
     // plan and one apply, so a single click can never write.
     const suppressCommand = buildSuppressCommand()
     ctx.effect(() => commands.register(suppressCommand), `modern-web-guidance /${suppressCommand.name}`)
+    // The second and last write: one `.scanignore` line, under the same plan-then-apply protocol, so
+    // an exclusion cannot be added by a single click either.
+    const scanIgnoreCommand = buildScanIgnoreCommand()
+    ctx.effect(() => commands.register(scanIgnoreCommand), `modern-web-guidance /${scanIgnoreCommand.name}`)
   }
 
   for (const definition of SKILL_DEFINITIONS) {

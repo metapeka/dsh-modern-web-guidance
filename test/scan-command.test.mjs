@@ -10,7 +10,7 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
@@ -98,6 +98,13 @@ function invocation(rawInput, cwd = PACKAGE_DIR) {
 function scanCommand(registered) {
   const command = registered.commands.find((entry) => entry.name === 'guidance-scan')
   assert.ok(command !== undefined, 'apply() must register /guidance-scan')
+  return command
+}
+
+/** The `.scanignore` writer, selected by name: the second and last write the product has. */
+function scanIgnoreCommand(registered) {
+  const command = registered.commands.find((entry) => entry.name === 'guidance-scanignore')
+  assert.ok(command !== undefined, 'apply() must register /guidance-scanignore')
   return command
 }
 
@@ -203,7 +210,7 @@ test('registers /guidance-scan beside the tools, with the syntax in its hint', (
 
   assert.deepEqual(
     registered.commands.map((entry) => entry.name),
-    ['guidance-scan', 'guidance-suppress'],
+    ['guidance-scan', 'guidance-suppress', 'guidance-scanignore'],
   )
   assert.equal(command.input.hint, '<paths> [--rules ls-01,ls-13] [--format summary|json]')
   assert.equal(command.recordInput, false)
@@ -336,7 +343,7 @@ test('enabled: false keeps /guidance-scan and drops the counting command', async
 
   assert.deepEqual(
     registered.commands.map((entry) => entry.name),
-    ['guidance-scan', 'guidance-suppress'],
+    ['guidance-scan', 'guidance-suppress', 'guidance-scanignore'],
   )
   assert.deepEqual(registered.listeners, [])
   assert.equal(registered.tools.length, 4)
@@ -490,4 +497,191 @@ test('a collapsed run prints its range through both surfaces', async (t) => {
   assert.deepEqual(value.findings[0].lines, [306, 307, 308, 309, 310, 311, 312, 313])
   assert.equal(value.findings[0].occurrences, 8)
   assert.equal(result.text, tool.output.render({ paths: ['.'] }, value)[0].text)
+})
+
+// --- The second write: one `.scanignore` line ------------------------------------------------
+
+test('a scanignore plan writes nothing, and the apply appends the one line it showed', async (t) => {
+  const workspace = await tempWorkspace(t)
+  await writeFile(join(workspace, 'app.js'), 'document.write("kept")\n', 'utf8')
+  const command = scanIgnoreCommand(setup())
+  const file = join(workspace, '.scanignore')
+
+  const planned = await command.handler(invocation('app.js --dry-run', workspace))
+  assert.equal(planned.kind, 'success')
+  // One paragraph, because the panel renders the host's text verbatim in a single node: the absolute
+  // file, the exact line, whether it exists and what the pattern covers, then the promise.
+  assert.equal(planned.text.includes('\n'), false)
+  assert.ok(planned.text.startsWith('Ignore plan for app.js: append app.js to '), planned.text)
+  assert.ok(
+    planned.text.includes(` to ${file}, which does not exist yet, so it would be created with that one pattern.`),
+    planned.text,
+  )
+  // A one-segment pattern is not anchored, and the plan says so rather than promising less than the
+  // reader does.
+  assert.match(planned.text, /A one-segment pattern matches that name at any depth/)
+  assert.match(planned.text, /Nothing has been written; run the same line without --dry-run to write it\.$/)
+  assert.deepEqual(await readdir(workspace), ['app.js'], 'a dry run created the file')
+
+  const applied = await command.handler(invocation('app.js', workspace))
+  assert.equal(applied.kind, 'success')
+  assert.ok(applied.text.startsWith(`Appended to ${file}: app.js. The file now holds 1 pattern.`), applied.text)
+  // The outcome is about the walk reading less — never the suppression's "muted, not fixed".
+  assert.match(applied.text, /The next scan reads less because of it/)
+  assert.equal(applied.text.includes('muted'), false, 'an exclusion is described as a mute')
+  assert.equal(await readFile(file, 'utf8'), 'app.js\n')
+})
+
+test('the pattern the command writes is the pattern the next scan honours', async (t) => {
+  const workspace = await tempWorkspace(t)
+  await writeFile(join(workspace, 'app.js'), 'document.write("kept")\n', 'utf8')
+  await writeFile(join(workspace, 'other.js'), 'document.write("kept")\n', 'utf8')
+  const registered = setup()
+
+  const applied = await scanIgnoreCommand(registered).handler(invocation('app.js', workspace))
+  assert.equal(applied.kind, 'success')
+  assert.equal(await readFile(join(workspace, '.scanignore'), 'utf8'), 'app.js\n')
+
+  // The exclusion takes effect on the next scan and only there: the write itself scanned nothing.
+  const after = await scanCommand(registered).handler(invocation('.', workspace))
+  assert.match(after.text, /^Skipped \d+ path\(s\): .*1 scanignore/m)
+  assert.match(after.text, /other\.js/, 'the neighbour was not read')
+  assert.equal(after.text.includes('- app.js'), false, 'the excluded file was still reported')
+})
+
+test('a pattern with a slash skips exactly one path, which the plan says out loud', async (t) => {
+  const workspace = await tempWorkspace(t)
+  await mkdir(join(workspace, 'src'), { recursive: true })
+  await writeFile(join(workspace, 'src/app.js'), 'document.write("kept")\n', 'utf8')
+  await writeFile(join(workspace, 'src/parked.js'), 'document.write("parked")\n', 'utf8')
+  const registered = setup()
+
+  const planned = await scanIgnoreCommand(registered).handler(invocation('src/parked.js --dry-run', workspace))
+  assert.match(
+    planned.text,
+    /The pattern has a slash, so it is anchored at the workspace root and the next scan skips exactly that path\./,
+  )
+  await scanIgnoreCommand(registered).handler(invocation('src/parked.js', workspace))
+
+  const after = await scanCommand(registered).handler(invocation('src', workspace))
+  assert.match(after.text, /src\/app\.js/)
+  assert.equal(after.text.includes('src/parked.js'), false, 'the parked file was still read')
+})
+
+test('a directory pattern says it skips the subtree, and an existing file reports its count', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const file = join(workspace, '.scanignore')
+  await writeFile(file, '# keep build output out\ntmp-deploy/\n', 'utf8')
+  const command = scanIgnoreCommand(setup())
+
+  const planned = await command.handler(invocation('report/ --dry-run', workspace))
+  assert.ok(planned.text.includes(` to ${file}, which would go from 1 pattern to 2 patterns.`), planned.text)
+  assert.match(
+    planned.text,
+    /A trailing slash makes it a directory pattern, so the next scan skips that whole subtree\./,
+  )
+
+  await command.handler(invocation('report/', workspace))
+  // Appended after the user's own comment, byte for byte: nothing is reformatted or reordered.
+  assert.equal(await readFile(file, 'utf8'), '# keep build output out\ntmp-deploy/\nreport/\n')
+})
+
+test('an appended line matches the file it lands in: its ending, its comment, its last newline', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const file = join(workspace, '.scanignore')
+  const command = scanIgnoreCommand(setup())
+
+  // No trailing newline: the separator is added, so two patterns never silently become one.
+  await writeFile(file, 'tmp-deploy/', 'utf8')
+  await command.handler(invocation('report/', workspace))
+  assert.equal(await readFile(file, 'utf8'), 'tmp-deploy/\nreport/\n')
+
+  // A CRLF file stays uniformly CRLF: the append does not introduce a second line ending.
+  await writeFile(file, 'legacy/\r\nnotes/\r\n', 'utf8')
+  await command.handler(invocation('src/app.css', workspace))
+  assert.equal(await readFile(file, 'utf8'), 'legacy/\r\nnotes/\r\nsrc/app.css\r\n')
+})
+
+test('a pattern already in the file is a named no-op, whatever its spelling', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const file = join(workspace, '.scanignore')
+  await writeFile(file, 'report/\n', 'utf8')
+  const command = scanIgnoreCommand(setup())
+
+  for (const line of ['report/', '/report/', 'report/ --dry-run']) {
+    const answer = await command.handler(invocation(line, workspace))
+    assert.equal(answer.kind, 'success', line)
+    assert.match(answer.text, /^Already present: report\/ /, line)
+    assert.match(answer.text, /nothing was written|write nothing/, line)
+  }
+  // The identity is the effect, not the text: nothing was appended for the alternate spelling.
+  assert.equal(await readFile(file, 'utf8'), 'report/\n')
+})
+
+test('a path with a space is quoted, and the file keeps the space', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const command = scanIgnoreCommand(setup())
+  const planned = await command.handler(invocation('"src/my page.astro" --dry-run', workspace))
+  assert.equal(planned.kind, 'success')
+  assert.ok(planned.text.startsWith('Ignore plan for src/my page.astro: append src/my page.astro to '), planned.text)
+  await command.handler(invocation('"src/my page.astro"', workspace))
+  assert.equal(await readFile(join(workspace, '.scanignore'), 'utf8'), 'src/my page.astro\n')
+})
+
+test('the command refuses what it cannot write, and a refusal leaves the file alone', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const command = scanIgnoreCommand(setup())
+  const file = join(workspace, '.scanignore')
+
+  const refused = [
+    ['', /^No pattern:/],
+    ['--all', /^Unknown option: --all/],
+    ['# a note', /^Not a \.scanignore pattern: a line that starts with "#" is a comment/],
+    ['src/a.css src/b.css', /^One pattern at a time:/],
+    ['**/*.js', /^Not a \.scanignore pattern:/],
+    ['src//app.css', /^Not a \.scanignore pattern:/],
+    ['src/a?.css', /^Not a \.scanignore pattern:/],
+    ['src/app.css --force', /^Unknown option: --force/],
+  ]
+  for (const [line, pattern] of refused) {
+    const answer = await command.handler(invocation(line, workspace))
+    assert.equal(answer.kind, 'error', line)
+    assert.match(answer.text, pattern, line)
+  }
+  assert.deepEqual(await readdir(workspace), [], 'a refusal created the file')
+
+  // A file this command did not write, and must not extend: one bad line is reported by the scan, and
+  // the writer refuses rather than hiding it beside a new one.
+  await writeFile(file, 'src/legacy.css\nbad?line\n', 'utf8')
+  const broken = await command.handler(invocation('src/app.css', workspace))
+  assert.equal(broken.kind, 'error')
+  assert.match(broken.text, /^Refused \(malformed\): .* has 1 line outside the \.scanignore grammar \(line 2\)/)
+  assert.equal(await readFile(file, 'utf8'), 'src/legacy.css\nbad?line\n', 'a refusal wrote to the file')
+})
+
+test('a target that is not a regular file is refused, and a symlink is never followed', async (t) => {
+  const workspace = await tempWorkspace(t)
+  const command = scanIgnoreCommand(setup())
+  await mkdir(join(workspace, '.scanignore'))
+  const directory = await command.handler(invocation('src/app.css', workspace))
+  assert.equal(directory.kind, 'error')
+  assert.match(directory.text, /^Refused: .*\.scanignore is not a regular file\./)
+  await rm(join(workspace, '.scanignore'), { recursive: true, force: true })
+
+  const outside = await tempWorkspace(t)
+  const target = join(outside, 'real.scanignore')
+  await writeFile(target, 'kept/\n', 'utf8')
+  try {
+    await symlink(target, join(workspace, '.scanignore'), 'file')
+  } catch (error) {
+    if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+      t.skip('this account cannot create a symlink')
+      return
+    }
+    throw error
+  }
+  const refused = await command.handler(invocation('src/app.css', workspace))
+  assert.equal(refused.kind, 'error')
+  assert.match(refused.text, /^Refused: .*is not a regular file\./)
+  assert.equal(await readFile(target, 'utf8'), 'kept/\n', 'a symlinked target was written through')
 })

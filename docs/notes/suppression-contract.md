@@ -470,9 +470,13 @@ lastScan: { at, files, findings, rules, skipped, truncated, branch?, suppressed:
 
 ## 15. Reset, retention, and what a scan never does
 
-- **`telemetry.reset()`** (`lib/telemetry.js:1628-1632`) writes the profile document only. The
-  workspace file is untouched, exactly as ADR-0003 requires (ADR-0003:220-221, test 12).
-- **Retention never touches the project file.** `prune()` (`lib/telemetry.js:1216-1245`) expires
+- **`telemetry.reset()`** (`reset({ scope })`, `lib/telemetry.js`) writes the profile document only. The
+  workspace file is untouched, exactly as ADR-0003 requires (ADR-0003:220-221, test 12). C-3 made that
+  function targetable — `all`, `scans`, `workspace`, `window` — and **none of the four scopes opens
+  `.suppress`**: the narrowest reset and the widest one both leave the mute list standing, because muting
+  is not a counter. Each scoped outcome says so in its own sentence, and four end-to-end tests pin it with
+  real bytes on disk (see `test/stats.test.mjs`).
+- **Retention never touches the project file.** `prune()` (`lib/telemetry.js`) expires
   counters; the entries are lifetime. Losing `lastScan.suppressed` to the window is not losing the mute:
   the next scan restores the count.
 - **Unmatched entries are inert and never auto-deleted.** A scan cannot prove a site is gone — it saw

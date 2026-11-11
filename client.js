@@ -66,10 +66,12 @@ window.__ModuleLoader__.load({
      */
     const SCAN_LINE = '/guidance-scan . --format json'
     /**
-     * The one write the panel may ask for: one site, one file, and — ADR-0003 §4 — a plan first.
-     * `--dry-run` answers the plan and writes nothing; the same line without it applies that plan.
+     * The two writes the panel may ask for, and ADR-0003 allows exactly these two: one suppression
+     * entry, one `.scanignore` line. Each takes a plan first — `--dry-run` answers the plan and writes
+     * nothing, and the same line without the flag applies that plan.
      */
     const SUPPRESS_LINE = '/guidance-suppress'
+    const SCANIGNORE_LINE = '/guidance-scanignore'
     /** The wire name of the scan tool: the key ui-tool dispatches a row by, and the name in the log. */
     const SCAN_TOOL_NAME = 'web_guidance_legacy_scan'
     /** Three skip reasons fit the rail width; the rest are counted on the same line. */
@@ -86,6 +88,9 @@ window.__ModuleLoader__.load({
       'subtitle': 'Local counters recorded by this plugin. Read-only.',
       'refresh': 'Refresh',
       'loading': 'Reading the counters...',
+      'copy.json': 'Copy as JSON',
+      'copy.done': 'JSON copied',
+      'copy.failed': 'The clipboard refused',
       'updated': 'Updated {time}',
       'period.short': '{days} d',
       'workspace.label': 'Workspace: {name}',
@@ -139,6 +144,10 @@ window.__ModuleLoader__.load({
       'scan.mute': 'Mute',
       'scan.muteConfirm': 'Append to .suppress',
       'scan.muteFailed': 'The entry was not written: {message}',
+      'scan.ignore': 'Ignore this path',
+      'scan.ignoreConfirm': 'Append to .scanignore',
+      'scan.ignoreFailed': 'The pattern was not written: {message}',
+      'scan.ignoreNote': 'An ignore makes the next scan read less: that path is skipped, and the finding is not fixed.',
       'row.title': 'Legacy scan',
       'row.preparing': 'Preparing the scan...',
       'row.running': 'Scanning...',
@@ -190,6 +199,9 @@ window.__ModuleLoader__.load({
       'subtitle': 'Локальные счётчики плагина. Только чтение.',
       'refresh': 'Обновить',
       'loading': 'Чтение счётчиков...',
+      'copy.json': 'Копировать JSON',
+      'copy.done': 'JSON скопирован',
+      'copy.failed': 'Буфер обмена отказал',
       'updated': 'Обновлено {time}',
       'period.short': '{days} дн.',
       'workspace.label': 'Рабочая папка: {name}',
@@ -243,6 +255,10 @@ window.__ModuleLoader__.load({
       'scan.mute': 'Заглушить',
       'scan.muteConfirm': 'Дописать в .suppress',
       'scan.muteFailed': 'Запись не выполнена: {message}',
+      'scan.ignore': 'Игнорировать этот путь',
+      'scan.ignoreConfirm': 'Дописать в .scanignore',
+      'scan.ignoreFailed': 'Шаблон не записан: {message}',
+      'scan.ignoreNote': 'Игнорирование уменьшает объём следующего сканирования: этот путь пропускается, а находка не исправляется.',
       'row.title': 'Сканер устаревшего кода',
       'row.preparing': 'Готовлю сканирование...',
       'row.running': 'Сканирую...',
@@ -298,6 +314,9 @@ window.__ModuleLoader__.load({
       'subtitle': '本插件在本机记录的计数器，只读。',
       'refresh': '刷新',
       'loading': '正在读取计数器...',
+      'copy.json': '复制为 JSON',
+      'copy.done': 'JSON 已复制',
+      'copy.failed': '剪贴板拒绝了写入',
       'updated': '更新于 {time}',
       'period.short': '{days} 天',
       'workspace.label': '工作区：{name}',
@@ -351,6 +370,10 @@ window.__ModuleLoader__.load({
       'scan.mute': '屏蔽',
       'scan.muteConfirm': '追加到 .suppress',
       'scan.muteFailed': '未写入条目：{message}',
+      'scan.ignore': '忽略此路径',
+      'scan.ignoreConfirm': '追加到 .scanignore',
+      'scan.ignoreFailed': '未写入模式：{message}',
+      'scan.ignoreNote': '忽略只让下次扫描读得更少：该路径被跳过，问题并未修复。',
       'row.title': '遗留代码扫描',
       'row.preparing': '正在准备扫描...',
       'row.running': '正在扫描...',
@@ -1014,12 +1037,14 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Turn one Remote result envelope into a report.
+     * Turn one Remote result envelope into a report, plus the JSON it came from.
      *
-     * The report itself is the command's text.
+     * The report itself is the command's text. `json` is the text's own object, pretty-printed back —
+     * the copy action hands a person exactly what the host sent, so it needs the payload rather than a
+     * second request or a re-encoding of the normalized report (which is a subset of it by design).
      *
      * @param {unknown} envelope
-     * @returns {object} the validated report.
+     * @returns {{ report: object, json: string }} the validated report and its source text.
      */
     function readEnvelope(envelope) {
       const outcome = commandOutcome(envelope, REPORT_LINE)
@@ -1034,7 +1059,13 @@ window.__ModuleLoader__.load({
       } catch {
         throw panelError('call', 'the report is not valid JSON')
       }
-      return readReport(payload)
+      let json
+      try {
+        json = JSON.stringify(payload, null, 2)
+      } catch {
+        throw panelError('call', 'the report cannot be copied as JSON')
+      }
+      return { report: readReport(payload), json }
     }
 
     //#endregion
@@ -1349,7 +1380,7 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The one write this panel may ask for, as the command line a person would type.
+     * The suppression write, as the command line a person would type.
      *
      * `--dry-run` answers the plan and writes nothing; the same line without it applies that plan
      * (`docs/adr/0003-write-surface.md` §4). The site id is data, never a path: the
@@ -1362,6 +1393,24 @@ window.__ModuleLoader__.load({
      */
     function suppressLine(siteId, dryRun) {
       return `${SUPPRESS_LINE} ${siteId}${dryRun === true ? ' --dry-run' : ''}`
+    }
+
+    /**
+     * The `.scanignore` write, as the command line a person would type.
+     *
+     * A pattern is one line of the file and one token of the command line, so a path containing a
+     * space or a quote travels quoted: the command's own tokenizer gives it back unchanged, and the
+     * line the file gains is the path the row named. `--dry-run` is the plan; the same line without
+     * it appends it.
+     *
+     * @param {string} pattern the workspace-relative path the row is showing.
+     * @param {boolean} dryRun whether this line only asks for the plan.
+     * @returns {string}
+     */
+    function scanIgnoreLine(pattern, dryRun) {
+      const text = asText(pattern)
+      const token = /[\s"']/.test(text) ? `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : text
+      return `${SCANIGNORE_LINE} ${token}${dryRun === true ? ' --dry-run' : ''}`
     }
 
     /**
@@ -1384,6 +1433,22 @@ window.__ModuleLoader__.load({
       if (outcome.kind !== 'success') throw panelError('write', 'the write command returned no result')
       if (text === '') throw panelError('write', 'the write command returned no text')
       return text
+    }
+
+    /**
+     * The page's clipboard writer, when this page has one.
+     *
+     * The copy action needs no host call and no new data path: the panel already holds the report's own
+     * JSON. A page without the API — an insecure origin, a shell that does not mount it — simply gets
+     * no button: absent, never broken. A writer that exists and then refuses is reported as a refusal.
+     *
+     * @returns {Function|undefined} `(text) => Promise<void>`, or undefined when there is none.
+     */
+    function clipboardOf() {
+      if (typeof window !== 'object' || window === null) return undefined
+      const clipboard = window.navigator === null || window.navigator === undefined ? undefined : window.navigator.clipboard
+      if (clipboard === null || clipboard === undefined || typeof clipboard.writeText !== 'function') return undefined
+      return (text) => clipboard.writeText(text)
     }
 
     //#endregion
@@ -1653,11 +1718,11 @@ window.__ModuleLoader__.load({
         color: 'var(--dsw-alias-label-secondary)',
         fontSize: '10px',
       },
-      // The mute action is a quiet text button: it is the panel's only write, so it must not look
+      // The two row actions are quiet text buttons: they are the panel's writes, so they must not look
       // like the scan button that produces numbers.
-      muteAction: {
+      rowActions: { flex: '0 0 auto', display: 'flex', alignItems: 'baseline', gap: '10px', marginLeft: 'auto' },
+      rowAction: {
         flex: '0 0 auto',
-        marginLeft: 'auto',
         padding: 0,
         border: 'none',
         background: 'transparent',
@@ -1667,12 +1732,12 @@ window.__ModuleLoader__.load({
         textDecoration: 'underline',
         cursor: 'pointer',
       },
-      muteActionBusy: { color: 'var(--dsw-alias-label-tertiary)', cursor: 'default' },
+      rowActionBusy: { color: 'var(--dsw-alias-label-tertiary)', cursor: 'default' },
       // A refused write is an error on screen, never a quieter success: its own sentence and the
       // error colour, and the outcome branch below is not where it lands.
       muteError: { fontSize: '12px', color: 'var(--dsw-alias-state-error-primary)', lineHeight: 1.5 },
-      // The plan before the second click: the site, the rule, the file and the entry the host would
-      // add, boxed so it cannot be mistaken for a result.
+      // The plan before the second click: the site or the pattern, the file and the entry the host
+      // would add, boxed so it cannot be mistaken for a result.
       mutePlan: {
         display: 'flex',
         flexDirection: 'column',
@@ -2117,43 +2182,68 @@ window.__ModuleLoader__.load({
      *
      * `ls-13 · src/app.css:12` plus the `muted` tag when the host says the site is suppressed, with the
      * finding's message as the row's tooltip. This is the one place in the panel that shows a path: the
-     * user scanned their own workspace, and a mute is a decision about one site of it (the counters
-     * above keep their "ids and numbers, never a path" rule).
+     * user scanned their own workspace, and both writes are decisions about one site or one file of it
+     * (the counters above keep their "ids and numbers, never a path" rule).
      *
-     * A muted row offers no button — the decision is already made — and neither does a row without a
-     * `siteId`, which is every row of a host that predates suppression: the action names its target, so
-     * a row that cannot name one must not offer it rather than fail when clicked.
+     * Each write is offered only where it can name its target, and never as a button that fails when
+     * clicked: a muted row offers no mute (the decision is already made), a row without a `siteId`
+     * offers none either (every row of a host that predates suppression has none), and a row without a
+     * place offers no ignore — a path is what an ignore names, and a finding without one has no target
+     * to exclude.
      *
      * @param {Function} t bound translator.
      * @param {object} finding one normalized finding.
      * @param {number} index its position: zero draws no separator above it.
      * @param {boolean} blocked whether a scan or a write is in flight.
-     * @param {Function} onMute asks the host for the plan that would mute this finding.
+     * @param {{ onMute: Function, onIgnore: Function }} actions ask the host for the plan that would
+     *   mute this site, or exclude this path.
      * @returns {object} the row.
      */
-    function findingLine(t, finding, index, blocked, onMute) {
+    function findingLine(t, finding, index, blocked, actions) {
       const place = findingPlace(finding)
       const message = asText(finding.message)
+      const muted = finding.suppressed === true
+      const path = asText(finding.path)
       const head = [
         h('span', { style: S.scanName, key: 'rule', title: message === '' ? finding.ruleId : message }, finding.ruleId),
       ]
       if (place !== '') head.push(h('span', { style: S.scanPlace, key: 'place' }, place))
-      if (finding.suppressed === true) head.push(h('span', { style: S.mutedTag, key: 'tag' }, t('scan.suppressedTag')))
-      if (finding.suppressed !== true && finding.siteId !== '') {
-        head.push(
+      if (muted) head.push(h('span', { style: S.mutedTag, key: 'tag' }, t('scan.suppressedTag')))
+      // Nothing is offered for what is already decided: a muted finding has nothing left to mute, and
+      // a row whose value named no site or no path cannot name the target a write needs. Both are
+      // absences, not buttons that fail when pressed.
+      const offered = []
+      if (!muted && asText(finding.siteId) !== '') {
+        offered.push(
           h(
             'button',
             {
               type: 'button',
               key: 'mute',
-              style: blocked ? { ...S.muteAction, ...S.muteActionBusy } : S.muteAction,
+              style: blocked ? { ...S.rowAction, ...S.rowActionBusy } : S.rowAction,
               disabled: blocked,
-              onClick: () => onMute(finding),
+              onClick: () => actions.onMute(finding),
             },
             t('scan.mute'),
           ),
         )
       }
+      if (path !== '') {
+        offered.push(
+          h(
+            'button',
+            {
+              type: 'button',
+              key: 'ignore',
+              style: blocked ? { ...S.rowAction, ...S.rowActionBusy } : S.rowAction,
+              disabled: blocked,
+              onClick: () => actions.onIgnore(finding),
+            },
+            t('scan.ignore'),
+          ),
+        )
+      }
+      if (offered.length > 0) head.push(h('div', { style: S.rowActions, key: 'actions' }, offered))
       return h(
         'div',
         { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `finding-${index}` },
@@ -2162,41 +2252,49 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The write, in the states it may be in: the plan with its second button, the outcome the host
+     * A write, in the states it may be in: the plan with its second button, the outcome the host
      * reported, and the refusal.
      *
-     * One click never writes ([ADR-0003](docs/adr/0003-write-surface.md) §4). The first click asks only
-     * for the plan, and this draws it: the site, the rule and the place the row came from, then the
-     * host's own plan text, which names the absolute target and the exact entry — the panel does not
-     * restate a path it was not given. The entry is appended by the distinct button underneath.
+     * Both writes ADR-0003 allows share this one surface, because they share one protocol: one click
+     * never writes, the first click asks only for the plan, and this draws it — the target, the rule
+     * or the place it came from, then the host's own plan text, which names the absolute file and the
+     * exact line — the panel does not restate a path it was not given. The second, distinct button
+     * underneath is the write.
      *
      * The outcome is the host's text verbatim, so a write reports what it changed and where, and
      * "already suppressed, nothing written" reads as the no-op it is. A refusal takes its own sentence
-     * and its own colour: it can never be mistaken for the outcome.
+     * and its own colour: it can never be mistaken for the outcome. What differs between the two is
+     * only what they write, so only three strings and the caption differ.
      *
      * @param {Function} t bound translator.
-     * @param {{ status: string, siteId: string, rule: string, place: string, text: string, message: string }} mute
+     * @param {{ status: string, kind: string, target: string, rule: string, place: string, text: string, message: string }} write
      * @param {Function} onConfirm applies the plan that is on screen.
      * @returns {object|null}
      */
-    function renderMute(t, mute, onConfirm) {
-      if (mute.status === 'done') return h('div', { style: S.stateBody, key: 'scan-mute-done' }, asText(mute.text))
-      if (mute.status === 'error') {
+    function renderWrite(t, write, onConfirm) {
+      const ignore = write.kind === 'ignore'
+      if (write.status === 'done') return h('div', { style: S.stateBody, key: 'write-done' }, asText(write.text))
+      if (write.status === 'error') {
         return h(
           'div',
-          { style: S.muteError, key: 'scan-mute-error' },
-          t('scan.muteFailed', { message: asText(mute.message) }),
+          { style: S.muteError, key: 'write-error' },
+          ignore
+            ? t('scan.ignoreFailed', { message: asText(write.message) })
+            : t('scan.muteFailed', { message: asText(write.message) }),
         )
       }
-      if (mute.status !== 'planning' && mute.status !== 'plan' && mute.status !== 'writing') return null
-      const facts = [asText(mute.siteId), asText(mute.rule), asText(mute.place)].filter((fact) => fact !== '')
-      const plan = asText(mute.text)
+      if (write.status !== 'planning' && write.status !== 'plan' && write.status !== 'writing') return null
+      const facts = [asText(write.target), asText(write.rule), asText(write.place)].filter((fact) => fact !== '')
+      const plan = asText(write.text)
       // Disabled until the plan is on screen, and again while it is being applied: the second click is
       // only a click when there is a plan it can mean.
-      const pending = mute.status !== 'plan'
+      const pending = write.status !== 'plan'
       return h(
         'div',
-        { style: S.mutePlan, key: 'scan-mute-plan' },
+        { style: S.mutePlan, key: 'write-plan' },
+        // The ignore's own caption, in the panel's words: an ignore makes the next scan read less. It
+        // is never the suppression's "muted, not fixed", because it does not mute anything.
+        ignore ? h('div', { style: S.note, key: 'note' }, t('scan.ignoreNote')) : null,
         facts.length === 0 ? null : h('div', { style: S.note, key: 'facts' }, facts.join(' · ')),
         plan === '' ? null : h('div', { style: S.note, key: 'plan' }, plan),
         h(
@@ -2210,7 +2308,7 @@ window.__ModuleLoader__.load({
               disabled: pending,
               onClick: onConfirm,
             },
-            t('scan.muteConfirm'),
+            ignore ? t('scan.ignoreConfirm') : t('scan.muteConfirm'),
           ),
         ),
       )
@@ -2229,17 +2327,25 @@ window.__ModuleLoader__.load({
      * @param {object} report the normalized report.
      * @param {{ status: string, value?: object, message?: string }} scan the panel's own scan state.
      * @param {boolean} busy whether the report is still loading.
-     * @param {{ onScan: Function, onMute: Function, onConfirm: Function, mute: object }} actions the
-     *   scan's button and the one write ADR-0003 allows.
+     * @param {{ onScan: Function, onMute: Function, onIgnore: Function, onConfirm: Function, write: object }} actions
+     *   the scan's button and the two writes ADR-0003 allows.
      */
     function renderScanner(t, report, scan, busy, actions) {
       // The panel always passes the write state; the default is for a caller that renders the section
       // without one, which then draws no action at all.
-      const mute = actions.mute ?? { status: 'idle', siteId: '', rule: '', place: '', text: '', message: '' }
+      const write = actions.write ?? {
+        status: 'idle',
+        kind: 'suppress',
+        target: '',
+        rule: '',
+        place: '',
+        text: '',
+        message: '',
+      }
       // No second write while one is in flight, and none while a scan is starting: the answer to that
-      // scan is about to replace the rows a mute would have named.
+      // scan is about to replace the rows a write would have named.
       const running = scan.status === 'running'
-      const writing = mute.status === 'planning' || mute.status === 'writing'
+      const writing = write.status === 'planning' || write.status === 'writing'
       const blocked = running || busy
       const last = report.lastScan
       // The last scan is one line: date, two counts, and — when the stored scan has them — how many
@@ -2383,29 +2489,33 @@ window.__ModuleLoader__.load({
           children.push(h('div', { style: S.note, key: 'scan-clean' }, t('scan.clean')))
         }
         // The findings themselves, one row per site, capped like the chat row. This is the only place
-        // the panel lists a place, and it is the only place a mute is offered: the action has to name
-        // a site, so no scan value — or a host that predates suppression and sends no `siteId` — means
-        // no action at all, never a button that fails when pressed.
-        let mutePlaced = false
+        // the panel lists a place, and it is the only place a write is offered: the suppression needs a
+        // site and the ignore needs a path, so a value that carries neither — or a host that predates
+        // phase C and sends no `siteId` — means no action at all, never a button that fails when pressed.
+        const anchored = (finding) =>
+          write.target !== '' &&
+          (write.kind === 'ignore' ? asText(finding.path) === write.target : asText(finding.siteId) === write.target)
+        let placed = false
         if (value.findings.length > 0) {
           const shownFindings = value.findings.slice(0, MAX_TOOL_ROWS)
           for (const [index, finding] of shownFindings.entries()) {
-            children.push(findingLine(t, finding, index, blocked || writing, actions.onMute))
+            children.push(findingLine(t, finding, index, blocked || writing, actions))
             // The plan, its confirmation and its outcome sit under the row they belong to, so a long
-            // list cannot separate a confirmation from the finding it would write.
-            const muteBlock = mute.siteId !== '' && finding.siteId === mute.siteId ? renderMute(t, mute, actions.onConfirm) : null
-            if (muteBlock !== null) {
-              children.push(muteBlock)
-              mutePlaced = true
+            // list cannot separate a confirmation from the finding it would write. One block, at the
+            // first row that names the target: two rules can fire in one file, and the file is what an
+            // ignore names.
+            if (placed === false && anchored(finding)) {
+              children.push(renderWrite(t, write, actions.onConfirm))
+              placed = true
             }
           }
           const rest = value.findings.length - shownFindings.length
           if (rest > 0) children.push(h('div', { style: S.note, key: 'scan-more' }, t('row.more', { count: rest })))
         }
         // A plan whose row fell outside the cap is still shown, at the end rather than not at all.
-        if (mutePlaced === false) {
-          const muteBlock = renderMute(t, mute, actions.onConfirm)
-          if (muteBlock !== null) children.push(muteBlock)
+        if (placed === false) {
+          const block = renderWrite(t, write, actions.onConfirm)
+          if (block !== null) children.push(block)
         }
       } else if (scan.status === 'error') {
         children.push(
@@ -2697,22 +2807,33 @@ window.__ModuleLoader__.load({
       const t = props.t
       const bridge = props.bridge
       const sessionId = props.useSessions(selectSessionId)
-      const [state, setState] = useState({ status: 'loading', report: undefined, code: '', message: '', at: 0 })
+      const [state, setState] = useState({ status: 'loading', report: undefined, json: '', code: '', message: '', at: 0 })
       const [days, setDays] = useState(PERIODS[0])
       // '' is "no pick yet": the command answers for this session's workspace by itself, and the
       // report's own `workspace` then says which one that was.
       const [workspace, setWorkspace] = useState('')
       const [scan, setScan] = useState({ status: 'idle', value: undefined, message: '' })
-      // The one write, as a small state machine: `planning` asks for the plan, `plan` is on screen,
+      // The two writes, as one small state machine: `planning` asks for the plan, `plan` is on screen,
       // `writing` applies it, `done` carries the host's outcome, `error` its refusal. `idle` draws
-      // nothing at all, and no state of it is reachable without a plan having been asked for.
-      const [mute, setMute] = useState({ status: 'idle', siteId: '', rule: '', place: '', text: '', message: '' })
+      // nothing at all, and no state of it is reachable without a plan having been asked for. `kind`
+      // says which of the two it is: the suppression names a site, the ignore names a path.
+      const [write, setWrite] = useState({
+        status: 'idle',
+        kind: 'suppress',
+        target: '',
+        rule: '',
+        place: '',
+        text: '',
+        message: '',
+      })
+      // The copy action has three states and no other surface: the button's own label says which.
+      const [copied, setCopied] = useState('idle')
       const alive = useRef(true)
       // Every load takes a ticket; a response whose ticket is no longer current is dropped, so
       // switching the window mid-request shows the answer to the window the user ended up on.
       const ticket = useRef(0)
       const scanTicket = useRef(0)
-      const muteTicket = useRef(0)
+      const writeTicket = useRef(0)
 
       useEffect(() => {
         alive.current = true
@@ -2723,16 +2844,19 @@ window.__ModuleLoader__.load({
 
       const load = useCallback(() => {
         if (bridge === undefined || typeof bridge.call !== 'function') {
-          setState({ status: 'error', report: undefined, code: 'bridge', message: '', at: 0 })
+          setState({ status: 'error', report: undefined, json: '', code: 'bridge', message: '', at: 0 })
           return
         }
         if (typeof sessionId !== 'string' || sessionId === '') {
-          setState({ status: 'error', report: undefined, code: 'session', message: '', at: 0 })
+          setState({ status: 'error', report: undefined, json: '', code: 'session', message: '', at: 0 })
           return
         }
         const mine = ticket.current + 1
         ticket.current = mine
         setState((previous) => ({ ...previous, status: 'loading' }))
+        // A copy is about the report that was on screen, so a new load takes the answer back to idle
+        // while the previous JSON is still what the button would hand over.
+        setCopied('idle')
         let pending
         try {
           pending = Promise.resolve(bridge.call(sessionId, reportLine(days, workspace)))
@@ -2742,13 +2866,13 @@ window.__ModuleLoader__.load({
         pending
           .then((envelope) => {
             if (!alive.current || ticket.current !== mine) return
-            const report = readEnvelope(envelope)
-            setState({ status: 'ready', report, code: '', message: '', at: Date.now() })
+            const { report, json } = readEnvelope(envelope)
+            setState({ status: 'ready', report, json, code: '', message: '', at: Date.now() })
           })
           .catch((error) => {
             if (!alive.current || ticket.current !== mine) return
             const code = error !== null && typeof error === 'object' && typeof error.code === 'string' ? error.code : 'call'
-            setState({ status: 'error', report: undefined, code, message: messageOf(error), at: 0 })
+            setState({ status: 'error', report: undefined, json: '', code, message: messageOf(error), at: 0 })
           })
       }, [bridge, sessionId, days, workspace])
 
@@ -2795,35 +2919,46 @@ window.__ModuleLoader__.load({
       }, [bridge, sessionId, load, t])
 
       /**
-       * Ask the host what muting one finding would write. Nothing is written by this click.
+       * Ask the host what one write would do. Nothing is written by this click.
        *
        * The answer is the plan ([ADR-0003](docs/adr/0003-write-surface.md) §4): the absolute target
-       * file, the exact entry, whether the file exists and the cap's headroom. It is shown verbatim —
-       * the host is what will write it, so the panel does not restate a path it was not given — and
-       * the row the click came from is put beside it, so the plan is about a named site of a named
-       * rule in a named place rather than about an id.
+       * file, the exact entry, whether the file exists and what it would cover. It is shown verbatim —
+       * the host is what will write it, so the panel does not restate a path it was not given — and the
+       * target the click came from is put beside it, so the plan is about a named site or path rather
+       * than about an opaque id.
+       *
+       * Both writes go through this one function, because they are one protocol: the only thing the
+       * `kind` changes is which command line is asked and which facts the caption carries.
+       *
+       * @param {string} kind `suppress` or `ignore`.
+       * @param {object} finding the row the click came from.
+       * @returns {void}
        */
-      const requestMute = useCallback(
-        (finding) => {
-          // The row drew this action only for a finding carrying a site id, and reading it again here
-          // is what keeps the command line provably the row's own target.
-          const siteId = asText(finding.siteId)
-          const rule = asText(finding.ruleId)
-          const place = findingPlace(finding)
+      const requestWrite = useCallback(
+        (kind, finding) => {
+          // The row drew this action only for a finding carrying the target it needs, and reading it
+          // again here is what keeps the command line provably the row's own target.
+          const ignore = kind === 'ignore'
+          const target = ignore ? asText(finding.path) : asText(finding.siteId)
+          // For an ignore the place *is* the target, so the caption would repeat itself; the rule
+          // belongs to the suppressed site, not to the path.
+          const rule = ignore ? '' : asText(finding.ruleId)
+          const place = ignore ? '' : findingPlace(finding)
+          const blank = { kind: ignore ? 'ignore' : 'suppress', target, rule, place, text: '', message: '' }
           if (bridge === undefined || typeof bridge.call !== 'function') {
-            setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.bridge') })
+            setWrite({ ...blank, status: 'error', message: t('error.bridge') })
             return
           }
           if (typeof sessionId !== 'string' || sessionId === '') {
-            setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.session') })
+            setWrite({ ...blank, status: 'error', message: t('error.session') })
             return
           }
-          const mine = muteTicket.current + 1
-          muteTicket.current = mine
+          const mine = writeTicket.current + 1
+          writeTicket.current = mine
           // `--dry-run` answers the plan and writes nothing; the second, distinct button below is what
           // appends the entry.
-          const line = suppressLine(siteId, true)
-          setMute({ status: 'planning', siteId, rule, place, text: '', message: '' })
+          const line = ignore ? scanIgnoreLine(target, true) : suppressLine(target, true)
+          setWrite({ ...blank, status: 'planning' })
           let pending
           try {
             pending = Promise.resolve(bridge.call(sessionId, line))
@@ -2832,42 +2967,47 @@ window.__ModuleLoader__.load({
           }
           pending
             .then((envelope) => {
-              if (!alive.current || muteTicket.current !== mine) return
-              setMute({ status: 'plan', siteId, rule, place, text: readWriteEnvelope(envelope, line), message: '' })
+              if (!alive.current || writeTicket.current !== mine) return
+              setWrite({ ...blank, status: 'plan', text: readWriteEnvelope(envelope, line) })
             })
             .catch((error) => {
-              if (!alive.current || muteTicket.current !== mine) return
-              setMute({ status: 'error', siteId, rule, place, text: '', message: messageOf(error) })
+              if (!alive.current || writeTicket.current !== mine) return
+              setWrite({ ...blank, status: 'error', message: messageOf(error) })
             })
         },
         [bridge, sessionId, t],
       )
 
+      const requestMute = useCallback((finding) => requestWrite('suppress', finding), [requestWrite])
+      const requestIgnore = useCallback((finding) => requestWrite('ignore', finding), [requestWrite])
+
       /**
        * Apply the plan that is on screen: the same command without `--dry-run`.
        *
-       * The line is rebuilt from the plan's own site id, so the click can only ever confirm the plan
-       * the person read. Its answer is shown verbatim — a success reports the entry it appended, the
-       * "already suppressed, nothing written" no-op says exactly that — and a refusal is an error,
-       * never an outcome.
+       * The line is rebuilt from the plan's own target, so the click can only ever confirm the plan the
+       * person read. Its answer is shown verbatim — a success reports the entry it appended, the
+       * "already present, nothing written" no-op says exactly that — and a refusal is an error, never
+       * an outcome.
        */
-      const confirmMute = useCallback(() => {
-        if (mute.status !== 'plan') return
-        const siteId = asText(mute.siteId)
-        const rule = asText(mute.rule)
-        const place = asText(mute.place)
+      const confirmWrite = useCallback(() => {
+        if (write.status !== 'plan') return
+        const ignore = write.kind === 'ignore'
+        const target = asText(write.target)
+        const rule = asText(write.rule)
+        const place = asText(write.place)
+        const blank = { kind: ignore ? 'ignore' : 'suppress', target, rule, place, text: '', message: '' }
         if (bridge === undefined || typeof bridge.call !== 'function') {
-          setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.bridge') })
+          setWrite({ ...blank, status: 'error', message: t('error.bridge') })
           return
         }
         if (typeof sessionId !== 'string' || sessionId === '') {
-          setMute({ status: 'error', siteId, rule, place, text: '', message: t('error.session') })
+          setWrite({ ...blank, status: 'error', message: t('error.session') })
           return
         }
-        const mine = muteTicket.current + 1
-        muteTicket.current = mine
-        const line = suppressLine(siteId, false)
-        setMute({ status: 'writing', siteId, rule, place, text: mute.text, message: '' })
+        const mine = writeTicket.current + 1
+        writeTicket.current = mine
+        const line = ignore ? scanIgnoreLine(target, false) : suppressLine(target, false)
+        setWrite({ ...blank, status: 'writing', text: write.text })
         let pending
         try {
           pending = Promise.resolve(bridge.call(sessionId, line))
@@ -2876,22 +3016,54 @@ window.__ModuleLoader__.load({
         }
         pending
           .then((envelope) => {
-            if (!alive.current || muteTicket.current !== mine) return
-            setMute({ status: 'done', siteId, rule, place, text: readWriteEnvelope(envelope, line), message: '' })
-            // The report is refetched rather than adjusted: the suppressed count is the host's, and
-            // the scan's own value cannot be re-read — a write is not a scan and changes no counter.
+            if (!alive.current || writeTicket.current !== mine) return
+            setWrite({ ...blank, status: 'done', text: readWriteEnvelope(envelope, line) })
+            // The report is refetched rather than adjusted: the counts are the host's, and the scan's
+            // own value cannot be re-read — a write is not a scan and changes no counter.
             load()
           })
           .catch((error) => {
-            if (!alive.current || muteTicket.current !== mine) return
-            setMute({ status: 'error', siteId, rule, place, text: '', message: messageOf(error) })
+            if (!alive.current || writeTicket.current !== mine) return
+            setWrite({ ...blank, status: 'error', message: messageOf(error) })
           })
-      }, [bridge, sessionId, load, mute, t])
+      }, [bridge, sessionId, load, write, t])
+
+      /**
+       * Hand the report's own JSON to the clipboard.
+       *
+       * No host call, no file write, no second data path: what is copied is the object the panel
+       * already received, pretty-printed. The button's label is the whole report — `JSON copied` or
+       * `The clipboard refused` — because the action is small enough that a sentence beside it would
+       * be the larger part of it.
+       *
+       * @returns {void}
+       */
+      const copyReport = useCallback(() => {
+        const clipboard = clipboardOf()
+        const json = typeof state.json === 'string' ? state.json : ''
+        if (clipboard === undefined || json === '') return
+        let pending
+        try {
+          pending = Promise.resolve(clipboard(json))
+        } catch (error) {
+          pending = Promise.reject(error)
+        }
+        pending
+          .then(() => {
+            if (alive.current) setCopied('done')
+          })
+          .catch(() => {
+            if (alive.current) setCopied('failed')
+          })
+      }, [state.json])
 
       const busy = state.status === 'loading'
-      // What the scanner section may ask for: its own scan, and the one write — the latter only ever
-      // through the plan-then-confirm pair above.
-      const scannerActions = { onScan: runScan, onMute: requestMute, onConfirm: confirmMute, mute }
+      // What the scanner section may ask for: its own scan, and the two writes ADR-0003 allows — the
+      // latter only ever through the plan-then-confirm pair above.
+      const scannerActions = { onScan: runScan, onMute: requestMute, onIgnore: requestIgnore, onConfirm: confirmWrite, write }
+      // The copy action exists only when there is something to copy and a clipboard to copy it to: a
+      // page without one renders exactly the header it always did, never a button that cannot work.
+      const canCopy = state.status === 'ready' && state.json !== '' && clipboardOf() !== undefined
       const header = h(
         'header',
         { style: S.header },
@@ -2921,6 +3093,13 @@ window.__ModuleLoader__.load({
             ),
           ),
         ),
+        canCopy
+          ? h(
+              'button',
+              { type: 'button', style: S.action, onClick: copyReport },
+              copied === 'done' ? t('copy.done') : copied === 'failed' ? t('copy.failed') : t('copy.json'),
+            )
+          : null,
         h(
           'button',
           {

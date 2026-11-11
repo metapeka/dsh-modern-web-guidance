@@ -92,12 +92,23 @@ Both commands obey one protocol. The suppression line is fixed, because the pane
 and a second name would be a second implementation:
 
 ```
-/guidance-suppress <siteId> --dry-run    the plan, writes nothing
-/guidance-suppress <siteId>              applies it, prints what changed
+/guidance-suppress <siteId> --dry-run      the plan, writes nothing
+/guidance-suppress <siteId>                applies it, prints what changed
+/guidance-scanignore <pattern> --dry-run   the plan, writes nothing
+/guidance-scanignore <pattern>             appends exactly one line
 ```
 
-A future third line (the C-2 `.scanignore` one) follows the same protocol under its own name, not as a
-flag on these.
+A future fourth line follows the same protocol under its own name, not as a flag on these. Three
+asymmetries are deliberate and both commands must keep them:
+
+- **`.suppress` is capped and `.scanignore` is not.** A suppression list of 200 entries is a report about a
+  codebase; an ignore file that long is a scan that reads nothing. So the suppression plan states the cap
+  and the headroom, and the ignore plan states the count it would reach and claims no headroom.
+- **Identity is the effect, not the text.** `report/`, `/report/` and `report` are one ignore pattern, and
+  the "already present" message names the file's own line rather than the one that was typed.
+- **The writer obeys its own reader.** The ignore append re-parses the whole resulting file through the
+  same `parseScanIgnore` the scanner uses *before* the rename, so a write can never produce a file the next
+  scan would reject.
 
 - **`--dry-run` answers the plan and writes nothing**: the absolute target path, the exact line or
   entry that would be added, whether the file exists, how many entries it holds now, and the remaining

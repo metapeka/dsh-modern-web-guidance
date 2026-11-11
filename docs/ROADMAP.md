@@ -12,10 +12,10 @@ moves to "Done".
 
 | Phase | State | Proposed release |
 | --- | --- | --- |
-| **A — Readable** | released locally as 0.9.0; not pushed, not dispatched | 0.9.0 |
-| **D — Attributable** | implemented and committed; ships in 0.10.0 | 0.10.0 |
-| **B — Over time** | implemented and committed; ships in 0.10.0 | 0.10.0 |
-| **C — Under control** | sketched, unblocked by B-3 — the next phase | — |
+| **A — Readable** | released — 0.9.0 published to npm and GitHub | 0.9.0 |
+| **D — Attributable** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
+| **B — Over time** | released — 0.10.0 published to npm and GitHub | 0.10.0 |
+| **C — Under control** | C-1 committed (`7606112`); C-2/C-3/C-4 in flight — the next release | 0.11.0 |
 
 Update this table in the same commit that changes a phase's state. A phase is "in progress" only when
 its contract below is fixed; it is "done" when its acceptance list passes and its release note exists.
@@ -391,6 +391,41 @@ Precondition: B-3 (a suppression without a site identity is a suppression you ca
 C is the only phase that touches the "panel is read-only" promise. It ships with an ADR that amends
 [AGENTS.md](../AGENTS.md) in the same change, and with the rule that **no write ever happens without
 an explicit user action and a visible confirmation**.
+
+### Delivered in 0.11.0
+
+All four items shipped. The suite went from 373 tests to 463 (459 pass, 4 skipped — every skip is this
+machine's inability to create a symlink, not a product behaviour).
+
+- **C-1 — mute one finding.** `lib/site.js` is the one FNV-1a site identity shared by the scanner, the
+  counters and the file, and `lib/suppress.js` owns the JSON shape, the caps (200 entries, 200-character
+  reason, 256 KiB) and the canonical serialiser. `/guidance-suppress <siteId> [--dry-run]` plans, then
+  applies, and the panel needs a second distinct click. The promise that carries the phase: a suppressed
+  finding is **muted, not fixed** — it keeps its place, its order and its count, gains `suppressed: true`,
+  and the phase B diff may never turn it into "resolved".
+- **C-2 — offer a `.scanignore` line.** `/guidance-scanignore <pattern> [--dry-run]`, identity by effect
+  (`report/` ≡ `/report/`), the file's own line ending preserved, temp-then-rename, and the *result* is
+  re-parsed through the scanner's own `parseScanIgnore` before the rename — the writer cannot produce a
+  file its reader would reject. The panel says "the next scan reads less", never "muted": the two writes
+  make different promises and the words stay apart.
+- **C-3 — reset precisely.** `reset({ scope })` with `all | scans | workspace | window`; a bare
+  `--reset --yes` still wipes exactly what it always wiped, and **no scope opens `.suppress`** — muting is
+  not a counter, so the mute list outlives any erasure, pinned by four end-to-end tests with real bytes.
+- **C-4 — copy as JSON.** It copies the envelope the panel already holds: no host call, no file, and it is
+  absent when there is no report or no clipboard.
+
+Honest deviations, in the phase B spirit:
+
+- The suppression list is **not** partitioned by workspace beyond living at the workspace root. A shared
+  profile with two checkouts of the same project keeps two independent files, which is the intended
+  reading, but nothing dedupes them.
+- `--reset --days N` clears a window and **says** that lifetime rule bounds survive it: a day cannot be
+  attributed to a rule's first sighting, so the counters that are lifetime by definition do not shrink.
+- The `.scanignore` write has **no cap**, unlike `.suppress` (200). The plan therefore states the count it
+  would reach and claims no headroom; the asymmetry is deliberate and recorded in ADR-0003.
+- One flake was observed once, mid-run, in `test/stats.test.mjs` while a peer was writing `index.js`; it
+  passed on every subsequent run, twice in a row on the final tree. Recorded here rather than buried,
+  because a test that fails only under concurrent edits is still a test worth watching.
 
 ---
 

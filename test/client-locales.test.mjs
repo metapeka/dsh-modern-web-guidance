@@ -511,11 +511,14 @@ function renderOnce(component, props) {
  * React is stubbed to what this file's components call: `createElement` and the four hooks the panel
  * uses. See `REACT` above for what those stubs promise.
  */
-function loadClient() {
+function loadClient(options = {}) {
   let spec
   resetHooks()
   // The browser global, named `window` because that is what client.js reads.
   const browserWindow = { __ModuleLoader__: { load(candidate) { spec = candidate } } }
+  // A page's clipboard is a browser global, so a test that needs one hands it in: the client reads
+  // `window.navigator.clipboard` exactly as the shell would expose it.
+  if (options.navigator !== undefined) browserWindow.navigator = options.navigator
   const requireReact = (name) => {
     assert.equal(name, 'react', `client.js required ${name} instead of react`)
     return REACT
@@ -704,8 +707,8 @@ function reportEnvelope(report) {
  * twice: once while the command runs, then again with the answer in state. The bridge records every
  * line it is asked to run, which is how a switcher click is observed.
  */
-async function mountPanel(report) {
-  const panel = loadClient().get('main:guidance')
+async function mountPanel(report, options = {}) {
+  const panel = loadClient(options).get('main:guidance')
   assert.equal(typeof panel, 'function', 'the panel is not registered under the main slot')
   const bridge = {
     lines: [],
@@ -748,8 +751,8 @@ function refusalEnvelope(text) {
  * the same fixture. `answers` is keyed by command line, `'*'` answers anything the test did not name,
  * and a line with no answer fails the test instead of resolving into a state no assertion can explain.
  */
-async function mountScriptedPanel(report, answers) {
-  const panel = loadClient().get('main:guidance')
+async function mountScriptedPanel(report, answers, options = {}) {
+  const panel = loadClient(options).get('main:guidance')
   assert.equal(typeof panel, 'function', 'the panel is not registered under the main slot')
   const bridge = {
     lines: [],
@@ -1500,4 +1503,257 @@ test('a muted finding is tagged in the chat row, and the two readers agree on it
     ),
     'the text reader drops the problem sentence',
   )
+})
+
+/** The strings the `.scanignore` write added: the action, its confirmation, its note and its refusal. */
+const IGNORE_KEYS = ['scan.ignore', 'scan.ignoreConfirm', 'scan.ignoreFailed', 'scan.ignoreNote']
+
+test('the ignore strings exist in all three dictionaries, in the contract order', () => {
+  const english = [...EN.keys()]
+  const positions = IGNORE_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the keys are out of order')
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.equal(positions[index], positions[index - 1] + 1, 'the ignore keys are not one contiguous group')
+  }
+  // The ignore group follows the suppression group: the two writes are one story, and a reader of the
+  // dictionaries should meet them together, the product's only two writes.
+  assert.equal(positions[0], english.indexOf('scan.muteFailed') + 1, 'the ignore keys do not follow the suppression keys')
+  for (const key of IGNORE_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  assert.deepEqual(placeholders(EN.get('scan.ignoreFailed')), ['message'])
+  // The second click names the file it appends to, and a file name is never translated.
+  for (const dictionary of [EN, RU, ZH]) {
+    assert.match(dictionary.get('scan.ignoreConfirm'), /\.scanignore/, 'the confirmation does not name the file it writes')
+  }
+  // An ignore is not a suppression, and neither surface may call it one: the two writes are different
+  // decisions, so the ignore's words never borrow the mute's.
+  for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+    for (const key of IGNORE_KEYS) {
+      assert.doesNotMatch(dictionary.get(key), /muted|заглуш|已静音/i, `${name}.${key} calls an ignore a mute`)
+    }
+  }
+  // The panel's own words for what the exclusion does: it makes the next scan read less, which is the
+  // one thing a `.scanignore` pattern can promise.
+  assert.match(EN.get('scan.ignoreNote'), /the next scan read less/, 'the ignore note does not say the next scan reads less')
+  // Two different words for two different writes: the action a person reads must not be the one that
+  // appends a suppression entry.
+  assert.notEqual(EN.get('scan.ignore'), EN.get('scan.mute'))
+})
+
+/** The strings the copy action added: the button in its three states. */
+const COPY_KEYS = ['copy.json', 'copy.done', 'copy.failed']
+
+test('the copy strings exist in all three dictionaries and are rendered', () => {
+  for (const key of COPY_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`) || CLIENT_SOURCE.includes(`t('${key}')`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  // The action names the format it copies, because the panel shows numbers and the file holds JSON.
+  assert.match(EN.get('copy.json'), /JSON/)
+})
+
+test('an ignore asks for a plan, writes only on the second click, and says the scan reads less', async () => {
+  const plan =
+    'Ignore plan for src/app.css: append src/app.css to /work/app/.scanignore, which would go from 2 patterns to 3 patterns. The pattern has a slash, so it is anchored at the workspace root and the next scan skips exactly that path. Nothing has been written; run the same line without --dry-run to write it.'
+  const outcome =
+    'Appended to /work/app/.scanignore: src/app.css. The file now holds 3 patterns. The next scan reads less because of it: an ignore excludes a path from the walk, it does not fix or mute a finding, and no counter moves.'
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-scanignore src/app.css --dry-run': textEnvelope(plan),
+    '/guidance-scanignore src/app.css': textEnvelope(outcome),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.ignore')).props.onClick()
+  const planned = await settle(panel, props)
+  // One click, one command: the plan, which writes nothing.
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-scanignore')),
+    ['/guidance-scanignore src/app.css --dry-run'],
+    'the first click did not stop at the plan',
+  )
+  const plannedTexts = textsOf(planned)
+  assert.ok(plannedTexts.includes(plan), 'the host plan is not shown verbatim')
+  // The panel says what the exclusion means in its own words, and they are not the suppression's.
+  assert.ok(plannedTexts.includes(EN.get('scan.ignoreNote')), 'the plan does not say the next scan reads less')
+  assert.equal(
+    plannedTexts.some((text) => text.startsWith(EN.get('scan.muteFailed').split('{')[0])),
+    false,
+    'an ignore plan is reported as a suppression problem',
+  )
+  const confirm = buttonOf(planned, EN.get('scan.ignoreConfirm'))
+  assert.equal(typeof confirm, 'object', 'the ignore plan has no second, distinct button')
+  confirm.props.onClick()
+  const done = await settle(panel, props)
+  // The second click applies the same plan: same command, no `--dry-run`.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-scanignore')), [
+    '/guidance-scanignore src/app.css --dry-run',
+    '/guidance-scanignore src/app.css',
+  ])
+  const doneTexts = textsOf(done)
+  assert.ok(doneTexts.includes(outcome), 'the outcome the host reported is not shown')
+  assert.equal(typeof buttonOf(done, EN.get('scan.ignoreConfirm')), 'undefined', 'the plan outlived its confirmation')
+  // A suppression was never asked for: the two writes are not one button with a switch.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-suppress')), [])
+})
+
+test('the ignore pattern is the row path, quoted when it carries a space', async () => {
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(
+      JSON.stringify(scanValueOf({ findings: [findingOf({ path: 'src/my page.astro' })] })),
+    ),
+    '/guidance-scanignore "src/my page.astro" --dry-run': textEnvelope('Ignore plan for src/my page.astro: append it'),
+    '/guidance-scanignore "src/my page.astro"': textEnvelope('Appended src/my page.astro'),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.ignore')).props.onClick()
+  const planned = await settle(panel, props)
+  // A pattern is one token: the command's own tokenizer strips the quotes, so the line the file gains
+  // is the path the row named.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-scanignore')), [
+    '/guidance-scanignore "src/my page.astro" --dry-run',
+  ])
+  buttonOf(planned, EN.get('scan.ignoreConfirm')).props.onClick()
+  await settle(panel, props)
+  assert.equal(bridge.lines.filter((line) => line.startsWith('/guidance-scanignore')).length, 2)
+})
+
+test('one file gets one plan even when two rules fire in it', async () => {
+  const plan = 'Ignore plan for src/app.css: append src/app.css to /work/app/.scanignore'
+  // Two findings in one file: the ignore names the file, so exactly one plan may be on screen.
+  const value = scanValueOf({ findings: [findingOf(), findingOf({ ruleId: 'ls-08', siteId: 'aa11bb22' })] })
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(value)),
+    '/guidance-scanignore src/app.css --dry-run': textEnvelope(plan),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  assert.equal(
+    elementsOf(scanned).filter((element) => element.type === 'button' && element.children.includes(EN.get('scan.ignore'))).length,
+    2,
+  )
+  buttonOf(scanned, EN.get('scan.ignore')).props.onClick()
+  const planned = await settle(panel, props)
+  assert.equal(elementsOf(planned).filter((element) => element.children.includes(plan)).length, 1, 'the plan is drawn once per row')
+})
+
+test('a refused ignore is reported with its own sentence, never the suppression one', async () => {
+  const refusal = 'Refused (malformed): /work/app/.scanignore has 1 line outside the .scanignore grammar (line 2)'
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(scanValueOf({ findings: [findingOf()] }))),
+    '/guidance-scanignore src/app.css --dry-run': refusalEnvelope(refusal),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  buttonOf(scanned, EN.get('scan.ignore')).props.onClick()
+  const refused = await settle(panel, props)
+  const texts = textsOf(refused)
+  assert.ok(texts.includes(translate('scan.ignoreFailed', { message: refusal })), 'the refusal is not reported')
+  assert.equal(
+    texts.some((text) => text.startsWith(EN.get('scan.muteFailed').split('{')[0])),
+    false,
+    'a refused ignore is reported as a refused suppression',
+  )
+  assert.equal(typeof buttonOf(refused, EN.get('scan.ignoreConfirm')), 'undefined', 'a refusal leaves a live confirmation')
+})
+
+test('each row offers only the writes it can name a target for', async () => {
+  const value = scanValueOf({
+    findings: [
+      findingOf(),
+      // A pre-C finding with no site id: it can still be ignored, because an ignore names a path.
+      findingOf({ ruleId: 'ls-08', path: 'src/legacy.js', line: 8, siteId: undefined }),
+      // A finding with no place: it can be muted, but there is no path to exclude.
+      findingOf({ ruleId: 'ls-02', path: '', place: undefined, siteId: 'aa11bb22' }),
+    ],
+  })
+  const { tree, panel, props } = await mountScriptedPanel(reportOf(), {
+    '*': reportEnvelope(reportOf()),
+    '/guidance-scan . --format json': textEnvelope(JSON.stringify(value)),
+  })
+  buttonOf(tree, EN.get('scanner.scan')).props.onClick()
+  const scanned = await settle(panel, props)
+  const offered = (label) =>
+    elementsOf(scanned).filter((element) => element.type === 'button' && element.children.includes(label))
+  assert.equal(offered(EN.get('scan.mute')).length, 2, 'a row without a site id offered a mute')
+  assert.equal(offered(EN.get('scan.ignore')).length, 2, 'a row without a path offered an ignore')
+})
+
+test('without a scan there is no ignore to press either', async () => {
+  const { tree } = await mountScriptedPanel(reportOf(), { '*': reportEnvelope(reportOf()) })
+  const texts = textsOf(tree)
+  assert.equal(texts.includes(EN.get('scan.ignore')), false, 'the panel offers an ignore before any scan ran')
+  assert.equal(texts.includes(EN.get('scan.ignoreConfirm')), false, 'an ignore confirmation is on screen without a plan')
+})
+
+test('the panel copies the report JSON and says so, without a second request', async () => {
+  const report = reportOf({ calls: 4 })
+  const copied = []
+  const clipboard = {
+    writeText(text) {
+      copied.push(text)
+      return Promise.resolve()
+    },
+  }
+  const { tree, panel, props } = await mountPanel(report, { navigator: { clipboard } })
+  const button = buttonOf(tree, EN.get('copy.json'))
+  assert.equal(typeof button, 'object', 'the panel offers no copy action')
+  button.props.onClick()
+  const after = await settle(panel, props)
+  assert.equal(copied.length, 1, 'the click did not write the clipboard once')
+  // What is copied is the object the host sent: no re-encoding of the normalized report, which is a
+  // subset by design, and no second command.
+  assert.deepEqual(JSON.parse(copied[0]), report)
+  assert.equal(typeof buttonOf(after, EN.get('copy.done')), 'object', 'the copy was not reported on the button')
+  assert.equal(buttonOf(after, EN.get('copy.failed')), undefined)
+})
+
+test('a clipboard that refuses is reported, and a page without one gets no button', async () => {
+  const clipboard = { writeText: () => Promise.reject(new Error('denied')) }
+  const { tree, panel, props } = await mountPanel(reportOf(), { navigator: { clipboard } })
+  buttonOf(tree, EN.get('copy.json')).props.onClick()
+  const failed = await settle(panel, props)
+  assert.equal(typeof buttonOf(failed, EN.get('copy.failed')), 'object', 'a refused copy is silent')
+  assert.equal(buttonOf(failed, EN.get('copy.done')), undefined)
+
+  // No clipboard on this page — an insecure origin, a shell that mounts none: no button at all.
+  const plain = await mountPanel(reportOf())
+  assert.equal(buttonOf(plain.tree, EN.get('copy.json')), undefined, 'a page without a clipboard offers a copy')
+})
+
+test('with nothing to copy the copy action is absent, not broken', async () => {
+  const clipboard = { writeText: () => Promise.resolve() }
+  // No report: the command refused, so the panel has no JSON and must not offer to hand one over.
+  const { tree } = await mountScriptedPanel(reportOf(), { '*': refusalEnvelope('Error: no-profile — nothing recorded') }, {
+    navigator: { clipboard },
+  })
+  assert.equal(buttonOf(tree, EN.get('copy.json')), undefined, 'an empty panel offers a copy')
 })

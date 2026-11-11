@@ -76,7 +76,7 @@ test('the plugin registers four tools, two skills and one human command', async 
     'web_guidance_legacy_scan',
   ])
   assert.deepEqual(registered.skills.map((skill) => skill.name), ['modern-web-guidance', 'chrome-extensions'])
-  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress', 'guidance-stats'])
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress', 'guidance-scanignore', 'guidance-stats'])
   assert.ok(registered.listeners.some((listener) => listener.event === 'tools/result'))
 
   await rm(home, { recursive: true, force: true })
@@ -159,7 +159,7 @@ test('enabled: false writes nothing and leaves only the scanner command', async 
 
   apply(ctx, { enabled: false })
 
-  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress'])
+  assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress', 'guidance-scanignore'])
   assert.equal(registered.listeners.length, 0)
   assert.equal(registered.tools.length, 4)
 
@@ -1032,3 +1032,238 @@ test('a suppressed finding reaches the report as its own line and never as a fix
     await rm(workspace, { recursive: true, force: true })
   }
 })
+
+//#region 0.12.0: a reset erases a named slice, and the suppression file is never a counter
+
+/**
+ * The suppression file a workspace may carry: a real one, with real bytes, so "no reset touches it"
+ * is a byte comparison and not a claim about a path the test never wrote.
+ */
+const SUPPRESS_BYTES = `{
+  "version": 1,
+  "entries": {
+    "96cb61de": { "reason": "legacy page, tracked in #412", "at": "2026-11-11" }
+  }
+}
+`
+
+test('a scans reset keeps every call counter, and never touches the suppression file', async () => {
+  const home = await isolatedHome()
+  const alpha = await workspaceDir('reset-app')
+  const beta = await workspaceDir('reset-site')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const listener = registered.listeners.find((entry) => entry.event === 'tools/result')
+    listener.handler(
+      { name: 'web_guidance_search', arguments: { query: 'dialog light dismiss' } },
+      { isError: false, value: { results: [{ id: 'css-anchor', category: 'css' }] } },
+    )
+    raiseScan(registered, scanAt(alpha, { files: 4, findings: 2 }))
+    raiseScan(registered, scanAt(beta, { files: 1, findings: 1 }))
+    await settle()
+    await writeFile(join(alpha, '.suppress'), SUPPRESS_BYTES, 'utf8')
+
+    const command = statsCommand(registered)
+    const planned = await command.handler({ rawInput: '--reset --scan-only', ...headerAt(alpha) })
+    assert.equal(planned.kind, 'success')
+    // A plan, not a write: the selector travels in its own sentence so the confirmation is exact.
+    assert.match(planned.text, /^This would erase the scan counters of 2 workspace\(s\): findings, rules, guides, history and baselines\./)
+    assert.match(planned.text, /Re-run \/guidance-stats --reset --yes --scan-only to erase them\.$/)
+    assert.equal(await readFile(join(alpha, '.suppress'), 'utf8'), SUPPRESS_BYTES)
+
+    const erased = await command.handler({ rawInput: '--reset --yes --scan-only', ...headerAt(alpha) })
+    assert.equal(erased.kind, 'success')
+    assert.match(erased.text, /^Erased the scan counters of 2 workspace\(s\): 3 finding\(s\) and 2 scan\(s\) of history\./)
+    assert.match(erased.text, /Every call counter, including how many scans were run, stays\./)
+    assert.match(erased.text, /The suppression file was not touched: muting is not a counter\.$/)
+    assert.equal(await readFile(join(alpha, '.suppress'), 'utf8'), SUPPRESS_BYTES, 'the list survives the erasure')
+
+    const document = JSON.parse(await readFile(countersFile(home), 'utf8'))
+    assert.equal(document.version, 1, 'additive only: the document keeps its version')
+    assert.deepEqual(document.workspaces, {})
+    assert.deepEqual(document.scanRules, {})
+    assert.deepEqual(document.byCategory, { css: 1 }, 'lifetime category coverage is a guidance counter')
+    assert.ok(document.calls > 0, 'the call counter survives a scan reset')
+
+    // The report still counts the calls; only the findings are gone.
+    const report = await command.handler({ rawInput: '', ...headerAt(alpha) })
+    assert.match(report.text, /1 call/)
+    assert.match(report.text, /0 finding/)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(alpha, { recursive: true, force: true })
+    await rm(beta, { recursive: true, force: true })
+  }
+})
+
+test('a workspace reset erases one bucket and leaves the other workspace standing', async () => {
+  const home = await isolatedHome()
+  const alpha = await workspaceDir('reset-only-app')
+  const beta = await workspaceDir('reset-only-site')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const listener = registered.listeners.find((entry) => entry.event === 'tools/result')
+    listener.handler(
+      { name: 'web_guidance_search', arguments: { query: 'dialog light dismiss' } },
+      { isError: false, value: { results: [{ id: 'css-anchor', category: 'css' }] } },
+    )
+    raiseScan(registered, scanAt(alpha, { files: 4, findings: 2 }))
+    raiseScan(registered, scanAt(beta, { files: 1, findings: 1 }))
+    await settle()
+    await writeFile(join(alpha, '.suppress'), SUPPRESS_BYTES, 'utf8')
+
+    const command = statsCommand(registered)
+    // The name is what a person types; the refusal below proves the list it is checked against.
+    const alphaName = basename(alpha)
+    const erased = await command.handler({ rawInput: `--reset --yes --workspace ${alphaName}`, ...headerAt(alpha) })
+    assert.equal(erased.kind, 'success')
+    assert.match(erased.text, new RegExp(`^Erased the scan counters of ${alphaName} \\([0-9a-f]{8}\\): 2 finding\\(s\\) and 1 scan\\(s\\) of history\\.`))
+    assert.match(erased.text, /Every other workspace and every call counter stays\./)
+    assert.equal(await readFile(join(alpha, '.suppress'), 'utf8'), SUPPRESS_BYTES)
+
+    const document = JSON.parse(await readFile(countersFile(home), 'utf8'))
+    assert.equal(document.workspaces[workspaceId(realpathSync(alpha))], undefined)
+    assert.ok(document.workspaces[workspaceId(realpathSync(beta))] !== undefined, 'the other bucket is untouched')
+
+    // The surviving workspace still reports its own findings, and its name is still what it was.
+    const report = await command.handler({ rawInput: `--workspace ${basename(beta)}`, ...headerAt(alpha) })
+    assert.match(report.text, new RegExp(`Workspace: ${basename(beta)} \\([0-9a-f]{8}\\)`))
+    assert.match(report.text, /1 finding/)
+    // The erased workspace is not a row any more, so asking for it is the same refusal a workspace
+    // that never scanned gets — never a report that borrows somebody else's numbers.
+    const gone = await command.handler({ rawInput: `--workspace ${alphaName}`, ...headerAt(alpha) })
+    assert.equal(gone.kind, 'error')
+    assert.match(gone.text, /^Error: unknown workspace /)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(alpha, { recursive: true, force: true })
+    await rm(beta, { recursive: true, force: true })
+  }
+})
+
+test('a bare --reset --yes still wipes exactly what it always wiped, and only the counters', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('reset-all')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    const listener = registered.listeners.find((entry) => entry.event === 'tools/result')
+    listener.handler(
+      { name: 'web_guidance_search', arguments: { query: 'nothing matches this' } },
+      { isError: false, value: { results: [] } },
+    )
+    raiseScan(registered, scanAt(workspace, { files: 3, findings: 2 }))
+    await settle()
+    await writeFile(join(workspace, '.suppress'), SUPPRESS_BYTES, 'utf8')
+
+    const command = statsCommand(registered)
+    const erased = await command.handler({ rawInput: '--reset --yes', ...headerAt(workspace) })
+    // The 0.4.0 sentence, unchanged: a narrower default would be a silent behaviour change.
+    assert.match(erased.text, /^Erased local usage counters \(2 call\(s\) in the last 7 day\(s\)\)\. Tool behaviour is unchanged\.$/)
+    assert.equal(await readFile(join(workspace, '.suppress'), 'utf8'), SUPPRESS_BYTES)
+
+    const document = JSON.parse(await readFile(countersFile(home), 'utf8'))
+    assert.equal(document.version, 1)
+    assert.equal(document.calls, 0)
+    assert.deepEqual(document.byDay, {})
+    assert.deepEqual(document.scanRules, {})
+    assert.deepEqual(document.workspaces, {})
+    assert.deepEqual(document.recent, [])
+
+    const empty = await command.handler({ rawInput: '', ...headerAt(workspace) })
+    assert.match(empty.text, /No calls recorded in the last 7 days/)
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('a reset names one slice, and a selector it cannot honour is refused before anything is erased', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('reset-refuse')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    raiseScan(registered, scanAt(workspace, { files: 2, findings: 1 }))
+    await settle()
+
+    const command = statsCommand(registered)
+    const conflict = await command.handler({ rawInput: '--reset --yes --scan-only --workspace app', ...headerAt(workspace) })
+    assert.equal(conflict.kind, 'error')
+    assert.match(conflict.text, /^Error: a reset erases one slice at a time, and --scan-only, --workspace cannot be combined\./)
+    assert.match(conflict.text, /Pass one of --scan-only, --workspace or --days, or none to erase every counter\.$/)
+
+    const zero = await command.handler({ rawInput: '--reset --yes --days 0', ...headerAt(workspace) })
+    assert.equal(zero.kind, 'error')
+    assert.match(zero.text, /^Error: --days needs a whole number of days, at least 1,/)
+
+    const unknown = await command.handler({ rawInput: '--reset --yes --workspace nope', ...headerAt(workspace) })
+    assert.equal(unknown.kind, 'error')
+    assert.match(unknown.text, /^Error: unknown workspace "nope"\. Known workspaces: /)
+    assert.match(unknown.text, /Omit --workspace to count every workspace\.$/)
+
+    // Nothing was erased: the report still counts the scan the three refusals were asked to remove.
+    const report = await command.handler({ rawInput: '', ...headerAt(workspace) })
+    assert.match(report.text, /1 call/)
+    assert.match(report.text, /1 finding/)
+    assert.match(report.text, new RegExp(`Workspace: ${basename(workspace)} \\([0-9a-f]{8}\\)`))
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test('a window reset through the command erases the window and keeps the lifetime totals', async () => {
+  const home = await isolatedHome()
+  const workspace = await workspaceDir('reset-window')
+  const { apply } = await import('../index.js')
+  const { ctx, registered } = createContext()
+
+  try {
+    apply(ctx, {})
+    raiseScan(registered, scanAt(workspace, { files: 2, findings: 2 }))
+    await settle()
+    await writeFile(join(workspace, '.suppress'), SUPPRESS_BYTES, 'utf8')
+
+    const command = statsCommand(registered)
+    const erased = await command.handler({ rawInput: '--reset --yes --days 7', ...headerAt(workspace) })
+    assert.equal(erased.kind, 'success')
+    assert.match(erased.text, /^Erased the counters recorded in the last 7 day\(s\): 1 call\(s\), 2 finding\(s\) and 1 scan\(s\) of history\./)
+    assert.match(erased.text, /Lifetime rule and guide totals carry no day, so they stay\./)
+    assert.equal(await readFile(join(workspace, '.suppress'), 'utf8'), SUPPRESS_BYTES)
+
+    const document = JSON.parse(await readFile(countersFile(home), 'utf8'))
+    assert.equal(document.version, 1)
+    assert.deepEqual(Object.keys(document.byDay), [], 'the window row is gone')
+    const bucket = document.workspaces[workspaceId(realpathSync(workspace))]
+    assert.deepEqual(bucket.scanByDay, {})
+    assert.equal(bucket.lastScan, null)
+    // Lifetime members carry no day, so a window cannot claim them: the rule totals are still exact.
+    assert.deepEqual(bucket.scanRules, { 'ls-01': 1, 'ls-02': 1 })
+  } finally {
+    for (const dispose of registered.disposers) dispose()
+    await settle()
+    await rm(home, { recursive: true, force: true })
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+//#endregion

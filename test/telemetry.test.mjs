@@ -1735,3 +1735,216 @@ test('a muted count is written by a scan, clamped to its findings, and never by 
   assert.equal(muted.scanHistory[0].suppressed, 2)
   assert.equal(muted.scanHistory[1].suppressed, 0)
 })
+
+//#region 0.12.0: a reset erases what it names, and never the counters it does not
+
+/**
+ * A document with both kinds of counter in it: guidance calls (a hit, a miss and a retrieve) and
+ * scans in two workspaces, one of them older than a week. It is the fixture every scope is measured
+ * against, so "what survives" is the same question in each test.
+ */
+async function seededCounters() {
+  const { telemetry, store } = telemetryWith()
+
+  await telemetry.record({ at: NOW - 5 * DAY, tool: 'web_guidance_search', outcome: 'miss', query: 'old query' })
+  await telemetry.record(recordedScan({ at: NOW - 5 * DAY, files: 2, findings: [site()] }))
+  await telemetry.record({
+    at: NOW,
+    tool: 'web_guidance_search',
+    outcome: 'hit',
+    query: 'dialog',
+    ids: ['css-anchor'],
+    category: 'css',
+  })
+  await telemetry.record({ at: NOW, tool: 'web_guidance_retrieve', outcome: 'hit', ids: ['css-anchor'] })
+  await telemetry.record(recordedScan({ at: NOW, files: 4, findings: [site(), site('ls-17', 'document.write', 'src/legacy.js')] }))
+  await telemetry.record(recordedScan({ at: NOW, files: 1, findings: [site('ls-02', 'dialog', 'src/b.css')], workspace: BETA }))
+  await telemetry.flush()
+  return { telemetry, store }
+}
+
+test('a bare reset still erases every counter, and reports what it removed', async () => {
+  const { telemetry, store } = await seededCounters()
+
+  const tally = await telemetry.reset()
+
+  assert.deepEqual(tally, { scope: 'all', calls: 6, files: 7, findings: 4, scans: 3, workspaces: 2 })
+  // What it always was: a fresh document, one version older than nothing.
+  assert.equal(store.state.version, 1)
+  assert.equal(store.state.calls, 0)
+  assert.deepEqual(store.state.byDay, {})
+  assert.deepEqual(store.state.scanRules, {})
+  assert.deepEqual(store.state.workspaces, {})
+  assert.deepEqual(store.state.recent, [])
+})
+
+test('a scans reset erases the scan debt and keeps every call counter', async () => {
+  const { telemetry, store } = await seededCounters()
+  const before = JSON.parse(JSON.stringify(store.state))
+
+  const tally = await telemetry.reset({ scope: 'scans' })
+
+  assert.deepEqual(tally, { scope: 'scans', calls: 0, files: 7, findings: 4, scans: 3, workspaces: 2 })
+  // The call counters are untouched, lifetime and per-day alike: a call happened, and the counters'
+  // job is to count calls. Only the scan volume the day rows carry is debt.
+  assert.equal(store.state.calls, before.calls)
+  assert.deepEqual(store.state.byTool, before.byTool)
+  assert.deepEqual(store.state.byOutcome, before.byOutcome)
+  assert.deepEqual(store.state.retrieved, before.retrieved)
+  assert.deepEqual(store.state.byCategory, before.byCategory)
+  for (const day of Object.keys(before.byDay)) {
+    assert.equal(store.state.byDay[day].calls, before.byDay[day].calls)
+    assert.deepEqual(store.state.byDay[day].byTool, before.byDay[day].byTool)
+    assert.equal(store.state.byDay[day].files, 0)
+    assert.equal(store.state.byDay[day].findings, 0)
+  }
+  // The scan debt itself is gone, root and buckets both.
+  assert.deepEqual(store.state.scanRules, {})
+  assert.deepEqual(store.state.scanGuides, {})
+  assert.equal(store.state.lastScan, null)
+  assert.deepEqual(store.state.workspaces, {})
+  // A ring entry is a call, and it keeps the call while losing the debt it merely described.
+  const scans = store.state.recent.filter((call) => call.tool === 'legacy-scan')
+  assert.equal(scans.length, 3)
+  for (const call of scans) {
+    assert.equal('files' in call, false)
+    assert.equal('findings' in call, false)
+  }
+
+  const after = await telemetry.snapshot({ days: 7 })
+  assert.equal(after.totals.calls, 6, 'the calls are still counted')
+  assert.equal(after.totals.findings, 0)
+  assert.deepEqual(after.workspaces, [])
+  assert.deepEqual(after.topRules, [])
+})
+
+test('a workspace reset erases that bucket and nothing else', async () => {
+  const { telemetry, store } = await seededCounters()
+  const before = JSON.parse(JSON.stringify(store.state))
+
+  const tally = await telemetry.reset({ scope: 'workspace', workspace: ALPHA.id })
+
+  // The bucket carries its own volume: two scans, six files, three findings, in two day rows.
+  assert.deepEqual(tally, { scope: 'workspace', calls: 0, files: 6, findings: 3, scans: 2, workspaces: 1 })
+  assert.equal(store.state.workspaces[ALPHA.id], undefined)
+  assert.deepEqual(store.state.workspaces[BETA.id], before.workspaces[BETA.id], 'the other workspace is untouched')
+  // Nothing profile-wide moves: not the root scan counters, not a call counter, not the day series,
+  // because a day row counts every workspace together and cannot be narrowed after the fact.
+  assert.deepEqual(store.state.scanRules, before.scanRules)
+  assert.deepEqual(store.state.byDay, before.byDay)
+  assert.equal(store.state.calls, before.calls)
+  assert.deepEqual(store.state.retrieved, before.retrieved)
+
+  const after = await telemetry.snapshot({ days: 7, workspace: BETA.id })
+  assert.equal(after.lastScan.findings, 1, 'the surviving workspace still answers about itself')
+  assert.equal(after.workspaces.length, 1)
+})
+
+test('a workspace with no bucket is a no-op, not an erasure', async () => {
+  const { telemetry, store } = await seededCounters()
+  const before = JSON.stringify(store.state)
+
+  const tally = await telemetry.reset({ scope: 'workspace', workspace: 'ffffffff' })
+
+  assert.deepEqual(tally, { scope: 'workspace', calls: 0, files: 0, findings: 0, scans: 0, workspaces: 0 })
+  assert.equal(JSON.stringify(store.state), before)
+})
+
+test('a reset of _unattributed erases the legacy root and never a bucket', async () => {
+  const { telemetry, store } = telemetryWith({ store: memoryStore(legacyDocument()) })
+
+  const tally = await telemetry.reset({ scope: 'workspace', workspace: '_unattributed' })
+
+  assert.deepEqual(tally, { scope: 'workspace', calls: 0, files: 0, findings: 0, scans: 0, workspaces: 1 })
+  assert.deepEqual(store.state.scanRules, {})
+  assert.deepEqual(store.state.scanGuides, {})
+  assert.equal(store.state.lastScan, null)
+  // The pre-partition call counters are not scan counters, so they stay.
+  assert.equal(store.state.calls, 4)
+  assert.deepEqual(store.state.byTool, { 'legacy-scan': 1 })
+})
+
+test('a window reset erases only what is dated inside the window', async () => {
+  const { telemetry, store } = await seededCounters()
+
+  const tally = await telemetry.reset({ scope: 'window', days: 3 })
+
+  // Two calls from five days ago, four from today: a three-day window is today and yesterday.
+  assert.deepEqual(tally, { scope: 'window', calls: 4, files: 5, findings: 3, scans: 2, workspaces: 2 })
+  assert.deepEqual(Object.keys(store.state.byDay), [localDay(NOW - 5 * DAY)], 'the older day row stays')
+  assert.equal(store.state.byDay[localDay(NOW - 5 * DAY)].calls, 2)
+  assert.deepEqual(store.state.recent.map((call) => call.outcome), ['miss', 'findings'], 'only the old ring rows stay')
+  // Everything the window covers is gone: the pointer, the comparison, the baseline, the rows.
+  const alpha = store.state.workspaces[ALPHA.id]
+  assert.deepEqual(Object.keys(alpha.scanByDay), [localDay(NOW - 5 * DAY)])
+  assert.equal(alpha.scanHistory.length, 1)
+  assert.equal(alpha.lastScan, null)
+  assert.equal(alpha.scanDiff, null)
+  assert.equal(alpha.lastSites, null)
+  const beta = store.state.workspaces[BETA.id]
+  assert.deepEqual(beta.scanByDay, {}, 'a bucket whose only scan was inside the window keeps no series')
+  assert.deepEqual(beta.scanHistory, [])
+  // Members a day cannot be attributed to are not a window: the lifetime totals stay, exactly.
+  assert.deepEqual(alpha.scanRules, { 'ls-13': 2, 'ls-17': 1 })
+  assert.equal(alpha.ruleFirstSeen['ls-13'], localDay(NOW - 5 * DAY))
+  assert.deepEqual(store.state.retrieved, { 'css-anchor': 1 })
+  assert.deepEqual(store.state.scanRules, {}, 'no legacy root was seeded, so none was touched')
+})
+
+test('a reset refuses a scope it cannot act on, before touching the document', async () => {
+  const { telemetry, store } = await seededCounters()
+  const before = JSON.stringify(store.state)
+
+  for (const options of [
+    { scope: 'everything' },
+    { scope: 'workspace' },
+    { scope: 'workspace', workspace: '' },
+    { scope: 'window' },
+    { scope: 'window', days: 0 },
+    { scope: 'window', days: Number.NaN },
+  ]) {
+    await assert.rejects(() => telemetry.reset(options), TypeError)
+  }
+
+  assert.equal(JSON.stringify(store.state), before, 'a refused scope writes nothing')
+})
+
+test('every scope leaves a version-1 document the counters reopen unchanged', async () => {
+  const cases = [
+    [undefined, { calls: 0, workspaces: 0 }],
+    [{ scope: 'scans' }, { calls: 6, workspaces: 0 }],
+    [{ scope: 'workspace', workspace: ALPHA.id }, { calls: 6, workspaces: 1 }],
+    [{ scope: 'window', days: 3 }, { calls: 2, workspaces: 2 }],
+  ]
+
+  for (const [options, expected] of cases) {
+    const { telemetry, store } = await seededCounters()
+    await telemetry.reset(options)
+    assert.equal(store.state.version, 1)
+
+    // Reopening the saved file is the acceptance test `normalizeState()` applies: a document it
+    // rejects reads as empty, so every surviving number below would be a zero.
+    const reopened = createTelemetry({ store: memoryStore(store.state), clock: () => NOW, catalog: CATALOG })
+    const after = await reopened.snapshot({ days: 7 })
+    assert.equal(after.totals.calls, expected.calls)
+    assert.equal(after.workspaces.length, expected.workspaces)
+  }
+})
+
+//#endregion
+
+test('a scans reset counts the legacy root as the workspace row it is', async () => {
+  const { telemetry, store } = telemetryWith({ store: memoryStore(legacyDocument()) })
+
+  const tally = await telemetry.reset({ scope: 'scans' })
+
+  // The switcher lists `_unattributed` as a row, so erasing its debt must not read as erasing one
+  // workspace fewer than the plan promised.
+  assert.equal(tally.workspaces, 1)
+  assert.deepEqual(store.state.scanRules, {})
+  assert.deepEqual(store.state.scanGuides, {})
+  assert.equal(store.state.lastScan, null)
+  // The pre-partition call counters are not scan counters.
+  assert.equal(store.state.calls, 4)
+  assert.deepEqual(store.state.byTool, { 'legacy-scan': 1 })
+})
