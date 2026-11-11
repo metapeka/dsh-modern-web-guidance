@@ -11,7 +11,7 @@ repo has to exist before either one can point at it.
 `dsh-modern-web-guidance` already satisfies every structural requirement the catalog's CI
 checks. What is missing is the repo itself.
 
-> **Status: `dsh-modern-web-guidance@0.11.0` is live on npm, published over trusted publishing
+> **Status: `dsh-modern-web-guidance@0.12.0` is live on npm, published over trusted publishing
 > (OIDC)** by `.github/workflows/release.yml` from this repo, with a sigstore provenance statement;
 > `latest` points at it, and the repository holds **no npm token at all**. The 0.3.0 bootstrap went
 > through a one-off granular token instead, because a package must exist before a trusted publisher
@@ -247,12 +247,12 @@ Constraints worth knowing:
   locale string, so the file list and the zero-dependency shape hold. 0.10.0 is the same shape again: the
   workspace partition, the branch label and the scan history are source inside `lib/telemetry.js`,
   `lib/report.js`, `index.js` and `client.js` plus fourteen locale strings — no file, no dependency, no
-  build step, and no new read surface beyond the one `.git/HEAD` the branch label needs. 0.11.0 adds
+  build step, and no new read surface beyond the one `.git/HEAD` the branch label needs. 0.11.0 added
   exactly two modules — `lib/site.js` (the one site identity) and `lib/suppress.js` (the suppression file
-  and its writer) — plus thirteen locale strings, so the tarball moves to 258 files and keeps the
-  zero-dependency, no-build-step shape; the two new writes ADR-0003 licenses go to workspace files that
-  never ship. `npm pack --dry-run` lists exactly what ships: 258 files, 971 kB packed /
-  2.9 MB unpacked at 0.11.0.
+  and its writer) — and 0.12.0 added none, only a review command on `lib/suppress.js` and an `ignoreUsage`
+  key on the scan value, so the tarball moves to 258 files and keeps the zero-dependency, no-build-step
+  shape; the two writes ADR-0003 licenses go to workspace files that never ship.
+  `npm pack --dry-run` lists exactly what ships: 258 files, 989 kB packed / 2.9 MB unpacked at 0.12.0.
 - **Publishing runs on GitHub Actions, not here.** This machine cannot reach
   `registry.npmjs.org` (ECONNRESET; the upstream tarball had to come from `registry.npmmirror.com`).
 
