@@ -1857,3 +1857,182 @@ test('a rule slope line names only the ranked rules it has a claim about, and no
 })
 
 //#endregion
+
+//#region the corpus answer rate (F-3)
+
+/**
+ * A snapshot whose KPI and answer rate are two different questions about the same calls: 173 calls
+ * in total (143 guidance calls plus 30 scans, and one errored search nobody counts twice), 114 hits,
+ * and 120 of those 143 guidance calls answered.
+ */
+const ANSWERING = {
+  ...SMALL,
+  totals: {
+    calls: 173,
+    hitRate: 114 / 173,
+    byTool: { web_guidance_search: 143, 'legacy-scan': 30 },
+    byOutcome: { hit: 114, list: 6, miss: 20, 'unknown-id': 3, clean: 30 },
+  },
+  answerRate: {
+    window: 30,
+    current: { hit: 114, list: 6, miss: 20, unknownId: 3, answered: 120, asked: 143, rate: 120 / 143 },
+    previous: { hit: 90, list: 6, miss: 25, unknownId: 2, answered: 96, asked: 123, rate: 96 / 123 },
+  },
+}
+
+/** The one line the corpora owner reads: either the comparison, or the refusal that replaced it. */
+function answerLine(snapshot) {
+  return renderReport(snapshot).split('\n')
+    .find((line) => line.startsWith('Guidance answered') || line.startsWith('Guidance answer rate'))
+}
+
+test('the answer rate states two windows, both samples and both percentages, under the coverage', () => {
+  const text = renderReport(ANSWERING)
+  assert.equal(
+    answerLine(ANSWERING),
+    'Guidance answered 84% of what it was asked in the last 30 days (120 of 143), against 78% ' +
+    'in the 30 days before (96 of 123).',
+  )
+  // It sits in the corpus block: under the coverage it is about, and above the dead-guide list the
+  // corpus owner also reads. A line anywhere else would be a second, unrelated claim.
+  const coverageAt = text.indexOf('Category coverage')
+  const answerAt = text.indexOf('Guidance answered')
+  const deadAt = text.indexOf('Dead guides')
+  assert.ok(coverageAt > -1 && answerAt > coverageAt && deadAt > answerAt, text)
+})
+
+test('the answer rate follows the requested window, and falls back to it when the member has none', () => {
+  const weekly = {
+    ...ANSWERING,
+    periodDays: 7,
+    answerRate: {
+      window: 7,
+      current: { hit: 40, list: 2, miss: 6, unknownId: 2, answered: 42, asked: 50, rate: 42 / 50 },
+      previous: { hit: 30, list: 1, miss: 9, unknownId: 0, answered: 31, asked: 40, rate: 31 / 40 },
+    },
+  }
+  assert.equal(
+    answerLine(weekly),
+    'Guidance answered 84% of what it was asked in the last 7 days (42 of 50), against 78% ' +
+    'in the 7 days before (31 of 40).',
+  )
+  // Hand-built member, no window of its own: the report's period is the one it was asked for, so the
+  // sentence and the footer still describe one window rather than two.
+  const { window, ...windowless } = ANSWERING.answerRate
+  assert.match(answerLine({ ...ANSWERING, answerRate: windowless }), /in the last 30 days/)
+})
+
+test('the answer rate and the KPI hit rate are two numbers on one snapshot, not one renamed', () => {
+  const text = renderReport(ANSWERING)
+
+  // The KPI's sentence is untouched: it divides the same 114 hits by every call, 173 of them.
+  assert.match(text, /^Guidance usage: 173 calls, 66% hit rate$/m)
+  // The answer rate divides the answered guidance calls by the asked ones: 120 of 143.
+  assert.match(text, /^Guidance answered 84% .* \(120 of 143\)/m)
+  // The two percentages differ because the denominators do, and neither number can be read into the
+  // other: 114 of 173 is the KPI's, 120 of 143 is the corpus's — and 114 of 143 is printed nowhere.
+  assert.equal(Math.round(ANSWERING.totals.hitRate * 100), 66)
+  assert.equal(Math.round(ANSWERING.answerRate.current.rate * 100), 84)
+  assert.doesNotMatch(text, /114 of 143/)
+  assert.notEqual(ANSWERING.totals.hitRate, ANSWERING.answerRate.current.rate)
+})
+
+test('an erased baseline prints no-previous and no comparison, never a jump from nothing', () => {
+  // The story the scope names: the earlier window is gone (a reset erased it), the current one has
+  // 12 answered calls, and the old baseline had answered 20%. Comparing against zero — or against
+  // nothing and printing 100% as an improvement — is the failure this line exists to prevent.
+  const erased = {
+    ...ANSWERING,
+    answerRate: {
+      window: 30,
+      refusal: 'no-previous',
+      current: { hit: 12, list: 0, miss: 0, unknownId: 0, answered: 12, asked: 12, rate: 1 },
+      previous: { hit: 0, list: 0, miss: 0, unknownId: 0, answered: 0, asked: 0, rate: 0 },
+    },
+  }
+  assert.equal(
+    answerLine(erased),
+    'Guidance answered 100% of what it was asked in the last 30 days (12 of 12), against ' +
+    'no-previous (no guidance calls in the 30 days before).',
+  )
+  assert.doesNotMatch(renderReport(erased), /against 0%/)
+  assert.doesNotMatch(renderReport(erased), /0 of 0 in the 30 days before/)
+
+  // Erased baseline *and* nothing recorded since: a snapshot from another version may still send a
+  // refusal with no current rate, and then there is nothing to print but the token — never a
+  // percentage of nothing.
+  const empty = {
+    ...ANSWERING,
+    answerRate: { ...erased.answerRate, current: erased.answerRate.previous },
+  }
+  assert.equal(answerLine(empty), 'Guidance answer rate: not comparable (no-previous).')
+})
+
+test('a thin window prints the two samples and no percentage at all', () => {
+  const thin = {
+    ...ANSWERING,
+    answerRate: {
+      window: 30,
+      refusal: 'thin',
+      current: { hit: 7, list: 0, miss: 2, unknownId: 0, answered: 7, asked: 9, rate: 7 / 9 },
+      previous: { hit: 18, list: 2, miss: 10, unknownId: 0, answered: 20, asked: 30, rate: 20 / 30 },
+    },
+  }
+  const line = answerLine(thin)
+  assert.equal(
+    line,
+    'Guidance answer rate: not comparable (thin): 7 of 9 answered in the last 30 days, ' +
+    '20 of 30 in the 30 days before.',
+  )
+  // The floor refuses exactly one thing: the percentage. The counts it refused on stay visible.
+  assert.doesNotMatch(line, /%/)
+})
+
+test('a baseline that reaches past the counters retention prints too-old, never a comparison', () => {
+  // `--days 60` against a 90-day retention asks exactly this: the window before the selected one
+  // starts a hundred and nineteen days back, so part of it has been pruned. The number that would
+  // have looked like progress is not printed.
+  const pruned = {
+    ...ANSWERING,
+    answerRate: {
+      window: 60,
+      refusal: 'too-old',
+      current: { hit: 114, list: 6, miss: 20, unknownId: 3, answered: 120, asked: 143, rate: 120 / 143 },
+      previous: { hit: 40, list: 2, miss: 30, unknownId: 1, answered: 42, asked: 73, rate: 42 / 73 },
+    },
+  }
+  assert.equal(
+    answerLine(pruned),
+    'Guidance answered 84% of what it was asked in the last 60 days (120 of 143), against too-old ' +
+    '(the record of the 60 days before is incomplete).',
+  )
+  assert.doesNotMatch(answerLine(pruned), /58%/)
+})
+test('a document with no day rows prints no line, and a pre-F snapshot keeps its shape', () => {
+  const noDays = { ...ANSWERING, answerRate: { window: 30, refusal: 'no-days' } }
+  assert.doesNotMatch(renderReport(noDays), /Guidance answer/)
+  // Silence in the text, a token in the JSON: a script can still tell "no per-day rows" from a bad
+  // week without reading a zero as a measurement.
+  assert.deepEqual(renderJson(noDays).answerRate, { window: 30, refusal: 'no-days' })
+
+  // A snapshot that predates the member prints nothing and adds nothing, exactly as it did before.
+  assert.doesNotMatch(renderReport(SMALL), /Guidance answer/)
+  assert.equal(Object.hasOwn(renderJson(SMALL), 'answerRate'), false)
+})
+
+test('an unknown refusal token prints raw and uninterpreted, and no number follows it', () => {
+  // A snapshot from a version after this one may refuse for a reason this report has not learned;
+  // printing the number anyway would be the guess the token exists to prevent.
+  const future = { ...ANSWERING, answerRate: { window: 30, refusal: 'too-new-to-compare' } }
+  assert.equal(answerLine(future), 'Guidance answer rate: not comparable (too-new-to-compare).')
+})
+
+test('the answer rate is passed through the JSON exactly as the snapshot built it', () => {
+  const json = renderJson(ANSWERING)
+  assert.deepEqual(json.answerRate, ANSWERING.answerRate)
+  // And the frozen document is still frozen: rendering the answer rate adds no member to a snapshot
+  // that has none, so an older consumer cannot tell this host knows about it.
+  assert.deepEqual(Object.keys(renderJson(SMALL)).slice(-3), ['topRules', 'topScanGuides', 'lastScan'])
+})
+
+//#endregion

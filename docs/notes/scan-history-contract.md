@@ -747,3 +747,52 @@ single distinction is the whole design, and it is why F-2's hole rule differs fr
 - **Derived, never stored.** Same as §16: a report leaves `stats.json` byte-identical, and the shared
   window helpers (`comparableSeries`, `halfSeries`) make a truncated scan a hole in every series it
   touches.
+
+## 18. The corpus answer rate (0.13.0, phase F-3)
+
+The report's corpus block gains one sentence: how much of what it was asked the corpus answered, this
+window against the window before it. It is the third derived claim of the phase and it is stored
+nowhere — `snapshot()` reads the root `byDay` rows, which already carry `byOutcome` and are pruned with
+the call series, so `version` stays 1 and `stats.json` is byte-identical after a report.
+
+> Guidance answered 84% of what it was asked in the last 30 days (120 of 143), against 78% in the 30 days before (96 of 123).
+
+- **A rate over guidance calls only.** `answer rate = (hit + list) / (hit + list + miss + unknown-id)`.
+  The scan outcomes (`findings`, `clean`) never enter it, which is what makes a busy scanning week
+  unable to move it; `error` is in neither numerator nor denominator, because a failed call is not a
+  verdict on the corpus. `list` counts as answered: it returned the corpus's own inventory, which is a
+  cheap answer but an answer. Both are decisions of `docs/notes/phase-f-scope.md` (F-3, "Honest
+  deviation"), not measurements.
+- **Not the KPI's hit rate, and never merged with it.** The hit rate is `hits / every call` — scans,
+  lists and errors included — and answers "what did the agent get". The answer rate answers "did the
+  corpus answer what it was asked". Two functions, two names, one glossary entry each, and the KPI's
+  sentence is unchanged on the same snapshot; the test that pins them apart is the one where the two
+  percentages differ on one document.
+- **Two windows of the same length.** The selected `periodDays` and the equally long window
+  immediately before it, from the same local-day keys the report's `series` uses. A comparison of
+  unequal periods would be a number nobody could read.
+- **Refusal precedence**: `too-old` → `no-previous` → `thin`. `too-old` is the earlier window starting
+  before the oldest day the counters keep: the days that were pruned are indistinguishable from days
+  with no calls, so a full window would be compared against a partial one — reachable in production
+  with `--days 60` against the 90-day retention. `no-previous` is the earlier window having no guidance
+  calls at all while this one has some, which is what **an erased baseline** (a `window` reset) and a
+  young document both look like — an erased baseline is not an improvement, so a reset can never
+  render as a jump away from nothing. Two empty windows are `thin`, not `no-previous`: there is no
+  current measurement for a baseline to be missing from. `thin` is fewer than ten guidance calls in
+  either window (`ANSWER_MIN_CALLS`), because below that a percentage is a rounded opinion.
+- **A refusal prints the token and the evidence it has**: `no-previous` and `too-old` still print the
+  rate the current window reached, and `thin` prints both samples with **no percentage at all** — the
+  floor refuses exactly one thing, and the counts are not it. An unknown token is printed raw and
+  uninterpreted: a document from a later version may refuse for a reason this one has not learned, and
+  guessing would invent a number.
+- **`no-days` is an absence, not a line.** A document with no day row in either window carries
+  `{ refusal: 'no-days' }` in the JSON and renders **nothing** in the text: "0%" would be a
+  measurement the counters do not have, and the frozen pre-F report is reproduced character for
+  character. A snapshot with no `answerRate` member at all is the same silence, which is what an older
+  host's document is.
+- **Profile-wide, so it belongs to the corpus block.** The guidance counters are never partitioned by
+  workspace (D-5), so this number never is either, and the panel does not gain a second rate: it is a
+  corpus sentence, read by the person who edits `data/guides.json`.
+- **No word claims a fix.** The sentence says *answered*, and the phase refuses "resolved",
+  "improved" and "fixed" for every one of its claims: F says *fewer findings per file* and *answered
+  more*, both of which are measurable and neither of which is a fix.

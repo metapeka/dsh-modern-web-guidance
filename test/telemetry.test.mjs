@@ -2276,3 +2276,201 @@ test('a scans reset counts the legacy root as the workspace row it is', async ()
   assert.equal(store.state.calls, 4)
   assert.deepEqual(store.state.byTool, { 'legacy-scan': 1 })
 })
+
+// --- The corpus answer rate: this window against the one before (F-3) -------------------------
+
+/** A version-1 document whose root day rows carry exactly the outcomes given and nothing else. */
+function dayDocument(days) {
+  const byDay = {}
+  for (const [day, byOutcome] of Object.entries(days)) {
+    const calls = Object.values(byOutcome).reduce((sum, count) => sum + count, 0)
+    byDay[day] = { calls, byTool: {}, byOutcome, files: 0, findings: 0 }
+  }
+  return { version: 1, since: NOW - 200 * DAY, byDay }
+}
+
+/** The local day `count` days before `NOW`: the window arithmetic keys on local days. */
+const daysAgo = (count) => localDay(NOW - count * DAY)
+
+test('the answer rate divides answered guidance calls by asked ones, this window and the last', async () => {
+  const { telemetry } = telemetryWith({
+    store: memoryStore(dayDocument({
+      // This window: 114 hits and 6 lists answered out of 143 asked — plus 30 scans, which are in
+      // the KPI's denominator and in neither side of this rate.
+      [daysAgo(2)]: { hit: 114, list: 6, miss: 20, 'unknown-id': 3, clean: 30 },
+      // The window before it: 96 of 123.
+      [daysAgo(40)]: { hit: 90, list: 6, miss: 25, 'unknown-id': 2 },
+    })),
+  })
+
+  const snapshot = await telemetry.snapshot({ days: 30 })
+
+  assert.deepEqual(snapshot.answerRate, {
+    window: 30,
+    current: { hit: 114, list: 6, miss: 20, unknownId: 3, answered: 120, asked: 143, rate: 120 / 143 },
+    previous: { hit: 90, list: 6, miss: 25, unknownId: 2, answered: 96, asked: 123, rate: 96 / 123 },
+  })
+  // Two questions on one document: 114 hits out of 173 calls is the KPI's rate, 120 of 143 guidance
+  // calls is the corpus's answer rate. Neither is the other, and neither is derived from the other.
+  assert.equal(snapshot.totals.calls, 173)
+  assert.equal(snapshot.totals.hitRate, 114 / 173)
+  assert.notEqual(snapshot.totals.hitRate, snapshot.answerRate.current.rate)
+})
+
+test('a list is an answer and an error is in neither side of the answer rate', async () => {
+  const { telemetry } = telemetryWith({
+    store: memoryStore(dayDocument({
+      [daysAgo(1)]: { list: 10, error: 5 },
+      [daysAgo(40)]: { list: 12 },
+    })),
+  })
+
+  const snapshot = await telemetry.snapshot({ days: 30 })
+
+  // A list call returned the corpus's own inventory, which is a cheap answer but an answer; a failed
+  // call is not a verdict on the corpus, so it is in neither the numerator nor the denominator.
+  assert.equal(snapshot.answerRate.current.asked, 10)
+  assert.equal(snapshot.answerRate.current.answered, 10)
+  assert.equal(snapshot.answerRate.current.rate, 1)
+  assert.equal(snapshot.answerRate.current.miss, 0)
+  assert.equal(snapshot.totals.calls, 15)
+  assert.equal(snapshot.totals.hitRate, 0)
+  assert.equal(snapshot.answerRate.refusal, undefined)
+})
+
+test('nine guidance calls are thin, and ten are enough to compare', async () => {
+  const thin = telemetryWith({
+    store: memoryStore(dayDocument({
+      [daysAgo(1)]: { hit: 7, miss: 2 },
+      [daysAgo(40)]: { hit: 30, miss: 10 },
+    })),
+  }).telemetry
+  const thinSnapshot = await thin.snapshot({ days: 30 })
+  assert.equal(thinSnapshot.answerRate.refusal, 'thin')
+  // The counts ride along with the token: the floor refused a percentage, not the evidence.
+  assert.equal(thinSnapshot.answerRate.current.asked, 9)
+  assert.equal(thinSnapshot.answerRate.previous.asked, 40)
+
+  const enough = telemetryWith({
+    store: memoryStore(dayDocument({
+      [daysAgo(1)]: { hit: 8, miss: 2 },
+      [daysAgo(40)]: { hit: 30, miss: 10 },
+    })),
+  }).telemetry
+  const enoughSnapshot = await enough.snapshot({ days: 30 })
+  assert.equal(enoughSnapshot.answerRate.refusal, undefined)
+  assert.equal(enoughSnapshot.answerRate.current.rate, 0.8)
+  assert.equal(enoughSnapshot.answerRate.previous.rate, 0.75)
+})
+
+test('a document with no day rows says no-days, and never zero percent', async () => {
+  const { telemetry } = telemetryWith({ store: memoryStore({ version: 1, calls: 0, byDay: {} }) })
+
+  const snapshot = await telemetry.snapshot({ days: 30 })
+
+  // No measurement, not a bad one: there is no rate to report and nothing to compare it with.
+  assert.deepEqual(snapshot.answerRate, { window: 30, refusal: 'no-days' })
+})
+
+test('a document younger than two windows reads no-previous, with the rate it could compare', async () => {
+  const { telemetry } = telemetryWith({
+    store: memoryStore(dayDocument({ [daysAgo(2)]: { hit: 20, miss: 5 } })),
+  })
+
+  const snapshot = await telemetry.snapshot({ days: 30 })
+
+  assert.equal(snapshot.answerRate.refusal, 'no-previous')
+  // The half that exists is still printed; only the comparison is refused.
+  assert.equal(snapshot.answerRate.current.rate, 0.8)
+  assert.equal(snapshot.answerRate.previous.asked, 0)
+})
+
+test('two windows of scans with no guidance calls read thin, not no-previous', async () => {
+  const { telemetry } = telemetryWith({
+    store: memoryStore(dayDocument({
+      [daysAgo(1)]: { clean: 12 },
+      [daysAgo(40)]: { clean: 9 },
+    })),
+  })
+
+  const snapshot = await telemetry.snapshot({ days: 30 })
+
+  // `no-previous` says a baseline is missing from a comparison that exists. Here neither window was
+  // asked anything: the floor is the token, and it prints two honest zeroes rather than a percentage.
+  assert.equal(snapshot.answerRate.refusal, 'thin')
+  assert.equal(snapshot.answerRate.current.asked, 0)
+  assert.equal(snapshot.answerRate.previous.asked, 0)
+})
+test('the earlier window is the same length and immediately before the selected one', async () => {
+  const store = memoryStore(dayDocument({
+    [daysAgo(2)]: { hit: 8, miss: 2 },
+    [daysAgo(10)]: { hit: 5, miss: 25 },
+  }))
+
+  const week = await telemetryWith({ store }).telemetry.snapshot({ days: 7 })
+  assert.equal(week.answerRate.window, 7)
+  // Seven days back from `NOW` reach day 2; the seven before that reach day 10. A previous window
+  // that overlapped the current one, or started a day late, would put both rows on one side.
+  assert.equal(week.answerRate.current.asked, 10)
+  assert.equal(week.answerRate.previous.asked, 30)
+  assert.equal(week.answerRate.previous.rate, 5 / 30)
+
+  // A wider window swallows the older day, so the baseline is the fourteen days before this one —
+  // and there are none, which is a refusal rather than a comparison with zero.
+  const wide = await telemetryWith({ store }).telemetry.snapshot({ days: 14 })
+  assert.equal(wide.answerRate.window, 14)
+  assert.equal(wide.answerRate.current.asked, 40)
+  assert.equal(wide.answerRate.refusal, 'no-previous')
+})
+
+test('an earlier window that reaches past the retention is too-old to compare', async () => {
+  // Forty days of retention and a thirty-day window: the window before it starts fifty-nine days
+  // ago, so part of it was pruned. The days that fell out are indistinguishable from days nobody
+  // called on, which is exactly why the comparison refuses instead of dividing what survived.
+  const { telemetry } = telemetryWith({
+    store: memoryStore(dayDocument({
+      [daysAgo(2)]: { hit: 40, miss: 10 },
+      [daysAgo(20)]: { hit: 25, miss: 25 },
+      [daysAgo(35)]: { hit: 30, miss: 20 },
+    })),
+    options: { retentionDays: 40 },
+  })
+
+  const wide = await telemetry.snapshot({ days: 30 })
+  assert.equal(wide.answerRate.refusal, 'too-old')
+  assert.equal(wide.answerRate.current.asked, 100)
+  assert.equal(wide.answerRate.current.rate, 0.65)
+  // The row that survived is still counted; it is the comparison the record cannot carry.
+  assert.equal(wide.answerRate.previous.asked, 50)
+
+  // A shorter window whose earlier half sits inside the retention is compared normally: the token is
+  // about the horizon, not about the window being large.
+  const short = await telemetry.snapshot({ days: 15 })
+  assert.equal(short.answerRate.window, 15)
+  assert.equal(short.answerRate.refusal, undefined)
+  assert.equal(short.answerRate.current.rate, 0.8)
+  assert.equal(short.answerRate.previous.rate, 0.5)
+})
+test('a reset that erases the earlier window leaves no-previous, not an improvement', async () => {
+  const store = memoryStore(dayDocument({
+    // A good week: 60 of 100 answered. The baseline behind it answered 20 of 100.
+    [daysAgo(2)]: { hit: 60, miss: 40 },
+    [daysAgo(40)]: { hit: 20, miss: 80 },
+  }))
+  const { telemetry } = telemetryWith({ store })
+  const before = await telemetry.snapshot({ days: 30 })
+  assert.deepEqual([before.answerRate.current.rate, before.answerRate.previous.rate], [0.6, 0.2])
+
+  // The story the scope names: the counters were reset, the week refilled, and the yardstick is gone.
+  await telemetry.reset({ scope: 'window', days: 60 })
+  for (let index = 0; index < 12; index += 1) {
+    await telemetry.record({ tool: 'search', outcome: 'hit', query: 'dialog', at: NOW })
+  }
+  const after = await telemetry.snapshot({ days: 30 })
+
+  // 100% against nothing is not an improvement: the line must say there is no earlier window.
+  assert.equal(after.answerRate.refusal, 'no-previous')
+  assert.equal(after.answerRate.previous.asked, 0)
+  assert.equal(after.answerRate.current.asked, 12)
+  assert.equal(after.answerRate.current.rate, 1)
+})

@@ -118,6 +118,14 @@ reads low; the panel divides hits by the calls that could hit (hits, misses and 
 number in the tile's tooltip.
 _Avoid_: success rate, accuracy
 
+**Answer rate**:
+The share of *guidance* calls the corpus answered — `(hit + list) / (hit + list + miss + unknown id)` —
+stated for one window beside the window before it. It is deliberately not the hit rate: that one
+divides hits by every call, scans and errors included, and answers "what did the agent get"; this one
+answers "did the corpus answer what it was asked", so a week of scanning cannot move it. `list` counts
+as answered, because the corpus returned its own inventory, and `error` is in neither side.
+_Avoid_: hit rate, success rate, resolution rate
+
 **Report**:
 The human-facing summary of counters over one period, produced by the `/guidance-stats` command.
 _Avoid_: dashboard, metrics page
