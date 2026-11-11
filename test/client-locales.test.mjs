@@ -119,7 +119,7 @@ test('every Chinese value keeps the placeholders of its English source', () => {
 })
 
 test('the Chinese dictionary defines all three plural forms with the same text', () => {
-  for (const base of ['call', 'hit', 'miss', 'file', 'finding', 'pattern', 'entry']) {
+  for (const base of ['call', 'hit', 'miss', 'file', 'finding', 'pattern', 'entry', 'scan']) {
     const forms = ['one', 'few', 'many'].map((form) => ZH.get(`${base}.${form}`))
     assert.ok(forms.every((form) => typeof form === 'string'), `${base} is missing a plural form`)
     assert.equal(new Set(forms).size, 1, `${base} plural forms differ, but Chinese has no plural`)
@@ -273,7 +273,7 @@ test('every scanner string exists in all three dictionaries and is rendered', ()
     assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
   }
   // The counts the scan sections print go through the plural helper, which needs each base's forms.
-  for (const base of ['file', 'finding', 'pattern', 'entry']) {
+  for (const base of ['file', 'finding', 'pattern', 'entry', 'scan']) {
     assert.ok(CLIENT_SOURCE.includes(`plural(t, '${base}'`), `client.js never pluralizes ${base}`)
     assert.ok(EN.has(`${base}.many`), `EN has no ${base} plural forms`)
   }
@@ -2593,4 +2593,181 @@ test('a write refresh puts the reader back and brings the outcome into view, nev
   await settle(panel, props)
   assert.equal(fresh.scrollTop, 200, 'the panel moved itself without a write')
   assert.notEqual(tree, undefined)
+})
+
+/** The strings phase F-1 added: the slope under the comparison, and the sample's plural forms. */
+const SLOPE_KEYS = [
+  'scanner.slopeCaption',
+  'scanner.slope',
+  'scanner.slopeNoFilesOlder',
+  'scanner.slopeNoFilesNewer',
+  'scanner.slopeBranches',
+]
+
+/** The four tokens a slope may refuse with. They are the host's words, never locale keys. */
+const SLOPE_TOKENS = ['too-few-scans', 'branch-changed', 'no-files', 'aggregate']
+
+test('the slope line exists in all three dictionaries, right under the comparison', () => {
+  const english = [...EN.keys()]
+  const positions = SLOPE_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the slope keys are out of order')
+  // The line generalises the comparison, so it is authored directly after it — no unrelated string
+  // between the two groups, where the next reader would not think to look.
+  assert.equal(
+    english.indexOf('scanner.diffRetired') + 1,
+    positions[0],
+    'the slope keys are not the group authored right after the comparison',
+  )
+  for (const key of SLOPE_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+  }
+  // Four sentences and one connector. The connector is a placeholder, a middot and an arrow, so it is the
+  // one key with no word to translate and the same text in three languages.
+  for (const key of SLOPE_KEYS.filter((entry) => entry !== 'scanner.slopeBranches')) {
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  assert.equal(ZH.get('scanner.slopeBranches'), EN.get('scanner.slopeBranches'), 'the connector was translated')
+  // The arrow is the fact; a lift/drop glyph would be the verdict the scope refuses.
+  for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+    assert.match(dictionary.get('scanner.slope'), /→/, `${name} slope line has no arrow between the halves`)
+    assert.doesNotMatch(dictionary.get('scanner.slope'), /[↑↓]/, `${name} slope line draws a direction glyph`)
+    for (const key of SLOPE_KEYS) {
+      assert.doesNotMatch(
+        dictionary.get(key),
+        /better|worse|improved|improvement|улучш|хуже|хорош|改善|恶化|变好/i,
+        `${name}.${key} claims a verdict instead of stating a measurement`,
+      )
+    }
+  }
+  // The four tokens are the host's: interpolated raw, like a skip reason, and never looked up.
+  for (const token of SLOPE_TOKENS) {
+    for (const [name, dictionary] of [['EN', EN], ['RU', RU], ['ZH', ZH]]) {
+      assert.equal(dictionary.has(token), false, `${name} gives the ${token} token a locale key`)
+    }
+  }
+  // The sample is a count, so it goes through the panel's own plural machinery.
+  assert.ok(CLIENT_SOURCE.includes("plural(t, 'scan'"), 'the slope sample is not pluralized')
+})
+
+test('the slope is one quiet line under the comparison, and the arrow is a fact', async () => {
+  const diff = { against: '2026-11-03T09:10:00.000Z', partial: '', resolved: 3, stillOpen: 2, new: 1, retired: 0 }
+  const falling = await mountPanel(reportOf({ scanDiff: diff, scanSlope: { from: 12.4, to: 9.1, delta: -3.3, sample: 6 } }))
+  const nodes = elementsOf(falling.tree).filter((element) => element.props.key === 'scan-diff' || element.props.key === 'scan-slope')
+  assert.equal(nodes.length, 2, 'the comparison and the slope are not both drawn')
+  assert.equal(nodes[0].props.key, 'scan-diff', 'the slope is not under the comparison')
+  assert.equal(nodes[1].props.key, 'scan-slope', 'the slope is not directly under the comparison')
+  assert.deepEqual(
+    nodes[1].children,
+    ['Slope: 6 scans: 12.4 → 9.1 findings per 100 files'],
+    'the slope line does not state its sample and both halves',
+  )
+  // The line wears the comparison's own style, so it cannot be coloured as an outcome: a rise is not
+  // painted as a regression and a drop is not painted as a fix.
+  assert.deepEqual(nodes[1].props.style, nodes[0].props.style, 'the slope does not wear the comparison style')
+  assert.equal(nodes[1].props.style.color, nodes[0].props.style.color, 'the slope is coloured apart from the comparison')
+  assert.doesNotMatch(
+    String(nodes[1].props.style.color),
+    /state-(success|error|warn)/,
+    'the slope line is coloured by its direction, which is the verdict it must not print',
+  )
+  const rising = await mountPanel(reportOf({ scanSlope: { from: 9.1, to: 12.4, delta: 3.3, sample: 6 } }))
+  const risingLine = elementIn(rising.tree, (element) => element.props.key === 'scan-slope')
+  assert.deepEqual(risingLine.children, ['Slope: 6 scans: 9.1 → 12.4 findings per 100 files'])
+  assert.deepEqual(risingLine.props.style, nodes[1].props.style, 'a rise is styled differently from a drop')
+  // The number comes from the host, already rounded: the panel formats it and moves no decimal.
+  const rounded = await mountPanel(reportOf({ scanSlope: { from: 100, to: 0.5, delta: -99.5, sample: 4 } }))
+  assert.deepEqual(
+    elementIn(rounded.tree, (element) => element.props.key === 'scan-slope').children,
+    ['Slope: 4 scans: 100.0 → 0.5 findings per 100 files'],
+  )
+})
+
+test('a refusal prints its token raw, and names only what the host named', async () => {
+  // `aggregate` prints, unlike the comparison which stays silent there: the host's one deliberate
+  // deviation from phase B, so a panel that swallowed it would hide the answer a reader asked for.
+  const cases = [
+    [{ refusal: 'too-few-scans' }, 'Slope: not comparable (too-few-scans)'],
+    [{ refusal: 'aggregate' }, 'Slope: not comparable (aggregate)'],
+    [{ refusal: 'no-files', half: 'older' }, 'Slope: not comparable (no-files, older half)'],
+    [{ refusal: 'no-files', half: 'newer' }, 'Slope: not comparable (no-files, newer half)'],
+    // A half the host did not name is not invented.
+    [{ refusal: 'no-files' }, 'Slope: not comparable (no-files)'],
+    [{ refusal: 'no-files', half: 'middle' }, 'Slope: not comparable (no-files)'],
+    // A token this version has never heard of still prints: swallowing it would be the panel refusing
+    // the host's own refusal, and the person reading it would see a missing answer instead of an odd one.
+    [{ refusal: 'future-token' }, 'Slope: not comparable (future-token)'],
+    // `branch-changed` names the two checkouts it refused to compare across, raw like a history label.
+    [
+      {
+        refusal: 'branch-changed',
+        halves: { older: { kind: 'branch', name: 'main' }, newer: { kind: 'branch', name: 'feature/panel' } },
+      },
+      'Slope: not comparable (branch-changed) · main → feature/panel',
+    ],
+    // One labelled half is not a disagreement, and a token alone still prints.
+    [{ refusal: 'branch-changed', halves: { older: { kind: 'branch', name: 'main' } } }, 'Slope: not comparable (branch-changed)'],
+    [
+      {
+        refusal: 'branch-changed',
+        halves: { older: { kind: 'detached', sha: '0123abc' }, newer: { kind: 'branch', name: 'release/0.13' } },
+      },
+      'Slope: not comparable (branch-changed) · 0123abc → release/0.13',
+    ],
+  ]
+  for (const [scanSlope, expected] of cases) {
+    const { tree } = await mountPanel(reportOf({ scanSlope }))
+    const line = elementIn(tree, (element) => element.props.key === 'scan-slope')
+    assert.notEqual(line, undefined, `no line for ${JSON.stringify(scanSlope)}`)
+    assert.deepEqual(line.children, [expected], `wrong line for ${JSON.stringify(scanSlope)}`)
+  }
+  // The labels are the repository's own words, so the renderer takes them from the host's object and
+  // never through a dictionary: `main` is `main` in every language, like a skip reason.
+  assert.match(
+    CLIENT_SOURCE,
+    /older: slope\.older\.kind === 'branch' \? slope\.older\.name : slope\.older\.sha/,
+    'a half branch label is translated instead of printed raw',
+  )
+  assert.match(
+    CLIENT_SOURCE,
+    /newer: slope\.newer\.kind === 'branch' \? slope\.newer\.name : slope\.newer\.sha/,
+    'a half branch label is translated instead of printed raw',
+  )
+})
+
+test('a report with no slope draws no line, no placeholder and no zero', async () => {
+  // Absent is a document written before the ring existed; `null` is a host with a ring key it cannot
+  // read. Both are silence in the host's own report, so both are silence here — and an unreadable
+  // measurement is silence too rather than a rate the panel made up.
+  const cases = [
+    ['a pre-F document', {}],
+    ['a member the host could not derive', { scanSlope: null }],
+    ['an empty member', { scanSlope: {} }],
+    ['a non-numeric rate', { scanSlope: { from: 'fast', to: 9.1, sample: 6 } }],
+    ['a missing half', { scanSlope: { from: 12.4, sample: 6 } }],
+    ['a claim without its sample', { scanSlope: { from: 12.4, to: 9.1 } }],
+    ['a sample of zero', { scanSlope: { from: 12.4, to: 9.1, sample: 0 } }],
+    ['a malformed refusal', { scanSlope: { refusal: '' } }],
+  ]
+  for (const [name, extra] of cases) {
+    const { tree } = await mountPanel(reportOf(extra))
+    assert.equal(
+      elementIn(tree, (element) => element.props.key === 'scan-slope'),
+      undefined,
+      `${name} still draws a slope line`,
+    )
+    assert.equal(textsOf(tree).some((text) => text.includes('Slope:')), false, `${name} prints a slope caption`)
+    assert.equal(textsOf(tree).some((text) => text.includes('per 100 files')), false, `${name} prints a rate`)
+  }
 })

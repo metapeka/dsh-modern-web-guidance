@@ -152,6 +152,11 @@ window.__ModuleLoader__.load({
       'scanner.diffPartial': 'not comparable ({reason})',
       'scanner.diffFirst': 'The next scan will be compared with this one',
       'scanner.diffRetired': '{count} under retired rules',
+      'scanner.slopeCaption': 'Slope: {body}',
+      'scanner.slope': '{scans}: {from} → {to} findings per 100 files',
+      'scanner.slopeNoFilesOlder': 'not comparable (no-files, older half)',
+      'scanner.slopeNoFilesNewer': 'not comparable (no-files, newer half)',
+      'scanner.slopeBranches': '{refusal} · {older} → {newer}',
       'scanner.lastSeen': 'last {when}',
       'scanner.rules': 'Rules that matched',
       'scanner.lifetime': 'Lifetime totals, not the {days}-day window',
@@ -224,6 +229,9 @@ window.__ModuleLoader__.load({
       'entry.one': '{count} entry',
       'entry.few': '{count} entries',
       'entry.many': '{count} entries',
+      'scan.one': '{count} scan',
+      'scan.few': '{count} scans',
+      'scan.many': '{count} scans',
       'empty.title': 'No calls in the last {days} days',
       'empty.body': 'Ask for a guide with web_guidance_search, then refresh this panel. /guidance-stats prints the same report as text.',
       'error.title': 'Usage counters are unavailable',
@@ -284,6 +292,11 @@ window.__ModuleLoader__.load({
       'scanner.diffPartial': 'сравнение невозможно ({reason})',
       'scanner.diffFirst': 'Следующее сканирование будет сравнено с этим',
       'scanner.diffRetired': '{count} по снятым правилам',
+      'scanner.slopeCaption': 'Тренд: {body}',
+      'scanner.slope': '{scans}: {from} → {to} замечаний на 100 файлов',
+      'scanner.slopeNoFilesOlder': 'сравнение невозможно (no-files, более ранняя половина)',
+      'scanner.slopeNoFilesNewer': 'сравнение невозможно (no-files, более поздняя половина)',
+      'scanner.slopeBranches': '{refusal} · {older} → {newer}',
       'scanner.lastSeen': 'последний раз {when}',
       'scanner.rules': 'Сработавшие правила',
       'scanner.lifetime': 'Итоги за всё время, а не за {days} дн.',
@@ -356,6 +369,9 @@ window.__ModuleLoader__.load({
       'entry.one': '{count} запись',
       'entry.few': '{count} записи',
       'entry.many': '{count} записей',
+      'scan.one': '{count} сканирование',
+      'scan.few': '{count} сканирования',
+      'scan.many': '{count} сканирований',
       'empty.title': 'За последние {days} дн. вызовов не было',
       'empty.body': 'Попросите подсказку через web_guidance_search и обновите панель. /guidance-stats печатает тот же отчёт текстом.',
       'error.title': 'Счётчики недоступны',
@@ -420,6 +436,11 @@ window.__ModuleLoader__.load({
       'scanner.diffPartial': '无法比较（{reason}）',
       'scanner.diffFirst': '下一次扫描将与此比较',
       'scanner.diffRetired': '已停用规则 {count} 条',
+      'scanner.slopeCaption': '趋势：{body}',
+      'scanner.slope': '{scans}：{from} → {to} 条发现/100 个文件',
+      'scanner.slopeNoFilesOlder': '无法比较（no-files，较早的一半）',
+      'scanner.slopeNoFilesNewer': '无法比较（no-files，较新的一半）',
+      'scanner.slopeBranches': '{refusal} · {older} → {newer}',
       'scanner.lastSeen': '最近 {when}',
       'scanner.rules': '命中的规则',
       'scanner.lifetime': '累计总数，不是最近 {days} 天的窗口',
@@ -492,6 +513,9 @@ window.__ModuleLoader__.load({
       'entry.one': '{count} 条记录',
       'entry.few': '{count} 条记录',
       'entry.many': '{count} 条记录',
+      'scan.one': '{count} 次扫描',
+      'scan.few': '{count} 次扫描',
+      'scan.many': '{count} 次扫描',
       'empty.title': '最近 {days} 天没有调用',
       'empty.body': '使用 web_guidance_search 获取指引，然后刷新本面板。/guidance-stats 会以文本形式输出同一份报告。',
       'error.title': '使用计数器不可用',
@@ -1073,6 +1097,50 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The project's slope, or null when the report carries none the panel can state.
+     *
+     * Two shapes and two silences. A stated direction is three numbers the panel renders verbatim:
+     * `from`, `to` and the `sample` they were weighed over — F-1 already rounded the rates and the
+     * panel does no arithmetic of its own, which is why `delta` is not read (a third number that is
+     * the difference of the other two is the host's to state, and the line says the halves).
+     *
+     * A refusal is its token plus whatever the host sent with it: `half` for `no-files`, because that
+     * token names the half whose denominator was missing, and the two branch labels for
+     * `branch-changed`, because a disagreement the reader cannot see is a verdict rather than a
+     * measurement. Both are validated and both may be absent — a token alone still prints.
+     *
+     * The two silences are a document written before the ring existed (no `scanSlope` member at all)
+     * and a member of `null`, which the host sends when it has a ring key it cannot read. Both read as
+     * null: the host's own report prints no line for either, and a token the host did not send would be
+     * the panel inventing the one thing this field exists to keep honest.
+     *
+     * @param {unknown} value
+     * @returns {{ from: number, to: number, sample: number } |
+     *   { refusal: string, half: string, older: object|null, newer: object|null } | null}
+     */
+    function readScanSlope(value) {
+      if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value)) return null
+      const refusal = asText(value.refusal)
+      if (refusal !== '') {
+        const halves = value.halves !== null && typeof value.halves === 'object' ? value.halves : {}
+        return {
+          refusal,
+          half: value.half === 'older' || value.half === 'newer' ? value.half : '',
+          older: readBranch(halves.older),
+          newer: readBranch(halves.newer),
+        }
+      }
+      const from = value.from
+      const to = value.to
+      const sample = value.sample
+      if (typeof from !== 'number' || !Number.isFinite(from)) return null
+      if (typeof to !== 'number' || !Number.isFinite(to)) return null
+      // A claim without its sample is the number this phase exists to refuse: state it or print nothing.
+      if (typeof sample !== 'number' || !Number.isFinite(sample) || sample < 1) return null
+      return { from, to, sample }
+    }
+
+    /**
      * The recent scans, newest first, as the panel's rows need them.
      *
      * Only the members a row renders are kept: the entry's `diff`, `skipped`, `truncated` and
@@ -1190,6 +1258,9 @@ window.__ModuleLoader__.load({
         // The scan story, additive like everything else in this block: a pre-B host sends neither,
         // and null / [] is what keeps the comparison line and the history block off the panel.
         scanDiff: readScanDiff(payload.scanDiff),
+        // The slope is derived from the ring above and stored nowhere: like `scanDiff`, an absent
+        // member is a document written before the feature existed and renders no line at all.
+        scanSlope: readScanSlope(payload.scanSlope),
         scanHistory: readScanHistory(payload.scanHistory),
         // Whose numbers these are, and whose are on offer. Both are additive: a 0.9.0 host sends
         // neither, and null / [] is the panel's own "no attribution to show" state.
@@ -2330,6 +2401,51 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The project's slope as one line under the comparison, or null when there is none to print.
+     *
+     * The arrow is a fact about two halves of the ring, not a verdict: the line states the two rates,
+     * the sample they were weighed over, and nothing else — the same quiet note style as the comparison
+     * above it, no colour, no icon, and no word for "better". A refusal prints the host's token raw,
+     * like a skip reason, because `too-few-scans` is the scanner's word and not a locale key: `no-files`
+     * also names the half whose denominator was missing, and `branch-changed` names the two labels it
+     * would not compare across — raw like a branch label in the history row, because a checkout is the
+     * repository's own word for itself.
+     *
+     * @param {Function} t bound translator.
+     * @param {object|null} slope the report's `scanSlope`.
+     * @returns {string|null}
+     */
+    function slopeLine(t, slope) {
+      if (slope === null) return null
+      const caption = (body) => t('scanner.slopeCaption', { body })
+      if (asText(slope.refusal) !== '') {
+        const reason = t('scanner.diffPartial', { reason: slope.refusal })
+        if (slope.refusal === 'no-files') {
+          if (slope.half === 'older') return caption(t('scanner.slopeNoFilesOlder'))
+          if (slope.half === 'newer') return caption(t('scanner.slopeNoFilesNewer'))
+          return caption(reason)
+        }
+        if (slope.refusal === 'branch-changed' && slope.older !== null && slope.newer !== null) {
+          return caption(
+            t('scanner.slopeBranches', {
+              refusal: reason,
+              older: slope.older.kind === 'branch' ? slope.older.name : slope.older.sha,
+              newer: slope.newer.kind === 'branch' ? slope.newer.name : slope.newer.sha,
+            }),
+          )
+        }
+        return caption(reason)
+      }
+      return caption(
+        t('scanner.slope', {
+          scans: plural(t, 'scan', slope.sample),
+          from: slope.from.toFixed(1),
+          to: slope.to.toFixed(1),
+        }),
+      )
+    }
+
+    /**
      * One row of the recent-scans block: when, how big, what it found, and what it was measured on.
      *
      * `date time · files · findings · rule×count` — the rules are the entry's own top list, raw ids
@@ -2721,6 +2837,11 @@ window.__ModuleLoader__.load({
       // two scans, so it stays next to the second one and never becomes a lifetime number.
       const comparison = diffLine(t, report.scanDiff)
       if (comparison !== null) children.push(h('div', { style: S.note, key: 'scan-diff' }, comparison))
+      // The slope generalises that comparison to the recent series, so it sits directly under it and
+      // wears the same style: one more fact about the project, not an outcome to be coloured. A pre-F
+      // host sends no member and draws no line — not a placeholder, not a zero, not "no slope yet".
+      const slope = slopeLine(t, report.scanSlope)
+      if (slope !== null) children.push(h('div', { style: S.note, key: 'scan-slope' }, slope))
       // A muted finding is still a finding, so its count sits beside the scan's own and is never taken
       // out of it. Both members have to be there: the panel names the rules the number belongs to and
       // invents neither. A state file written before phase C has neither, so the line is absent —
