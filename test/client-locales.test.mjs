@@ -119,7 +119,7 @@ test('every Chinese value keeps the placeholders of its English source', () => {
 })
 
 test('the Chinese dictionary defines all three plural forms with the same text', () => {
-  for (const base of ['call', 'hit', 'miss', 'file', 'finding', 'pattern']) {
+  for (const base of ['call', 'hit', 'miss', 'file', 'finding', 'pattern', 'entry']) {
     const forms = ['one', 'few', 'many'].map((form) => ZH.get(`${base}.${form}`))
     assert.ok(forms.every((form) => typeof form === 'string'), `${base} is missing a plural form`)
     assert.equal(new Set(forms).size, 1, `${base} plural forms differ, but Chinese has no plural`)
@@ -232,6 +232,9 @@ const SCANNER_KEYS = [
   'scanner.skipped',
   'scanner.cut',
   'scanner.ignoreUsage',
+  'scanner.review',
+  'scanner.reviewUnknown',
+  'scanner.reviewList',
   'scanner.rules',
   'scanner.lifetime',
   'scanner.lifetimeSince',
@@ -269,7 +272,7 @@ test('every scanner string exists in all three dictionaries and is rendered', ()
     assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
   }
   // The counts the scan sections print go through the plural helper, which needs each base's forms.
-  for (const base of ['file', 'finding', 'pattern']) {
+  for (const base of ['file', 'finding', 'pattern', 'entry']) {
     assert.ok(CLIENT_SOURCE.includes(`plural(t, '${base}'`), `client.js never pluralizes ${base}`)
     assert.ok(EN.has(`${base}.many`), `EN has no ${base} plural forms`)
   }
@@ -1963,4 +1966,205 @@ test('with nothing to copy the copy action is absent, not broken', async () => {
     navigator: { clipboard },
   })
   assert.equal(buttonOf(tree, EN.get('copy.json')), undefined, 'an empty panel offers a copy')
+})
+
+/** The strings the removal added: the row action, its confirmation, its refusal and the lead-in. */
+const REMOVE_KEYS = ['scan.remove', 'scan.removeConfirm', 'scan.removeFailed', 'scan.removeNote']
+
+/** A report for a workspace whose last scan reviewed its suppression file. */
+function reviewReport(suppressions, lastScan = {}) {
+  return reportOf({
+    lastScan: {
+      at: '2026-11-10T09:42:11.000Z',
+      files: 12,
+      findings: 4,
+      rules: [],
+      skipped: {},
+      truncated: false,
+      suppressions,
+      ...lastScan,
+    },
+  })
+}
+
+test('the removal strings exist in all three dictionaries, in one group after the mute', () => {
+  const english = [...EN.keys()]
+  const positions = REMOVE_KEYS.map((key) => {
+    assert.notEqual(english.indexOf(key), -1, `EN has no ${key}`)
+    return english.indexOf(key)
+  })
+  assert.deepEqual(positions, [...positions].sort((left, right) => left - right), 'the keys are out of order')
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.equal(positions[index], positions[index - 1] + 1, 'the removal keys are not one contiguous group')
+  }
+  // The two halves of ADR-0004 are one story: the mute appends an entry, the removal takes it back, and
+  // a reader of the dictionaries meets them together — with the ignore group in between, because that
+  // is the order the writes were added in and reordering would rewrite three dictionaries for nothing.
+  assert.equal(positions[0], english.indexOf('scan.muteNote') + 1, 'the removal keys do not follow the mute note')
+  for (const key of REMOVE_KEYS) {
+    for (const name of DICTIONARIES) {
+      const dictionary = name === 'EN' ? EN : name === 'RU' ? RU : ZH
+      assert.ok(dictionary.has(key), `${name} has no ${key}`)
+    }
+    assert.ok(CLIENT_SOURCE.includes(`t('${key}'`), `client.js never renders ${key}`)
+    assert.deepEqual(placeholders(RU.get(key)), placeholders(EN.get(key)), `placeholders differ for RU.${key}`)
+    assert.deepEqual(placeholders(ZH.get(key)), placeholders(EN.get(key)), `placeholders differ for ZH.${key}`)
+    assert.match(RU.get(key), /[\u0400-\u04ff]/, `RU.${key} is not Russian`)
+    assert.match(ZH.get(key), CJK, `ZH.${key} has no Chinese text`)
+    assert.notEqual(RU.get(key), EN.get(key), `RU.${key} is copied from English`)
+    assert.notEqual(ZH.get(key), EN.get(key), `ZH.${key} is copied from English`)
+  }
+  assert.deepEqual(placeholders(EN.get('scan.removeFailed')), ['message'])
+  // The second click names the file it shrinks, and a file name is never translated.
+  for (const dictionary of [EN, RU, ZH]) {
+    assert.match(dictionary.get('scan.removeConfirm'), /\.suppress/, 'the confirmation does not name the file it edits')
+  }
+  // The one panel-owned sentence a removal gets says what it does and refuses the vocabulary of repair:
+  // an entry that is gone from the file is still a finding, and a person who reads "fixed" has been told
+  // a false thing about their code.
+  assert.doesNotMatch(EN.get('scan.removeNote'), /fix|resolv|repair|gone/i, 'the removal note promises a repair')
+  assert.match(EN.get('scan.removeNote'), /un-mutes/, 'the removal note does not say what it undoes')
+  assert.doesNotMatch(RU.get('scan.removeNote'), /исправ|почин|решён/i, 'the Russian note promises a repair')
+  assert.doesNotMatch(ZH.get('scan.removeNote'), /修复|解决/, 'the Chinese note promises a repair')
+  // Two different writes, two different action words: removal must not borrow the ignore's or the mute's.
+  assert.notEqual(EN.get('scan.remove'), EN.get('scan.mute'))
+  assert.notEqual(EN.get('scan.removeConfirm'), EN.get('scan.muteConfirm'))
+})
+
+test('a review with unused entries names its counts and offers one removal per id', async () => {
+  const { tree } = await mountPanel(reviewReport({ entries: 3, matching: 1, unused: ['aa11bb22', 'cc33dd44'] }))
+  const texts = textsOf(tree)
+  assert.ok(
+    texts.includes(translate('scanner.review', { entries: translate('entry.few', { count: 3 }), matching: 1, unused: 2 })),
+    'the review header does not name all three numbers',
+  )
+  assert.ok(texts.includes(EN.get('scanner.reviewList')), 'the unused entries have no caption')
+  // The ids are the host's data: eight hex characters, drawn as given and never translated.
+  assert.equal(texts.filter((text) => text === 'aa11bb22' || text === 'cc33dd44').length, 2, 'an unused id is not drawn')
+  const removals = elementsOf(tree).filter(
+    (element) => element.type === 'button' && element.children.includes(EN.get('scan.remove')),
+  )
+  assert.equal(removals.length, 2, 'the review does not offer one removal per entry')
+  // Bounded by height, not by a cap: the box scrolls so every remove action stays reachable, where
+  // slicing the list would leave a counted entry with no button to act on it.
+  const box = elementIn(tree, (element) => element.props.style?.maxHeight === '150px' && element.props.style?.overflowY === 'auto')
+  assert.equal(typeof box, 'object', 'the review list is not a bounded, scrollable block')
+  assert.equal(elementsOf(box).filter((element) => element.type === 'button').length, 2, 'the list is bounded but not whole')
+})
+
+test('an incomplete scan prints the counts without an unused number', async () => {
+  // `unused: null` is the host saying it could not prove anything: a scan that skipped files or read
+  // fewer of them than its baseline cannot know which entries matched nothing, and the panel must not
+  // print `0` for it — that sentence would claim every mute still matches a site nobody looked for.
+  const { tree } = await mountPanel(reviewReport({ entries: 3, matching: 1, unused: null }))
+  const texts = textsOf(tree)
+  assert.ok(
+    texts.includes(translate('scanner.reviewUnknown', { entries: translate('entry.few', { count: 3 }), matching: 1 })),
+    'an incomplete review draws no sentence',
+  )
+  assert.equal(
+    texts.includes(translate('scanner.review', { entries: translate('entry.few', { count: 3 }), matching: 1, unused: 0 })),
+    false,
+    'an incomplete review invented an unused number',
+  )
+  assert.equal(texts.includes(EN.get('scanner.reviewList')), false, 'an incomplete review lists entries it cannot prove')
+  assert.equal(buttonOf(tree, EN.get('scan.remove')), undefined, 'an incomplete review offers a removal it cannot justify')
+  // A list that disagrees with its own counts is the same state: two entries, one match, and one id
+  // cannot name the other, so the ids are dropped rather than used to accuse an entry of idleness.
+  for (const dishonest of [
+    { entries: 3, matching: 1, unused: ['aa11bb22'] },
+    { entries: 3, matching: 1, unused: 'aa11bb22' },
+    { entries: '3', matching: 1, unused: [] },
+  ]) {
+    const { tree: guarded } = await mountPanel(reviewReport(dishonest))
+    assert.equal(
+      buttonOf(guarded, EN.get('scan.remove')),
+      undefined,
+      `a review that disagrees with itself (${JSON.stringify(dishonest)}) still offers a removal`,
+    )
+  }
+})
+
+test('a scan without review data draws no block, and a measured zero draws one', async () => {
+  // A 0.11.0 document, or a `.suppress` nobody could read: the host attaches nothing, and the panel
+  // renders the 0.11.0 section exactly — no header, no caption, no action.
+  for (const report of [reportOf(), reportOf({ lastScan: { at: '2026-11-10T09:42:11.000Z', files: 12, findings: 4, rules: [] } })]) {
+    const { tree } = await mountPanel(report)
+    assert.equal(textsOf(tree).some((text) => text.startsWith('.suppress')), false, 'a document without a review grew one')
+    assert.equal(buttonOf(tree, EN.get('scan.remove')), undefined, 'a document without a review offers a removal')
+  }
+  // An empty file is a measured zero, and its own absence: there is nothing to list, and a header
+  // about zero entries would be noise about a file the project does not use.
+  const { tree: empty } = await mountPanel(reviewReport({ entries: 0, matching: 0, unused: [] }))
+  assert.equal(textsOf(empty).some((text) => text.startsWith('.suppress')), false, 'an empty suppression file grew a review')
+  // A file whose every entry still matches says so, in numbers, without inventing a list.
+  const { tree: matched } = await mountPanel(reviewReport({ entries: 2, matching: 2, unused: [] }))
+  const texts = textsOf(matched)
+  assert.ok(
+    texts.includes(translate('scanner.review', { entries: translate('entry.few', { count: 2 }), matching: 2, unused: 0 })),
+    'a review with nothing unused does not say so',
+  )
+  assert.equal(texts.includes(EN.get('scanner.reviewList')), false, 'a review with nothing unused lists an entry')
+})
+
+test('a removal asks for a plan, writes nothing on the first click and never calls the entry fixed', async () => {
+  // The host's two sentences, copied from `index.js`'s `removeSuppressionOutcome`: the plan names the
+  // payload it would drop (date and reason), the outcome says the site is unmuted and that no counter
+  // moved. The fixture is the host's own text because the panel must not add a word to either.
+  const plan =
+    'Removal plan for aa11bb22: remove 1 entry from /work/app/.suppress, which would go from 1 to 0 entries, dropping the entry it recorded (2026-10-02, "changed on purpose"). Nothing has been written; run the same line without --dry-run to remove it.'
+  const outcome =
+    'Removed aa11bb22 from /work/app/.suppress; the file now holds 0 entries. The site is no longer muted, so the next scan counts it as a finding again. A removal is not a fix: it does not mean the finding went away, and no counter has changed.'
+  const review = { entries: 1, matching: 0, unused: ['aa11bb22'] }
+  const { tree, panel, props, bridge } = await mountScriptedPanel(reviewReport(review), {
+    '*': reportEnvelope(reviewReport(review)),
+    '/guidance-suppress --remove aa11bb22 --dry-run': textEnvelope(plan),
+    '/guidance-suppress --remove aa11bb22': textEnvelope(outcome),
+  })
+  buttonOf(tree, EN.get('scan.remove')).props.onClick()
+  const planned = await settle(panel, props)
+  // The first click asked the host for a plan and nothing else: one line, and it is the dry run.
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-suppress')),
+    ['/guidance-suppress --remove aa11bb22 --dry-run'],
+    'the first click did not ask for exactly one removal plan',
+  )
+  const plannedTexts = textsOf(planned)
+  assert.ok(plannedTexts.includes(plan), 'the host plan is not shown verbatim')
+  assert.ok(plannedTexts.includes(EN.get('scan.removeNote')), 'the plan does not say what a removal means')
+  // The box is about a named entry: the id the command line takes is the caption of the plan.
+  assert.ok(plannedTexts.includes('aa11bb22'), 'the plan does not name the entry it would remove')
+  // No vocabulary of repair reaches the screen, in either the panel's sentence or the host's outcome.
+  assert.doesNotMatch(plannedTexts.join('\n'), /\bfixed\b|\bresolved\b/i, 'the removal flow promises a repair')
+  const confirm = buttonOf(planned, EN.get('scan.removeConfirm'))
+  assert.equal(typeof confirm, 'object', 'the removal plan has no second, distinct button')
+  confirm.props.onClick()
+  const done = await settle(panel, props)
+  assert.deepEqual(
+    bridge.lines.filter((line) => line.startsWith('/guidance-suppress')),
+    ['/guidance-suppress --remove aa11bb22 --dry-run', '/guidance-suppress --remove aa11bb22'],
+    'the second click did not run the plan it showed',
+  )
+  // The host's own outcome, verbatim: it is what says the site is unmuted and that no counter moved.
+  assert.ok(textsOf(done).includes(outcome), 'the outcome the host reported is not shown')
+  assert.equal(buttonOf(done, EN.get('scan.removeConfirm')), undefined, 'the plan outlived its confirmation')
+  // The three writes are three flows: no ignore line and no appending mute line were ever asked for.
+  assert.deepEqual(bridge.lines.filter((line) => line.startsWith('/guidance-scanignore')), [])
+  assert.deepEqual(bridge.lines.filter((line) => /^\/guidance-suppress [0-9a-f]{8}/.test(line)), [])
+})
+
+test('a refused removal is an error with the host reason, never an outcome', async () => {
+  const refusal = 'Refused (unwritable): /work/app/.suppress is not a file this command can rewrite, so no entry was removed and nothing changed'
+  const review = { entries: 1, matching: 0, unused: ['aa11bb22'] }
+  const { tree, panel, props } = await mountScriptedPanel(reviewReport(review), {
+    '*': reportEnvelope(reviewReport(review)),
+    '/guidance-suppress --remove aa11bb22 --dry-run': refusalEnvelope(refusal),
+  })
+  buttonOf(tree, EN.get('scan.remove')).props.onClick()
+  const refused = await settle(panel, props)
+  const texts = textsOf(refused)
+  assert.ok(texts.includes(translate('scan.removeFailed', { message: refusal })), 'the refusal is not reported with its reason')
+  // A refusal is not an outcome: the entry stays listed, and no second click is offered.
+  assert.equal(buttonOf(refused, EN.get('scan.removeConfirm')), undefined, 'a refusal leaves a live confirmation')
+  assert.equal(texts.includes(refusal), false, 'the refusal is rendered as a success sentence')
 })

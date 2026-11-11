@@ -130,6 +130,9 @@ window.__ModuleLoader__.load({
       'scanner.branch': 'branch {branch}',
       'scanner.detached': 'detached at {sha}',
       'scanner.ignoreUsage': '.scanignore: {patterns}, {unused} matched nothing',
+      'scanner.review': '.suppress: {entries}, {matching} matching, {unused} unused',
+      'scanner.reviewUnknown': '.suppress: {entries}, {matching} matching; the last scan was incomplete, so no entry is shown as unused',
+      'scanner.reviewList': 'Entries that matched nothing:',
       'scanner.history': 'Recent scans',
       'scanner.historyMore': 'and {count} earlier',
       'scanner.diffAgainst': 'Since the scan of {when}:',
@@ -161,6 +164,10 @@ window.__ModuleLoader__.load({
       'scan.ignoreFailed': 'The pattern was not written: {message}',
       'scan.ignoreNote': 'An ignore makes the next scan read less: that path is skipped, and the finding is not fixed.',
       'scan.muteNote': 'A mute hides one site without fixing it: the scan still counts the finding and reports it as suppressed.',
+      'scan.remove': 'Remove this entry',
+      'scan.removeConfirm': 'Remove from .suppress',
+      'scan.removeFailed': 'The entry was not removed: {message}',
+      'scan.removeNote': 'Removing a mute un-mutes one site: the next scan counts that finding again, and no counter changes.',
       'row.title': 'Legacy scan',
       'row.preparing': 'Preparing the scan...',
       'row.running': 'Scanning...',
@@ -199,6 +206,9 @@ window.__ModuleLoader__.load({
       'pattern.one': '{count} pattern',
       'pattern.few': '{count} patterns',
       'pattern.many': '{count} patterns',
+      'entry.one': '{count} entry',
+      'entry.few': '{count} entries',
+      'entry.many': '{count} entries',
       'empty.title': 'No calls in the last {days} days',
       'empty.body': 'Ask for a guide with web_guidance_search, then refresh this panel. /guidance-stats prints the same report as text.',
       'error.title': 'Usage counters are unavailable',
@@ -248,6 +258,9 @@ window.__ModuleLoader__.load({
       'scanner.branch': 'ветка {branch}',
       'scanner.detached': 'отсоединён HEAD: {sha}',
       'scanner.ignoreUsage': '.scanignore: {patterns}, без совпадений: {unused}',
+      'scanner.review': '.suppress: {entries}, совпадений: {matching}, без совпадений: {unused}',
+      'scanner.reviewUnknown': '.suppress: {entries}, совпадений: {matching}; последнее сканирование было неполным, поэтому ни одна запись не показана как несовпавшая',
+      'scanner.reviewList': 'Записи без совпадений:',
       'scanner.history': 'Последние сканирования',
       'scanner.historyMore': 'и ещё {count} более ранних',
       'scanner.diffAgainst': 'С момента сканирования {when}:',
@@ -279,6 +292,10 @@ window.__ModuleLoader__.load({
       'scan.ignoreFailed': 'Шаблон не записан: {message}',
       'scan.ignoreNote': 'Игнорирование уменьшает объём следующего сканирования: этот путь пропускается, а находка не исправляется.',
       'scan.muteNote': 'Заглушение скрывает один участок кода, а не исправляет его: находка остаётся в сканировании и учитывается как подавленная.',
+      'scan.remove': 'Удалить запись',
+      'scan.removeConfirm': 'Удалить из .suppress',
+      'scan.removeFailed': 'Запись не удалена: {message}',
+      'scan.removeNote': 'Удаление заглушения снова открывает один участок: следующее сканирование снова засчитает эту находку, а счётчики не изменятся.',
       'row.title': 'Сканер устаревшего кода',
       'row.preparing': 'Готовлю сканирование...',
       'row.running': 'Сканирую...',
@@ -317,6 +334,9 @@ window.__ModuleLoader__.load({
       'pattern.one': '{count} шаблон',
       'pattern.few': '{count} шаблона',
       'pattern.many': '{count} шаблонов',
+      'entry.one': '{count} запись',
+      'entry.few': '{count} записи',
+      'entry.many': '{count} записей',
       'empty.title': 'За последние {days} дн. вызовов не было',
       'empty.body': 'Попросите подсказку через web_guidance_search и обновите панель. /guidance-stats печатает тот же отчёт текстом.',
       'error.title': 'Счётчики недоступны',
@@ -370,6 +390,9 @@ window.__ModuleLoader__.load({
       'scanner.branch': '分支 {branch}',
       'scanner.detached': '游离 HEAD：{sha}',
       'scanner.ignoreUsage': '.scanignore：{patterns}，{unused} 条未匹配任何内容',
+      'scanner.review': '.suppress：{entries}，匹配 {matching}，未匹配 {unused}',
+      'scanner.reviewUnknown': '.suppress：{entries}，匹配 {matching}；上次扫描不完整，因此不显示未匹配的条目',
+      'scanner.reviewList': '未匹配的条目：',
       'scanner.history': '最近的扫描',
       'scanner.historyMore': '另有 {count} 次更早的',
       'scanner.diffAgainst': '自 {when} 的扫描以来：',
@@ -401,6 +424,10 @@ window.__ModuleLoader__.load({
       'scan.ignoreFailed': '未写入模式：{message}',
       'scan.ignoreNote': '忽略只让下次扫描读得更少：该路径被跳过，问题并未修复。',
       'scan.muteNote': '屏蔽只隐藏一处问题、并不修复它：该问题仍留在扫描结果中，并按已屏蔽计数。',
+      'scan.remove': '删除此条目',
+      'scan.removeConfirm': '从 .suppress 删除',
+      'scan.removeFailed': '未删除条目：{message}',
+      'scan.removeNote': '删除屏蔽会让这一处重新显示：下次扫描会再次计入该问题，计数器不会改变。',
       'row.title': '遗留代码扫描',
       'row.preparing': '正在准备扫描...',
       'row.running': '正在扫描...',
@@ -439,6 +466,9 @@ window.__ModuleLoader__.load({
       'pattern.one': '{count} 个模式',
       'pattern.few': '{count} 个模式',
       'pattern.many': '{count} 个模式',
+      'entry.one': '{count} 条记录',
+      'entry.few': '{count} 条记录',
+      'entry.many': '{count} 条记录',
       'empty.title': '最近 {days} 天没有调用',
       'empty.body': '使用 web_guidance_search 获取指引，然后刷新本面板。/guidance-stats 会以文本形式输出同一份报告。',
       'error.title': '使用计数器不可用',
@@ -835,8 +865,15 @@ window.__ModuleLoader__.load({
      * "no file, or a file nobody could read", which draws no line at all — the panel cannot print
      * "0 patterns, 0 matched nothing" for a state document that never saw one.
      *
+     * `suppressions` is the fifth: the host's join of the `.suppress` file against the sites its last
+     * scan saw, as `{ entries, matching, unused: [siteId] | null }`. Absent is a 0.11.0 document or a
+     * file nobody could read, and both draw no block; `unused: null` is a scan that could not prove
+     * anything and draws the same block *without* an unused number. The ids are the only entry text a
+     * scan can carry — a date, a reason and a rule belong to the entry, not to this scan — so the
+     * panel lists them raw and offers the removal that names one.
+     *
      * @param {unknown} value
-     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null, suppressed: number, suppressedRules: Array<{ name: string, calls: number }>, ignoreUsage: { patterns: number, unused: number }|null } | null}
+     * @returns {{ at: string, files: number, findings: number, rules: string[], skipped: { rows: Array<{ name: string, calls: number }>, total: number }, truncated: boolean, branch: { kind: string, name?: string, sha?: string }|null, suppressed: number, suppressedRules: Array<{ name: string, calls: number }>, ignoreUsage: { patterns: number, unused: number }|null, suppressions: { entries: number, matching: number, unused: string[]|null }|null } | null}
      */
     function readLastScan(value) {
       if (value === null || typeof value !== 'object') return null
@@ -853,7 +890,33 @@ window.__ModuleLoader__.load({
         suppressed: asCount(value.suppressed),
         suppressedRules: rankedEntries(value.suppressedRules),
         ignoreUsage: readIgnoreUsage(value.ignoreUsage),
+        suppressions: readSuppressionReview(value.suppressions),
       }
+    }
+
+    /**
+     * The last scan's review of the `.suppress` file, or null when it carried none worth drawing.
+     *
+     * The gate is the host's own (`lib/report.js` applies the same one): two counts, then `unused` as
+     * either null or a list of eight-hex ids that has to agree with the counts it claims — an
+     * incomplete scan is null, and a list that disagrees with `entries - matching` is dropped back to
+     * null rather than used to name entries the counts do not account for. Null renders the numbers
+     * without an unused figure: the panel never turns "unknown" into `0`, which here would say every
+     * mute still matches a site nobody looked for.
+     *
+     * @param {unknown} value
+     * @returns {{ entries: number, matching: number, unused: string[]|null }|null}
+     */
+    function readSuppressionReview(value) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+      if (typeof value.entries !== 'number' || !Number.isFinite(value.entries)) return null
+      if (typeof value.matching !== 'number' || !Number.isFinite(value.matching)) return null
+      const entries = asCount(value.entries)
+      const matching = Math.min(entries, asCount(value.matching))
+      if (value.unused === null) return { entries, matching, unused: null }
+      if (!Array.isArray(value.unused)) return null
+      const unused = [...new Set(value.unused.filter((id) => typeof id === 'string' && /^[0-9a-f]{8}$/.test(id)))]
+      return { entries, matching, unused: unused.length === entries - matching ? unused : null }
     }
 
     /**
@@ -1460,6 +1523,21 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The removal of one suppression entry, as the command line a person would type.
+     *
+     * ADR-0004's retract half: `--remove <siteId> --dry-run` answers the plan (the exact line it would
+     * drop, the count before and after) and writes nothing; the same line without the flag removes
+     * exactly that one entry. The id is data the scan reported, never something the panel composed.
+     *
+     * @param {string} siteId the eight-hex identity the entry is keyed by.
+     * @param {boolean} dryRun whether this line only asks for the plan.
+     * @returns {string}
+     */
+    function removeLine(siteId, dryRun) {
+      return `${SUPPRESS_LINE} --remove ${siteId}${dryRun === true ? ' --dry-run' : ''}`
+    }
+
+    /**
      * The `.scanignore` write, as the command line a person would type.
      *
      * A pattern is one line of the file and one token of the command line, so a path containing a
@@ -1823,6 +1901,16 @@ window.__ModuleLoader__.load({
         border: '0.5px solid var(--dsw-alias-border-l1)',
         borderRadius: 'var(--dsw-radius-lg)',
         background: 'var(--dsw-alias-bg-layer-1)',
+        minWidth: 0,
+      },
+      // The review list is bounded by height, not by row count: every unused entry must keep its
+      // remove action reachable, and the `.suppress` file's own cap is 200 entries — a pile that size
+      // would push the scan result off the screen, which the scroll box prevents without hiding a row.
+      reviewBox: {
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '150px',
+        overflowY: 'auto',
         minWidth: 0,
       },
       // Two lines of the rule's own text, clamped here rather than sliced by the client so the whole
@@ -2328,19 +2416,63 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * One suppression entry that matched nothing, as the row that offers to remove it.
+     *
+     * The row shows the site id and nothing else, because that is all the scan could prove about the
+     * entry: a date, a reason and a rule belong to the file, and the join that produced this list never
+     * read them. The id is what `--remove` takes, so the row and the command name the same thing, and
+     * the removal's plan is where a person reads the date and reason of the payload before the second
+     * click — the host prints them, the panel does not guess them.
+     *
+     * @param {Function} t bound translator.
+     * @param {string} siteId one eight-hex identity from the review's `unused`.
+     * @param {number} index its position: zero draws no separator above it.
+     * @param {boolean} blocked whether a scan or a write is in flight.
+     * @param {{ onRemove: Function }} actions asks the host for the plan that would remove this entry.
+     * @returns {object} the row.
+     */
+    function reviewEntryLine(t, siteId, index, blocked, actions) {
+      return h(
+        'div',
+        { style: index === 0 ? S.scanLineFirst : S.scanLine, key: `entry-${siteId}` },
+        h(
+          'div',
+          { style: S.scanRuleHead },
+          h('span', { style: S.scanName, key: 'site' }, siteId),
+          h(
+            'div',
+            { style: S.rowActions, key: 'actions' },
+            h(
+              'button',
+              {
+                type: 'button',
+                key: 'remove',
+                style: blocked ? { ...S.rowAction, ...S.rowActionBusy } : S.rowAction,
+                disabled: blocked,
+                onClick: () => actions.onRemove(siteId),
+              },
+              t('scan.remove'),
+            ),
+          ),
+        ),
+      )
+    }
+
+    /**
      * A write, in the states it may be in: the plan with its second button, the outcome the host
      * reported, and the refusal.
      *
-     * Both writes ADR-0003 allows share this one surface, because they share one protocol: one click
-     * never writes, the first click asks only for the plan, and this draws it — the target, the rule
-     * or the place it came from, then the host's own plan text, which names the absolute file and the
-     * exact line — the panel does not restate a path it was not given. The second, distinct button
+     * All three writes share this one surface, because they share one protocol: one click never
+     * writes, the first click asks only for the plan, and this draws it — the target, the rule or the
+     * place it came from, then the host's own plan text, which names the absolute file and the exact
+     * line — the panel does not restate a path it was not given. The second, distinct button
      * underneath is the write.
      *
      * The outcome is the host's text verbatim, so a write reports what it changed and where, and
      * "already suppressed, nothing written" reads as the no-op it is. A refusal takes its own sentence
-     * and its own colour: it can never be mistaken for the outcome. What differs between the two is
-     * only what they write, so only three strings and the caption differ.
+     * and its own colour: it can never be mistaken for the outcome. What differs between the three is
+     * only what they write, so only three strings and the caption differ — and the removal's caption
+     * is the one that must never sound like a fix: it un-mutes a site, it does not repair it.
      *
      * @param {Function} t bound translator.
      * @param {{ status: string, kind: string, target: string, rule: string, place: string, text: string, message: string }} write
@@ -2349,6 +2481,7 @@ window.__ModuleLoader__.load({
      */
     function renderWrite(t, write, onConfirm) {
       const ignore = write.kind === 'ignore'
+      const remove = write.kind === 'remove'
       if (write.status === 'done') return h('div', { style: S.stateBody, key: 'write-done' }, asText(write.text))
       if (write.status === 'error') {
         return h(
@@ -2356,7 +2489,9 @@ window.__ModuleLoader__.load({
           { style: S.muteError, key: 'write-error' },
           ignore
             ? t('scan.ignoreFailed', { message: asText(write.message) })
-            : t('scan.muteFailed', { message: asText(write.message) }),
+            : remove
+              ? t('scan.removeFailed', { message: asText(write.message) })
+              : t('scan.muteFailed', { message: asText(write.message) }),
         )
       }
       if (write.status !== 'planning' && write.status !== 'plan' && write.status !== 'writing') return null
@@ -2371,9 +2506,13 @@ window.__ModuleLoader__.load({
         // The panel's own sentence for the write it is about to make, and the only prose in the box
         // that is ours: the host's plan stays verbatim underneath, because it is a command line's
         // answer and not something to re-word. Each write gets its own — an ignore makes the next
-        // scan read less, a mute hides one site and moves no counter — so the two boxes read as two
-        // deliberate flows instead of one flow and one accident.
-        h('div', { style: S.note, key: 'note' }, ignore ? t('scan.ignoreNote') : t('scan.muteNote')),
+        // scan read less, a mute hides one site and moves no counter, a removal un-mutes it again —
+        // so the three boxes read as three deliberate flows instead of one flow and two accidents.
+        h(
+          'div',
+          { style: S.note, key: 'note' },
+          ignore ? t('scan.ignoreNote') : remove ? t('scan.removeNote') : t('scan.muteNote'),
+        ),
         facts.length === 0 ? null : h('div', { style: S.note, key: 'facts' }, facts.join(' · ')),
         plan === '' ? null : h('div', { style: S.note, key: 'plan' }, plan),
         h(
@@ -2387,7 +2526,7 @@ window.__ModuleLoader__.load({
               disabled: pending,
               onClick: onConfirm,
             },
-            ignore ? t('scan.ignoreConfirm') : t('scan.muteConfirm'),
+            ignore ? t('scan.ignoreConfirm') : remove ? t('scan.removeConfirm') : t('scan.muteConfirm'),
           ),
         ),
       )
@@ -2488,6 +2627,52 @@ window.__ModuleLoader__.load({
             }),
           ),
         )
+      }
+      // The `.suppress` file's own review: the host's join of every entry against the sites its last
+      // scan saw, as two counts and — only when it could prove them — the ids that matched nothing.
+      // Three absences, each with its own rendering and none of them a zero: no block at all (a 0.11.0
+      // document, or a file nobody could read) draws nothing; `unused: null` (an incomplete scan) draws
+      // the numbers *without* an unused figure; an empty file draws nothing either, because a file
+      // with no entry has nothing to review. Never "everything is unused", which is the claim this
+      // block exists to make impossible.
+      const review = last === null ? null : last.suppressions
+      if (review !== null && review.entries > 0) {
+        children.push(
+          h(
+            'div',
+            { style: S.note, key: 'scan-review' },
+            review.unused === null
+              ? t('scanner.reviewUnknown', { entries: plural(t, 'entry', review.entries), matching: review.matching })
+              : t('scanner.review', {
+                  entries: plural(t, 'entry', review.entries),
+                  matching: review.matching,
+                  unused: review.unused.length,
+                }),
+          ),
+        )
+        if (review.unused !== null && review.unused.length > 0) {
+          children.push(h('div', { style: S.scanCaption, key: 'scan-review-list' }, t('scanner.reviewList')))
+          // The list is bounded rather than shortened: a box that scrolls keeps every entry's remove
+          // action reachable, where slicing to five would silently put a file's 200th entry beyond a
+          // person's reach while the header still counted it.
+          children.push(
+            h(
+              'div',
+              { style: S.reviewBox, key: 'scan-review-rows' },
+              review.unused.map((siteId, index) =>
+                reviewEntryLine(t, siteId, index, blocked || writing, actions),
+              ),
+            ),
+          )
+        }
+      }
+      // The removal's plan, confirmation and outcome sit directly under the review block — outside the
+      // scroll box, so a confirmation can never be scrolled away from the button that means it, and
+      // still drawn after the count reaches zero, because that is the answer to the click that got it
+      // there. A `suppress` or `ignore` write is drawn beside its finding row further down.
+      if (write.kind === 'remove') {
+        const removalBlock = renderWrite(t, write, actions.onConfirm)
+        if (removalBlock !== null) children.push(removalBlock)
       }
       if (report.topRules.length > 0) {
         children.push(h('div', { style: S.scanHeading, key: 'scan-rules-head' }, t('scanner.rules')))
@@ -2613,8 +2798,10 @@ window.__ModuleLoader__.load({
           const rest = value.findings.length - shownFindings.length
           if (rest > 0) children.push(h('div', { style: S.note, key: 'scan-more' }, t('row.more', { count: rest })))
         }
-        // A plan whose row fell outside the cap is still shown, at the end rather than not at all.
-        if (placed === false) {
+        // A plan whose row fell outside the cap is still shown, at the end rather than not at all. A
+        // removal has no finding row at all — its entry matched nothing, which is what it is — so it
+        // was drawn under the review block above and must not be drawn a second time here.
+        if (placed === false && write.kind !== 'remove') {
           const block = renderWrite(t, write, actions.onConfirm)
           if (block !== null) children.push(block)
         }
@@ -3036,21 +3223,24 @@ window.__ModuleLoader__.load({
        * Both writes go through this one function, because they are one protocol: the only thing the
        * `kind` changes is which command line is asked and which facts the caption carries.
        *
-       * @param {string} kind `suppress` or `ignore`.
-       * @param {object} finding the row the click came from.
+       * @param {string} kind `suppress`, `ignore` or `remove`.
+       * @param {object} row the row the click came from: a finding for the first two, an unused entry
+       *   (`{ id }`) for a removal.
        * @returns {void}
        */
       const requestWrite = useCallback(
-        (kind, finding) => {
-          // The row drew this action only for a finding carrying the target it needs, and reading it
+        (kind, row) => {
+          // The row drew this action only for a row carrying the target it needs, and reading it
           // again here is what keeps the command line provably the row's own target.
           const ignore = kind === 'ignore'
-          const target = ignore ? asText(finding.path) : asText(finding.siteId)
+          const remove = kind === 'remove'
+          const target = remove ? asText(row.id) : ignore ? asText(row.path) : asText(row.siteId)
           // For an ignore the place *is* the target, so the caption would repeat itself; the rule
-          // belongs to the suppressed site, not to the path.
-          const rule = ignore ? '' : asText(finding.ruleId)
-          const place = ignore ? '' : findingPlace(finding)
-          const blank = { kind: ignore ? 'ignore' : 'suppress', target, rule, place, text: '', message: '' }
+          // belongs to the suppressed site, not to the path. A removal names an entry the scan could
+          // not place at all, so it has neither a path nor a rule to put beside the id.
+          const rule = ignore || remove ? '' : asText(row.ruleId)
+          const place = ignore || remove ? '' : findingPlace(row)
+          const blank = { kind, target, rule, place, text: '', message: '' }
           if (bridge === undefined || typeof bridge.call !== 'function') {
             setWrite({ ...blank, status: 'error', message: t('error.bridge') })
             return
@@ -3062,8 +3252,12 @@ window.__ModuleLoader__.load({
           const mine = writeTicket.current + 1
           writeTicket.current = mine
           // `--dry-run` answers the plan and writes nothing; the second, distinct button below is what
-          // appends the entry.
-          const line = ignore ? scanIgnoreLine(target, true) : suppressLine(target, true)
+          // appends the entry or removes it.
+          const line = remove
+            ? removeLine(target, true)
+            : ignore
+              ? scanIgnoreLine(target, true)
+              : suppressLine(target, true)
           setWrite({ ...blank, status: 'planning' })
           let pending
           try {
@@ -3086,22 +3280,25 @@ window.__ModuleLoader__.load({
 
       const requestMute = useCallback((finding) => requestWrite('suppress', finding), [requestWrite])
       const requestIgnore = useCallback((finding) => requestWrite('ignore', finding), [requestWrite])
+      const requestRemove = useCallback((siteId) => requestWrite('remove', { id: siteId }), [requestWrite])
 
       /**
        * Apply the plan that is on screen: the same command without `--dry-run`.
        *
        * The line is rebuilt from the plan's own target, so the click can only ever confirm the plan the
-       * person read. Its answer is shown verbatim — a success reports the entry it appended, the
-       * "already present, nothing written" no-op says exactly that — and a refusal is an error, never
-       * an outcome.
+       * person read. Its answer is shown verbatim — a success reports the entry it appended or removed
+       * and says that a removal is not a fix, the "already present, nothing written" no-op says exactly
+       * that — and a refusal is an error, never an outcome.
        */
       const confirmWrite = useCallback(() => {
         if (write.status !== 'plan') return
-        const ignore = write.kind === 'ignore'
+        const kind = write.kind
+        const ignore = kind === 'ignore'
+        const remove = kind === 'remove'
         const target = asText(write.target)
         const rule = asText(write.rule)
         const place = asText(write.place)
-        const blank = { kind: ignore ? 'ignore' : 'suppress', target, rule, place, text: '', message: '' }
+        const blank = { kind, target, rule, place, text: '', message: '' }
         if (bridge === undefined || typeof bridge.call !== 'function') {
           setWrite({ ...blank, status: 'error', message: t('error.bridge') })
           return
@@ -3112,7 +3309,11 @@ window.__ModuleLoader__.load({
         }
         const mine = writeTicket.current + 1
         writeTicket.current = mine
-        const line = ignore ? scanIgnoreLine(target, false) : suppressLine(target, false)
+        const line = remove
+          ? removeLine(target, false)
+          : ignore
+            ? scanIgnoreLine(target, false)
+            : suppressLine(target, false)
         setWrite({ ...blank, status: 'writing', text: write.text })
         let pending
         try {
@@ -3177,9 +3378,17 @@ window.__ModuleLoader__.load({
       }, [state.json])
 
       const busy = state.status === 'loading'
-      // What the scanner section may ask for: its own scan, and the two writes ADR-0003 allows — the
-      // latter only ever through the plan-then-confirm pair above.
-      const scannerActions = { onScan: runScan, onMute: requestMute, onIgnore: requestIgnore, onConfirm: confirmWrite, write }
+      // What the scanner section may ask for: its own scan, the two writes ADR-0003 allows and the
+      // removal ADR-0004 widened it to — the latter three only ever through the plan-then-confirm
+      // pair above.
+      const scannerActions = {
+        onScan: runScan,
+        onMute: requestMute,
+        onIgnore: requestIgnore,
+        onRemove: requestRemove,
+        onConfirm: confirmWrite,
+        write,
+      }
       // The copy action exists only when there is something to copy and a clipboard to copy it to: a
       // page without one renders exactly the header it always did, never a button that cannot work.
       const canCopy = state.status === 'ready' && state.json !== '' && clipboardOf() !== undefined
