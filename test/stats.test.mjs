@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { realpathSync } from 'node:fs'
-import { mkdtemp, mkdir, readFile, readdir, rm as remove, stat as statFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, stat as statFile, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { test } from 'node:test'
 
@@ -8,90 +8,36 @@ import { renderJson, renderReport } from '../lib/report.js'
 import { RULES } from '../lib/scan-rules.js'
 import { createFileStore } from '../lib/store.js'
 import { classifyCall, createTelemetry, workspaceId } from '../lib/telemetry.js'
+import { makeScratchDir, removeTree, sweepStale, TMP_DIR } from './tmp.mjs'
 
-const scratch = join(import.meta.dirname, '..', '.tmp')
+const scratch = TMP_DIR
 
-/**
- * How many times a teardown retries, and the pause before the next attempt: 25, 50, 75, 100 ms.
- *
- * Five attempts and a quarter of a second of patience covers the whole class this fixed — a Windows
- * handle released a moment late — without turning a genuinely broken teardown into a four-second
- * stall that hides the real error.
- */
-const CLEAN_ATTEMPTS = 5
-const CLEAN_PAUSE_MS = 25
-/** The codes a retry can win: the handle is released and the directory goes. Others are raised at once. */
-const CLEAN_RETRY_CODES = new Set(['EBUSY', 'EPERM', 'EACCES', 'ENOTEMPTY'])
-/** The throwaway roots this file owns in `.tmp`, by the prefixes its own `mkdtemp` calls use. */
-const OWNED_PREFIXES = ['stats-home-', 'stats-legacy-']
 /** How long `settle` keeps watching a write in flight: 25 polls of 10 ms after the debounce's window. */
 const SETTLE_POLLS = 25
 const SETTLE_POLL_MS = 10
 
-/**
- * Remove one throwaway path, retrying the way Windows needs.
- *
- * `rm -rf` is not one atomic step on this platform: after a write or a rename a directory can stay
- * busy for a moment — the OS indexer, a virus scanner, or a handle the previous `rename` has not
- * released yet — so a single attempt fails with `EBUSY` on a path that is gone a millisecond later.
- * That is exactly how one full-suite run in twenty went red, inside a teardown, with the product
- * assertions underneath it green.
- *
- * The retry lives here, in the harness, and nowhere else: `lib/` must not grow retry logic to make a
- * test happy. A code that cannot heal (`ENOENT` is already swallowed by `force`) is raised on the
- * first attempt, and the final failure names the path that stayed locked, so a red run says which
- * directory to look at instead of only which line.
- */
-async function removeTree(path, options = {}) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      await remove(path, { recursive: true, force: true, ...options })
-      return
-    } catch (error) {
-      if (!CLEAN_RETRY_CODES.has(error.code)) throw error
-      if (attempt >= CLEAN_ATTEMPTS) {
-        throw new Error(
-          `the temp path ${path} stayed locked (${error.code}) after ${CLEAN_ATTEMPTS} attempts`,
-          { cause: error },
-        )
-      }
-      await new Promise((resolve) => setTimeout(resolve, CLEAN_PAUSE_MS * attempt))
-    }
-  }
-}
+/** Sweep the roots an earlier failed run left behind, before this run creates any of its own. */
+await sweepStale(['stats-home', 'stats-legacy'])
 
-/** `rm -rf` with that retry: every teardown in this file goes through one implementation. */
-const rm = (path, options) => removeTree(path, options)
-
-/**
- * Sweep what an earlier failed teardown left behind, before any test in this file makes a root.
- *
- * A directory that survived a flake must not be inherited by the next run: it is a phantom profile,
- * and the counters hash real paths, so it would quietly join a run it has nothing to do with. Only
- * the prefixes this file's own `mkdtemp` calls use are swept — `.tmp` also holds `store-test-*` roots
- * from `store.test.mjs` and files that belong to other tests, and a wildcard over `.tmp` is not this
- * file's to run.
- */
-async function sweepOwnedRoots() {
-  await mkdir(scratch, { recursive: true })
-  const entries = await readdir(scratch, { withFileTypes: true })
-  const stale = entries
-    .filter((entry) => entry.isDirectory() && OWNED_PREFIXES.some((prefix) => entry.name.startsWith(prefix)))
-    .map((entry) => join(scratch, entry.name))
-  for (const path of stale) await removeTree(path)
-  return stale.length
-}
-
-await sweepOwnedRoots()
+/** `rm -rf` with the shared retry: every teardown in this file goes through one implementation. */
+const rm = removeTree
 
 /** Point the counters at a throwaway profile before the plugin resolves its state path. */
 async function isolatedHome() {
-  await mkdir(scratch, { recursive: true })
-  const home = await mkdtemp(join(scratch, 'stats-home-'))
+  const home = await makeScratchDir('stats-home')
   process.env.DSH_PROFILE_DIR = home
   process.env.DSH_HOME = home
   return home
 }
+
+/**
+ * The plugin instances this test applied and has not closed yet.
+ *
+ * The plugin debounces its counters write and `void`s the promise, so an instance left alive after a
+ * test re-creates its home two seconds later — the 11 directories every run used to leave behind.
+ * `removeHome` closes them before the directory goes, which is the only order that leaves nothing.
+ */
+const openPlugins = []
 
 /** A context with just enough of the host surface for the plugin: registry, events, command lookup. */
 function createContext() {
@@ -123,11 +69,33 @@ function createContext() {
     effect: (create) => {
       // Disposing the plugin flushes the counters, which is how a test reads what was written down.
       const dispose = create()
-      if (typeof dispose === 'function') registered.disposers.push(dispose)
+      if (typeof dispose === 'function') {
+        // Closing twice is a no-op: a disposer that flushed twice would write into a home a test has
+        // already finished with, which is the race this file exists to keep shut.
+        let closed = false
+        registered.disposers.push(() => {
+          if (closed) return undefined
+          closed = true
+          return dispose()
+        })
+      }
       return dispose
     },
   }
+  openPlugins.push(registered)
   return { ctx, registered }
+}
+
+/**
+ * Close the plugin instances this test applied, so no debounced save outlives its home, then remove
+ * the home. Every test in this file ends with this instead of a bare `rm`.
+ */
+async function removeHome(home) {
+  for (const registered of openPlugins.splice(0)) {
+    for (const dispose of registered.disposers) dispose()
+  }
+  await settle()
+  await removeTree(home)
 }
 
 /**
@@ -189,7 +157,7 @@ test('the plugin registers four tools, two skills and one human command', async 
   assert.deepEqual(registered.commands.map((command) => command.name), ['guidance-scan', 'guidance-suppress', 'guidance-scanignore', 'guidance-stats'])
   assert.ok(registered.listeners.some((listener) => listener.event === 'tools/result'))
 
-  await rm(home, { recursive: true, force: true })
+  await removeHome(home)
 })
 
 test('a finished search is counted and the command renders the report', async () => {
@@ -214,7 +182,7 @@ test('a finished search is counted and the command renders the report', async ()
   assert.match(report.text, /Corpus: version 2026_11_09-5bcc021b/)
   assert.match(report.text, /Period: last 7 days/)
 
-  await rm(home, { recursive: true, force: true })
+  await removeHome(home)
 })
 
 test('the command honours --days and --json', async () => {
@@ -233,7 +201,7 @@ test('the command honours --days and --json', async () => {
   assert.equal(payload.periodDays, 7)
   assert.equal(payload.corpus.total, 208)
 
-  await rm(home, { recursive: true, force: true })
+  await removeHome(home)
 })
 
 test('--reset asks for confirmation, then erases the counters', async () => {
@@ -259,7 +227,7 @@ test('--reset asks for confirmation, then erases the counters', async () => {
   const empty = await command.handler({ rawInput: '' })
   assert.match(empty.text, /No calls recorded in the last 7 days/)
 
-  await rm(home, { recursive: true, force: true })
+  await removeHome(home)
 })
 
 test('enabled: false writes nothing and leaves only the scanner command', async () => {
@@ -273,7 +241,7 @@ test('enabled: false writes nothing and leaves only the scanner command', async 
   assert.equal(registered.listeners.length, 0)
   assert.equal(registered.tools.length, 4)
 
-  await rm(home, { recursive: true, force: true })
+  await removeHome(home)
 })
 
 //#region 0.5.0: the fourth tool's counters
@@ -397,7 +365,7 @@ test('a 0.4.x state file without the fourth counter still loads and renders', as
     assert.equal(grown.totals.files, 0)
     assert.equal(grown.totals.findings, 0)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
   }
 })
 
@@ -525,7 +493,7 @@ test('a legacy-scan result is counted through the plugin listener', async () => 
     assert.deepEqual(json.tools, { 'legacy-scan': { total: 1, files: 12, findings: 2 } })
     assert.equal(json.findings, 2)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
   }
 })
 
@@ -597,7 +565,7 @@ test('/guidance-stats --json describes the scan ids the host knows', async () =>
     assert.match(text.text, /^Most matched rules: ls-17 1$/m)
     assert.doesNotMatch(text.text, /createElement/)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
   }
 })
 
@@ -675,7 +643,7 @@ test('the default report is the session workspace, and --workspace switches it b
     assert.ok(byId.text.includes(`Workspace: ${basename(second)} (${secondRow.id})`))
     assert.match(byId.text, /^Last scan: \d{4}-\d{2}-\d{2}, 4 files, 1 finding \(rules: ls-01\)$/m)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(first, { recursive: true, force: true })
     await rm(second, { recursive: true, force: true })
   }
@@ -703,7 +671,7 @@ test('a workspace with no scans yet is named, not silently aggregated', async ()
     assert.deepEqual(json.workspaces, [])
     assert.equal(json.workspace.id, id)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -730,7 +698,7 @@ test('without a session header the report aggregates and says why', async () => 
     assert.match(explicit.text, /^Workspace: all workspaces$/m)
     assert.doesNotMatch(explicit.text, /could not be resolved/)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -765,7 +733,7 @@ test('an unknown or ambiguous selector is an error that lists what exists', asyn
     assert.equal(bare.kind, 'error')
     assert.match(bare.text, /^Error: --workspace needs a workspace name, id or path/m)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(first, { recursive: true, force: true })
     await rm(second, { recursive: true, force: true })
   }
@@ -792,7 +760,7 @@ test('--workspace and --all together are refused before anything is read', async
     const json = await command.handler({ rawInput: `--workspace ${basename(dir)} --all --json` })
     assert.equal(json.kind, 'error')
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -826,7 +794,7 @@ test('a scan run through the tool is attributed to the workspace it read', async
     assert.equal(json.workspaces.length, 1)
     assert.equal(json.workspaces[0].findings, 1)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -867,7 +835,7 @@ test('the legacy root counters appear as the _unattributed workspace and stay se
     assert.ok(session.text.includes(`Workspace: ${basename(dir)}`))
     assert.doesNotMatch(session.text, /Last scan:/)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -913,7 +881,7 @@ test('two checkouts with one name are refused by name and selected by id or rela
     assert.ok(byId.text.includes(`Workspace: app (${rightId})`))
     assert.match(byId.text, /^Last scan: \d{4}-\d{2}-\d{2}, 5 files, 2 findings/m)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(leftParent, { recursive: true, force: true })
     await rm(rightParent, { recursive: true, force: true })
   }
@@ -988,7 +956,7 @@ test('a scan call still returns the value and the text it always did, byte for b
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1029,7 +997,7 @@ test('the ignore audit is stored as two counts, and no pattern text reaches stat
     const bucket = Object.values(document.workspaces).find((entry) => entry.lastScan !== undefined)
     assert.deepEqual(bucket.lastScan.ignoreUsage, { patterns: 2, idle: 2 })
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1088,7 +1056,7 @@ test('two scans of one workspace produce the comparison line and a two-row ring'
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1117,7 +1085,7 @@ test('the counters are given the rule table, so a table change can be detected',
     assert.equal(buckets[0].lastSites.ruleCount, RULES.length)
     assert.equal(buckets[0].scanHistory.length, 1)
   } finally {
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1182,7 +1150,7 @@ test('a suppressed finding reaches the report as its own line and never as a fix
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1249,7 +1217,7 @@ test('a scans reset keeps every call counter, and never touches the suppression 
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(alpha, { recursive: true, force: true })
     await rm(beta, { recursive: true, force: true })
   }
@@ -1299,7 +1267,7 @@ test('a workspace reset erases one bucket and leaves the other workspace standin
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(alpha, { recursive: true, force: true })
     await rm(beta, { recursive: true, force: true })
   }
@@ -1341,7 +1309,7 @@ test('a bare --reset --yes still wipes exactly what it always wiped, and only th
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1380,7 +1348,7 @@ test('a reset names one slice, and a selector it cannot honour is refused before
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1415,7 +1383,7 @@ test('a window reset through the command erases the window and keeps the lifetim
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })
@@ -1498,7 +1466,7 @@ test('a removal changes the suppression file and no counter anywhere else', asyn
   } finally {
     for (const dispose of registered.disposers) dispose()
     await settle()
-    await rm(home, { recursive: true, force: true })
+    await removeHome(home)
     await rm(workspace, { recursive: true, force: true })
   }
 })

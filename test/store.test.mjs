@@ -1,20 +1,23 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { createFileStore, defaultStatePath } from '../lib/store.js'
+import { makeScratchDir, removeTree, sweepStale } from './tmp.mjs'
 
-const scratch = join(import.meta.dirname, '..', '.tmp')
+/** Sweep the roots an earlier failed run left behind, before this run creates any of its own. */
+await sweepStale(['store-test'])
 
-/** A throwaway directory inside the ignored `.tmp/` folder. */
-async function temporaryDirectory() {
-  await mkdir(scratch, { recursive: true })
-  return mkdtemp(join(scratch, 'store-test-'))
+/** A throwaway directory inside the ignored `.tmp/` folder, removed when its test ends. */
+async function temporaryDirectory(t) {
+  const directory = await makeScratchDir('store-test')
+  t.after(() => removeTree(directory))
+  return directory
 }
 
-test('save then load round-trips one document', async () => {
-  const directory = await temporaryDirectory()
+test('save then load round-trips one document', async (t) => {
+  const directory = await temporaryDirectory(t)
   const file = join(directory, 'nested', 'stats.json')
   const store = createFileStore({ file })
 
@@ -23,15 +26,15 @@ test('save then load round-trips one document', async () => {
   assert.deepEqual(await store.load(), { version: 1, calls: 3 })
 })
 
-test('load returns null when the document is missing', async () => {
-  const directory = await temporaryDirectory()
+test('load returns null when the document is missing', async (t) => {
+  const directory = await temporaryDirectory(t)
   const store = createFileStore({ file: join(directory, 'absent.json') })
 
   assert.equal(await store.load(), null)
 })
 
-test('load returns null when the document is corrupt', async () => {
-  const directory = await temporaryDirectory()
+test('load returns null when the document is corrupt', async (t) => {
+  const directory = await temporaryDirectory(t)
   const file = join(directory, 'stats.json')
   await writeFile(file, '{not json')
   const store = createFileStore({ file })
@@ -39,8 +42,8 @@ test('load returns null when the document is corrupt', async () => {
   assert.equal(await store.load(), null)
 })
 
-test('save replaces the previous document atomically', async () => {
-  const directory = await temporaryDirectory()
+test('save replaces the previous document atomically', async (t) => {
+  const directory = await temporaryDirectory(t)
   const file = join(directory, 'stats.json')
   const store = createFileStore({ file })
 

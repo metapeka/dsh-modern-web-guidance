@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { apply } from '../index.js'
+import { makeScratchDir, removeTree, sweepStale } from './tmp.mjs'
 
-const scratch = join(import.meta.dirname, '..', '.tmp')
+/** Sweep the roots an earlier failed run left behind, before this run creates any of its own. */
+await sweepStale(['scan-tool', 'scan-skip'])
 
 /** Minimal Cordis context: enough of the host surface for `apply` to register everything. */
 function createContext() {
@@ -49,8 +51,7 @@ const JS_FIXTURE = ['export function copyText(text) {', "  document.execCommand(
 
 /** A throwaway directory inside the repo's git-ignored `.tmp`, with both fixtures written into it. */
 async function fixtureDirectory() {
-  await mkdir(scratch, { recursive: true })
-  const dir = await mkdtemp(join(scratch, 'scan-tool-'))
+  const dir = await makeScratchDir('scan-tool')
   await writeFile(join(dir, 'legacy.css'), CSS_FIXTURE, 'utf8')
   await writeFile(join(dir, 'legacy.js'), JS_FIXTURE, 'utf8')
   return dir
@@ -92,7 +93,7 @@ test('an unknown rule id comes back as unknown-rules without scanning', async ()
     assert.match(rendered[0].text, /^Error: unknown-rules — unknown rule id\(s\): nope\./)
     assert.match(rendered[0].text, /Omit "rules" to apply every rule\./)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
@@ -110,7 +111,7 @@ test('an absolute path is refused with a path-absolute result and a hint', async
     assert.match(rendered[0].text, /^Error: path-absolute — /)
     assert.match(rendered[0].text, /relative paths inside the session workspace/)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
@@ -122,7 +123,7 @@ test('a missing path is refused rather than reported as a clean scan', async () 
     assert.equal(value.error, 'path-missing')
     assert.equal(value.subject, 'not-there.css')
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
@@ -168,7 +169,7 @@ test('a scan over a temp directory reports findings, guides and one summary line
     assert.match(text, /- legacy\.css:1:\d+ ls-\d{2} \((?:high|medium|low)\) /)
     assert.match(text, /- legacy\.js:2:\d+ ls-\d{2} \((?:high|medium|low)\) /)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
@@ -188,7 +189,7 @@ test("format: 'json' renders the payload as pretty-printed JSON", async () => {
     assert.equal(parsed.scanned.files, 1)
     assert.ok(text.includes('\n  "format": "json"'), 'the JSON block should be indented')
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
@@ -203,13 +204,13 @@ test('an aborted signal stops the call before any scanning starts', async () => 
     }
     await assert.rejects(() => tool.execute({ paths: ['legacy.css'] }, fakeExec(dir, signal)), /aborted by the host/)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    await removeTree(dir)
   }
 })
 
 test('the tool says why it skipped what it skipped, and how many of each', async (t) => {
-  const dir = await mkdtemp(join(scratch, 'scan-skip-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  const dir = await makeScratchDir('scan-skip')
+  t.after(() => removeTree(dir))
   await mkdir(join(dir, '.firecrawl'), { recursive: true })
   await mkdir(join(dir, 'artifacts'), { recursive: true })
   await writeFile(join(dir, 'app.js'), 'document.write("kept")\n', 'utf8')

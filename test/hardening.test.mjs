@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { apply } from '../index.js'
 import { createGuidance } from '../lib/guidance.js'
 import { DATA_DIR } from './paths.mjs'
+import { removeTree } from './tmp.mjs'
 
 /**
  * Regressions for the security/robustness audit: every test here fails on the code as it was
@@ -32,7 +33,7 @@ async function withTempData(build) {
     await build(root)
     return root
   } catch (error) {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
     throw error
   }
 }
@@ -129,7 +130,7 @@ test('a failed index build is retried instead of poisoning the session', async (
     const hits = await instance.search('demo', { limit: 1 })
     assert.equal(hits[0].id, 'demo')
   } finally {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   }
 })
 
@@ -147,7 +148,7 @@ test('catalog entries cannot read files outside the data directory', async () =>
     const instance = createGuidance({ dataDir: join(root, 'data') })
     await assert.rejects(instance.retrieve('ok'), /invalid guide id/)
   } finally {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   }
 })
 

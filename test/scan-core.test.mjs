@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 
 import { RULES } from '../lib/scan-rules.js'
 import { SCAN_LIMITS, ScanError, scan } from '../lib/scan.js'
+import { makeScratchDir, removeTree, sweepStale } from './tmp.mjs'
 
-const scratch = join(import.meta.dirname, '..', '.tmp')
+/** Sweep the roots an earlier failed run left behind, before this run creates any of its own. */
+await sweepStale(['scan-core'])
 
 /** Create a throwaway workspace tree from `{ 'relative/path': content }` pairs. */
 async function makeWorkspace(files = {}) {
-  await mkdir(scratch, { recursive: true })
-  const root = await mkdtemp(join(scratch, 'scan-core-'))
+  const root = await makeScratchDir('scan-core')
   for (const [name, content] of Object.entries(files)) {
     const absolute = join(root, name)
     await mkdir(dirname(absolute), { recursive: true })
@@ -26,7 +27,7 @@ async function withWorkspace(files, run) {
   try {
     return await run(root)
   } finally {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   }
 }
 
@@ -148,7 +149,7 @@ test('a path that resolves outside the workspace is refused', async () => {
     const result = await scan({ cwd, paths: ['./app.js'], rules: [RULE_MODAL] })
     assert.equal(result.findings.length, 1)
   } finally {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   }
 })
 
@@ -447,7 +448,7 @@ test('a symlink that leaves the workspace is skipped while walking', async (t) =
     // A symlink *named* as a root is held to the stricter rule: an explicit escape is an error.
     await assert.rejects(scan({ cwd, paths: ['link.js'], rules: [RULE_MODAL] }), isScanError('path-outside', 'link.js'))
   } finally {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   }
 })
 

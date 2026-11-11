@@ -16,7 +16,7 @@
 
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -25,6 +25,7 @@ import { apply } from '../index.js'
 import { RULES } from '../lib/scan-rules.js'
 import { scan } from '../lib/scan.js'
 import { siteId } from '../lib/site.js'
+import { removeTree } from './tmp.mjs'
 import {
   clampReason,
   MAX_REASON_CHARS,
@@ -58,7 +59,7 @@ const ALPHA = { id: 'aaaa1111', name: 'app' }
 async function workspace(t, files = {}) {
   const root = await mkdtemp(join(tmpdir(), 'suppress-'))
   t.after(async () => {
-    await rm(root, { recursive: true, force: true })
+    await removeTree(root)
   })
   for (const [path, contents] of Object.entries(files)) {
     const absolute = join(root, path)
@@ -1113,7 +1114,7 @@ test('an absent entry is a named no-op, and a removal it cannot finish writes no
   assert.deepEqual(await digestTree(root), future)
 
   // A missing file is a no-op too: there is nothing to remove, and the answer says which file.
-  await rm(join(root, SUPPRESS_FILE))
+  await removeTree(join(root, SUPPRESS_FILE))
   const missing = await runSuppress(root, '--remove aaaaaaaa')
   assert.equal(missing.kind, 'success')
   assert.match(missing.text, /^Nothing to remove: .*\.suppress does not exist, so aaaaaaaa is not in it; nothing was written\.$/)
